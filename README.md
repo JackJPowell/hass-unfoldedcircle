@@ -1,4 +1,4 @@
-## hass-unfolded-circle
+## hass-unfoldedcircle
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://brands.home-assistant.io/unfoldedcircle/dark_logo.png">
@@ -27,7 +27,6 @@ There are two main ways to install this custom component within your Home Assist
 2. Manual Installation:
    1. Download or clone this repository
    2. Copy the contents of the folder **custom_components/unfoldedcircle** into the same file structure on your Home Assistant instance
-      - An easy way to do this is using the [Samba add-on](https://www.home-assistant.io/getting-started/configuration/#editing-configuration-via-sambawindows-networking), but feel free to do so however you want
    3. Restart your Home Assistant instance and then proceed to the _Configuration_ section below.
 
 While the manual installation above seems like less steps, it's important to note that you will not be able to see updates to this custom component unless you are subscribed to the watch list. You will then have to repeat each step in the process. By using HACS, you'll be able to see that an update is available and easily update the custom component. Trust me, HACS is the worth the small upfront investment to get it setup.
@@ -36,13 +35,15 @@ While the manual installation above seems like less steps, it's important to not
 
 There is a config flow for this integration. After installing the custom component:
 
-1. Go to **Configuration**->**Integrations**
+1. Go to **Settings** -> **Devices & Services** -> **Integrations**
 2. Click **+ ADD INTEGRATION** to setup a new integration
-3. Search for **Unfolded Circle** and click on it
-4. You will now begin the configuration flow process
-5. PIN can be found on the remote by enabling the web configurator
-6. Host is the IP address or hostname your remote
-7. If you have a custom api url, you can pass in the full endpoint address
+3. Search for **Unfolded Circle** and select it
+4. *You will now begin the configuration flow process*
+5. **PIN** can be found on the remote by enabling the web configurator
+  1. Enable the web configurator by tapping in the upper right on your profile icon
+  2. Make sure the toggle is 'ON' and a PIN will be displayed. If not, click the refresh button
+7. **Host** is the IP address or hostname of your remote
+  1. *(Optional) If you have a custom api url, you can pass in the full endpoint address*
 
 ##Usage
 
