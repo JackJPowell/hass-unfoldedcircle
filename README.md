@@ -78,14 +78,18 @@ target:
   entity_id: remote.remote_two_remote
 ```
 > [!TIP]
-> Device will match the case-sensitive name of your remote defined in the web configurator on the remote page
-> Command will match the case-senstitive name of the pre-defined (custom or codeset) command defined for that remote
-> num_repeats is optional
+> Device will match the case-sensitive name of your remote defined in the web configurator on the remote page. Command will match the case-senstitive name of the pre-defined (custom or codeset) command defined for that remote
 
 ## Future Ideas
+[x] Implement a remote entity to send IR commands (Easy)
+[x] Implement a service entity to send power commands to the remote itself (Easy)
+[ ] Add support for zeroconf discovery
+[ ] Provide the ability to adjust settings on the remote from with home assistant (Useful?)
+[ ] Provide the ability to reconfigure integration
 
-- Add support for zeroconf discovery
-- Provide the ability to adjust settings on the remote from with home assistant (Useful?)
+## Notes
+- The remote entity does not need to be "on" for it to send commands
+- The Remote Two will go to sleep when unpowered. When this occurs, Home Assistant is unable to communicate with the remote and retrieve updates
 
 ## About This Project
 
