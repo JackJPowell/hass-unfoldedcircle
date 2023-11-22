@@ -1,12 +1,14 @@
-"""Binary sensor platform for Unfolded Circle"""
+"""Remote sensor platform for Unfolded Circle"""
 from typing import Any
 import logging
 
-from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.components.remote import RemoteEntity, RemoteEntityFeature, RemoteEntityDescription
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity import ToggleEntityDescription
 from homeassistant.helpers.device_registry import DeviceInfo
+from collections.abc import Iterable
 from .const import DOMAIN
 
 from homeassistant.const import (
@@ -30,18 +32,23 @@ async def async_setup_entry(
 
     # Get Basic Device Information
     await remote.update()
+    await remote.get_remotes()
+    await remote.get_remote_codesets()
+    await remote.get_docks()
 
     new_devices = []
-    new_devices.append(BinarySensor(remote))
+    new_devices.append(RemoteSensor(remote))
     if new_devices:
         async_add_entities(new_devices)
 
 
-class BinarySensor(BinarySensorEntity):
+class RemoteSensor(RemoteEntity):
     # The class of this device. Note the value should come from the homeassistant.const
     # module. More information on the available devices classes can be seen here:
     # https://developers.home-assistant.io/docs/core/entity/sensor
-    device_class = ATTR_BATTERY_CHARGING
+    _attr_icon = "mdi:remote"
+    entity_description: ToggleEntityDescription
+    _attr_supported_features: RemoteEntityFeature = RemoteEntityFeature.ACTIVITY
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -65,15 +72,27 @@ class BinarySensor(BinarySensorEntity):
 
         # As per the sensor, this must be a unique value within this domain. This is done
         # by using the device ID, and appending "_battery"
-        self._attr_unique_id = f"{self._remote.serial_number}_charging_status"
+        self._attr_unique_id = f"{self._remote.serial_number}_remote"
 
         # The name of the entity
-        self._attr_name = f"{self._remote.name} Charging Status"
+        self._attr_name = f"{self._remote.name} Remote"
+        self._attr_activity_list = []
+        self._attr_is_on = False
+        for activity in self._remote.activities:
+            self._attr_activity_list.append(activity.name)
 
-    @property
-    def is_on(self):
-        """Return the state of the binary sensor."""
-        return self._remote.is_charging
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn the entity on."""
+        self._attr_is_on = True
 
-    async def async_update(self) -> None:
-       await self._remote.update()
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn the entity off."""
+        self._attr_is_on = False
+
+    async def async_send_command(self, command: Iterable[str], **kwargs):
+        for indv_command in command:
+            await self._remote.send_remote_command(
+                device=kwargs.get("device"),
+                command=indv_command,
+                repeat=kwargs.get("num_repeats"),
+            )

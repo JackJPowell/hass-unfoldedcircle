@@ -10,9 +10,12 @@ from homeassistant.const import (
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_ILLUMINANCE,
     PERCENTAGE,
-    ATTR_BATTERY_CHARGING,
+    DATA_MEBIBYTES,
 )
+from homeassistant.const import EntityCategory
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
+from homeassistant.components.sensor import SensorStateClass
 
 from .const import DOMAIN
 
@@ -38,6 +41,9 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     new_devices = []
     new_devices.append(BatterySensor(remote))
     new_devices.append(IlluminanceSensor(remote))
+    new_devices.append(MemorySensor(remote))
+    new_devices.append(StorageSensor(remote))
+    new_devices.append(LoadSensor(remote))
     if new_devices:
         async_add_entities(new_devices)
 
@@ -57,9 +63,20 @@ class SensorBase(Entity):
     # as name. If name is returned, this entity will then also become a device in the
     # HA UI.
     @property
-    def device_info(self):
-        """Return information to link this entity with the correct device."""
-        return {"identifiers": {(DOMAIN, self._remote.serial_number)}}
+    def device_info(self) -> DeviceInfo:
+        """Return the device info."""
+        return DeviceInfo(
+            identifiers={
+                # Serial numbers are unique identifiers within a specific domain
+                (DOMAIN, self._remote.serial_number)
+            },
+            name=self._remote.name,
+            manufacturer=self._remote.manufacturer,
+            model=self._remote.model_name,
+            sw_version=self._remote.sw_version,
+            hw_version=self._remote.hw_revision,
+            configuration_url=self._remote.configuration_url,
+        )
 
     # This property is important to let HA know if this entity is online or not.
     # If an entity is offline (return False), the UI will refelect this.
@@ -159,3 +176,70 @@ class ChargingSensor(SensorBase):
     def state(self):
         """Return the state of the sensor."""
         return self._remote.ambient_light_intensity
+
+
+class MemorySensor(SensorBase):
+    """Representation of a Sensor."""
+
+    device_class = DATA_MEBIBYTES
+    _attr_unit_of_measurement = "MiB"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, remote):
+        """Initialize the sensor."""
+        super().__init__(remote)
+        # As per the sensor, this must be a unique value within this domain. This is done
+        # by using the device ID, and appending "_battery"
+        self._attr_unique_id = f"{self._remote.serial_number}_memory_available"
+
+        # The name of the entity
+        self._attr_name = f"{self._remote.name} Memory Available"
+
+    @property
+    def state(self):
+        """Return the state of the sensor."""
+        return self._remote.memory_available
+
+
+class StorageSensor(SensorBase):
+    """Representation of a Sensor."""
+
+    device_class = DATA_MEBIBYTES
+    _attr_unit_of_measurement = "MiB"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, remote):
+        """Initialize the sensor."""
+        super().__init__(remote)
+        # As per the sensor, this must be a unique value within this domain. This is done
+        # by using the device ID, and appending "_battery"
+        self._attr_unique_id = f"{self._remote.serial_number}_storage_available"
+
+        # The name of the entity
+        self._attr_name = f"{self._remote.name} Storage Available"
+
+    @property
+    def state(self):
+        """Return the state of the sensor."""
+        return self._remote.storage_available
+
+class LoadSensor(SensorBase):
+    """Representation of a Sensor."""
+
+    _attr_unit_of_measurement = "Load"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, remote):
+        """Initialize the sensor."""
+        super().__init__(remote)
+        # As per the sensor, this must be a unique value within this domain. This is done
+        # by using the device ID, and appending "_battery"
+        self._attr_unique_id = f"{self._remote.serial_number}_cpu_load_1_min"
+
+        # The name of the entity
+        self._attr_name = f"{self._remote.name} CPU Load Avg (1 min)"
+
+    @property
+    def state(self):
+        """Return the state of the sensor."""
+        return self._remote._cpu_load.get("one")

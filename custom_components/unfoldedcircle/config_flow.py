@@ -20,13 +20,13 @@ from homeassistant.const import (
 
 from pyUnfoldedCircleRemote.remote import UCRemote
 
-# from . import ucRemote
+#from . import ucRemote
 
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-AUTH_APIKEY_NAME = "pyUnfoldedCircle"
+AUTH_APIKEY_NAME = "pyUnfoldedCircle-dev"
 AUTH_USERNAME = "web-configurator"
 
 STEP_USER_DATA_SCHEMA = vol.Schema(

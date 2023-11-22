@@ -6,6 +6,8 @@ from homeassistant.components.update import UpdateEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.const import EntityCategory
+from homeassistant.helpers.device_registry import DeviceInfo
 from .const import DOMAIN
 
 from homeassistant.components.update.const import UpdateEntityFeature
@@ -39,6 +41,24 @@ class Update(UpdateEntity):
     # module. More information on the available devices classes can be seen here:
     # https://developers.home-assistant.io/docs/core/entity/sensor
 
+    _attr_icon = "mdi:update"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return the device info."""
+        return DeviceInfo(
+            identifiers={
+                # Serial numbers are unique identifiers within a specific domain
+                (DOMAIN, self._remote.serial_number)
+            },
+            name=self._remote.name,
+            manufacturer=self._remote.manufacturer,
+            model=self._remote.model_name,
+            sw_version=self._remote.sw_version,
+            hw_version=self._remote.hw_revision,
+            configuration_url=self._remote.configuration_url,
+        )
+
     def __init__(self, remote):
         """Initialize the sensor."""
         self._remote = remote
@@ -48,7 +68,7 @@ class Update(UpdateEntity):
         self._attr_unique_id = f"{self._remote.name}_update_status"
 
         # The name of the entity
-        self._attr_name = f"{self._remote.name} Update"
+        self._attr_name = f"{self._remote.name} Firmware"
         self._attr_auto_update = self._remote.automatic_updates
         self._attr_installed_version = self._remote.sw_version
         self._attr_device_class = "firmware"
@@ -56,6 +76,7 @@ class Update(UpdateEntity):
 
         self._attr_latest_version = self._remote.latest_sw_version
         self._attr_release_url = self._remote.release_notes_url
+        self._attr_entity_category = EntityCategory.CONFIG
 
         # self._attr_state: None = None
         # _attr_release_summary = #TODO
@@ -86,3 +107,5 @@ class Update(UpdateEntity):
 
     async def async_update(self) -> None:
         await self._remote.get_remote_update_information()
+        self._attr_latest_version = self._remote.latest_sw_version
+        self._attr_installed_version = self._remote.sw_version

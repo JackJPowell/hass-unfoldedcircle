@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import typing
 
 import voluptuous as vol
 
@@ -73,6 +74,8 @@ class UCRemoteSwitch(SwitchEntity):
             manufacturer=self.switch.remote.manufacturer,
             model=self.switch.remote.model_name,
             sw_version=self.switch.remote.sw_version,
+            hw_version=self.switch.remote.hw_revision,
+            configuration_url=self.switch.remote.configuration_url,
         )
 
     """Representation of a Switch."""
@@ -85,7 +88,7 @@ class UCRemoteSwitch(SwitchEntity):
         self._attr_unique_id = switch._id
         self._state = switch.state
         self.unique_id = self.switch._id
-        self._attr_icon = "mdi:remote"
+        self._attr_icon = "mdi:remote-tv"
 
     @property
     def name(self) -> str:

@@ -1,17 +1,14 @@
-"""Binary sensor platform for Unfolded Circle"""
+"""Button for Unfolded Circle"""
 from typing import Any
 import logging
 
-from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.components.button import ButtonEntity, ButtonDeviceClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.const import EntityCategory
 from homeassistant.helpers.device_registry import DeviceInfo
 from .const import DOMAIN
-
-from homeassistant.const import (
-    ATTR_BATTERY_CHARGING,
-)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,16 +29,17 @@ async def async_setup_entry(
     await remote.update()
 
     new_devices = []
-    new_devices.append(BinarySensor(remote))
+    new_devices.append(Button(remote))
     if new_devices:
         async_add_entities(new_devices)
 
 
-class BinarySensor(BinarySensorEntity):
-    # The class of this device. Note the value should come from the homeassistant.const
-    # module. More information on the available devices classes can be seen here:
-    # https://developers.home-assistant.io/docs/core/entity/sensor
-    device_class = ATTR_BATTERY_CHARGING
+class Button(ButtonEntity):
+    """Representation of a Button entity."""
+
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_icon = "mdi:gesture-tap-button"
+    _attr_device_class = ButtonDeviceClass.RESTART
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -62,18 +60,14 @@ class BinarySensor(BinarySensorEntity):
     def __init__(self, remote):
         """Initialize the sensor."""
         self._remote = remote
-
-        # As per the sensor, this must be a unique value within this domain. This is done
-        # by using the device ID, and appending "_battery"
-        self._attr_unique_id = f"{self._remote.serial_number}_charging_status"
-
-        # The name of the entity
-        self._attr_name = f"{self._remote.name} Charging Status"
+        self._attr_unique_id = f"{self._remote.serial_number}_restart_button"
+        self._attr_name = f"{self._remote.name} Restart Remote"
 
     @property
-    def is_on(self):
-        """Return the state of the binary sensor."""
-        return self._remote.is_charging
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return self._remote._online
 
-    async def async_update(self) -> None:
-       await self._remote.update()
+    async def async_press(self) -> None:
+        """Press the button."""
+        await self._remote.post_system_command("RESTART")

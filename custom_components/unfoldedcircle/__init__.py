@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 from pyUnfoldedCircleRemote.remote import UCRemote as remote
 
-# from . import ucRemote as remote
+#from . import ucRemote as remote
 
 from .const import DOMAIN
 
@@ -19,6 +19,8 @@ PLATFORMS: list[Platform] = [
     Platform.SENSOR,
     Platform.BINARY_SENSOR,
     Platform.UPDATE,
+    Platform.BUTTON,
+    Platform.REMOTE,
 ]
 
 
