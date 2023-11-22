@@ -70,4 +70,4 @@ class Button(ButtonEntity):
 
     async def async_press(self) -> None:
         """Press the button."""
-        await self._remote.post_system_command("RESTART")
+        await self._remote.post_system_command("REBOOT")
