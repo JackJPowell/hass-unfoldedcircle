@@ -52,6 +52,7 @@ After the device is configured, the integration will expose 4 entities plus the 
 - Sensors
     - Battery: Reporting current charge percentage
     - Illuminance: Reporting current lux value from ambient light sensor
+    - Resource Usage: CPU load, Memory, and Storage Statistics
 - Binary Sensor
     - Battery Charging Status: Charging state of device: Helpful in automations to tell if the device is charging (online and available)
 - Update
@@ -59,13 +60,33 @@ After the device is configured, the integration will expose 4 entities plus the 
         - The ability to install Remote Two firmware from within home assistant is implemented but currently disabled.
 - Switches
     - A switch is created for every activity defined
+- Button
+    - A button is available to restart the remote
+- Remote
+    - A remote is available to send pre-configured IR commands from the dock (See Below)
+
+## IR Remote Commands
+
+How to interact with the Remote Service:
+The remote entity supports sending IR commands using the remote.send_command service. 
+```
+service: remote.send_command
+data:
+  device: Receiver
+  command: Power
+target:
+  entity_id: remote.remote_two_remote
+```
+> [!TIP]
+> Device will match the case-sensitive name of your remote defined in the web configurator on the remote page
+> Command will match the case-senstitive name of the pre-defined (custom or codeset) command defined for that remote
+> num_repeats is optional
 
 ## Future Ideas
 
-- Implement a remote entity to send IR commands (Easy)
-- Implement a service entity to send power commands to the remote itself (Easy)
+- Add support for zeroconf discovery
 - Provide the ability to adjust settings on the remote from with home assistant (Useful?)
 
 ## About This Project
 
-I am not associated with Unfolded Circle, and provide this custom component purely for your own enjoyment and home automation needs. Those guys are awesome though! Keep on killing it!
+I am not associated with Unfolded Circle, and provide this custom component purely for your own enjoyment and home automation needs. Those guys are awesome though!
