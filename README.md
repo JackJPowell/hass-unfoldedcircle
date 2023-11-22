@@ -1,16 +1,15 @@
 ## hass-unfoldedcircle
-
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://brands.home-assistant.io/unfoldedcircle/dark_logo.png">
   <img alt="Unfolded Circle logo" src="https://brands.home-assistant.io/unfoldedcircle/logo.png">
 </picture>
 
-## Unfolded Circle for Home Assistant
 
+## Unfolded Circle for Home Assistant
 Home Assistant integration for [Unfolde Circle Remote Two](https://www.unfoldedcircle.com/).
 
-## Installation
 
+## Installation
 There are two main ways to install this custom component within your Home Assistant instance:
 
 1. Using HACS (see https://hacs.xyz/ for installation instructions if you do not already have it installed):
@@ -31,8 +30,8 @@ There are two main ways to install this custom component within your Home Assist
 
 While the manual installation above seems like less steps, it's important to note that you will not be able to see updates to this custom component unless you are subscribed to the watch list. You will then have to repeat each step in the process. By using HACS, you'll be able to see that an update is available and easily update the custom component. Trust me, HACS is the worth the small upfront investment to get it setup.
 
-## Configuration
 
+## Configuration
 There is a config flow for this integration. After installing the custom component:
 
 1. Go to **Settings** -> **Devices & Services** -> **Integrations**
@@ -45,8 +44,8 @@ There is a config flow for this integration. After installing the custom compone
 7. **Host** is the IP address or hostname of your remote
   1. *(Optional) If you have a custom api url, you can pass in the full endpoint address*
 
-##Usage
 
+## Usage
 After the device is configured, the integration will expose 4 entities plus the number of activities you have defined on your remote. These are grouped by device.
 
 - Sensors
@@ -65,8 +64,8 @@ After the device is configured, the integration will expose 4 entities plus the 
 - Remote
     - A remote is available to send pre-configured IR commands from the dock (See Below)
 
-## IR Remote Commands
 
+## IR Remote Commands
 How to interact with the Remote Service:
 The remote entity supports sending IR commands using the remote.send_command service. 
 ```
@@ -78,18 +77,21 @@ target:
   entity_id: remote.remote_two_remote
 ```
 > [!TIP]
-> Device will match the case-sensitive name of your remote defined in the web configurator on the remote page. Command will match the case-senstitive name of the pre-defined (custom or codeset) command defined for that remote
+> **device:** will match the case-sensitive name of your remote defined in the web configurator on the remote page. **command** will match the case-senstitive name of the pre-defined (custom or codeset) command defined for that remote. **num_repeats** is optional.
+
 
 ## Future Ideas
-[x] Implement a remote entity to send IR commands (Easy)
-[x] Implement a service entity to send power commands to the remote itself (Easy)
-[ ] Add support for zeroconf discovery
-[ ] Provide the ability to adjust settings on the remote from with home assistant (Useful?)
-[ ] Provide the ability to reconfigure integration
+- [x] Implement a remote entity to send IR commands (Easy)
+- [x] Implement a service entity to send power commands to the remote itself (Easy)
+- [ ] Add support for zeroconf discovery
+- [ ] Provide the ability to adjust settings on the remote from with home assistant (Useful?)
+- [ ] Provide the ability to reconfigure integration
+
 
 ## Notes
 - The remote entity does not need to be "on" for it to send commands
 - The Remote Two will go to sleep when unpowered. When this occurs, Home Assistant is unable to communicate with the remote and retrieve updates
+
 
 ## About This Project
 
