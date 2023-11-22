@@ -107,10 +107,12 @@ class UCRemoteSwitch(SwitchEntity):
         brightness control.
         """
         await self.switch.turn_on()
+        self._state = "ON"
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Instruct the switch to turn off."""
         await self.switch.turn_off()
+        self._state = "OFF"
 
     async def async_update(self) -> None:
         """Fetch new state data for this switch.
