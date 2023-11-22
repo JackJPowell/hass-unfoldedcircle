@@ -39,10 +39,11 @@ There is a config flow for this integration. After installing the custom compone
 3. Search for **Unfolded Circle** and select it
 4. *You will now begin the configuration flow process*
 5. **PIN** can be found on the remote by enabling the web configurator
-  1. Enable the web configurator by tapping in the upper right on your profile icon
-  2. Make sure the toggle is 'ON' and a PIN will be displayed. If not, click the refresh button
+   1. Enable the web configurator by tapping in the upper right on your profile icon
+   2. Make sure the toggle is 'ON' and a PIN will be displayed. If not, click the refresh button
+   3. The **PIN** is only required during initial setup. You are free to change it immediately after
 7. **Host** is the IP address or hostname of your remote
-  1. *(Optional) If you have a custom api url, you can pass in the full endpoint address*
+   1. *(Optional) If you have a custom api url, you can pass in the full endpoint address*
 
 
 ## Usage
