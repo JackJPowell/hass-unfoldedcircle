@@ -85,13 +85,13 @@ target:
 - [x] Implement a remote entity to send IR commands (Easy)
 - [x] Implement a service entity to send power commands to the remote itself (Easy)
 - [ ] Add support for zeroconf discovery
-- [ ] Provide the ability to adjust settings on the remote from with home assistant (Useful?)
-- [ ] Provide the ability to reconfigure integration
+- [ ] Provide the ability to adjust settings on the remote from within home assistant (Useful?)
+- [ ] Provide the ability to reconfigure the integration from the UI
 
 
 ## Notes
-- The remote entity does not need to be "on" for it to send commands
-- The Remote Two will go to sleep when unpowered. When this occurs, Home Assistant is unable to communicate with the remote and retrieve updates
+- The remote entity does not need to be "on" for it to send commands.
+- The Remote Two will go to sleep when unpowered. When this occurs, Home Assistant is unable to communicate with the remote and retrieve updates.
 
 
 ## About This Project
