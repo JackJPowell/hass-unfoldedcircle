@@ -6,15 +6,13 @@ from typing import Any, Dict
 
 import voluptuous as vol
 
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
+from homeassistant.core import HomeAssistant, callback
 from homeassistant import config_entries
-from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.const import (
-    CONF_API_KEY,
-    CONF_NAME,
     CONF_PIN,
-    CONF_TYPE,
     CONF_URL,
 )
 
@@ -64,7 +62,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     return {"title": "Unfolded Circle", "apiKey": api_key}
 
 
-class UnfoldedCircleRemoteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Unfolded Circle Remote."""
 
     VERSION = 1
@@ -73,6 +71,12 @@ class UnfoldedCircleRemoteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def __init__(self):
         self.api: UCRemote = None
         self.api_keyname: str = None
+
+    # @staticmethod
+    # @callback
+    # def async_get_options_flow(config_entry: ConfigEntry) -> UnfoldedCircleRemoteOptionsFlowHandler:
+    #     """Get the options flow for this handler."""
+    #     return UnfoldedCircleRemoteOptionsFlowHandler(config_entry)
 
     async def async_setup_api(self, endpoint, unique_id):
         await self.async_set_unique_id(unique_id, raise_on_progress=True)
@@ -182,6 +186,22 @@ class UnfoldedCircleRemoteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=auth_schema,
             errors=errors,
         )
+
+class UnfoldedCircleRemoteOptionsFlowHandler(OptionsFlow):
+    """Handle Unfolded Circle Remote options."""
+
+    def __init__(self, config_entry: ConfigEntry) -> None:
+        """Initialize options flow."""
+        self.config_entry = config_entry
+
+    async def async_step_init(
+        self, user_input: dict[str, int] | None = None
+    ) -> FlowResult:
+        """Manage Unfolded Circle options."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        return self.async_show_form(step_id="init", data_schema=STEP_USER_DATA_SCHEMA, )
 
 
 class CannotConnect(HomeAssistantError):

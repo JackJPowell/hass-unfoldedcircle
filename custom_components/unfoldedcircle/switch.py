@@ -98,21 +98,15 @@ class UCRemoteSwitch(SwitchEntity):
     @property
     def is_on(self) -> bool | None:
         """Return true if switch is on."""
-        return self._state == "ON"
+        return self._state == "ON" or self._state == "RUNNING"
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Instruct the switch to turn on.
-
-        You can skip the brightness part if your switch does not support
-        brightness control.
-        """
+        """Instruct the switch to turn on."""
         await self.switch.turn_on()
-        self._state = "ON"
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Instruct the switch to turn off."""
         await self.switch.turn_off()
-        self._state = "OFF"
 
     async def async_update(self) -> None:
         """Fetch new state data for this switch.

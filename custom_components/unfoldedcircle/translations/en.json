@@ -16,5 +16,15 @@
                 }
             }
         }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "data": {
+                    "host": "Host",
+                    "pin": "PIN Code"
+                }
+            }
+        }
     }
 }
