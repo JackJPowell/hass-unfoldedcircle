@@ -6,6 +6,12 @@
           "pin": "[%key:common::config_flow::data::pin%]",
           "host": "[%key:common::config_flow::data::host%]"
         }
+      },
+      "zeroconf_confirm": {
+        "data": {
+          "pin": "[%key:common::config_flow::data::pin%]"
+        },
+        "title": "[%key:common::config_flow::title%]"
       }
     },
     "error": {
@@ -19,12 +25,12 @@
   },
   "options": {
     "step": {
-        "init": {
-            "data": {
-              "pin": "[%key:common::config_flow::data::pin%]",
-              "host": "[%key:common::config_flow::data::host%]"
-            }
+      "init": {
+        "data": {
+          "pin": "[%key:common::config_flow::data::pin%]",
+          "host": "[%key:common::config_flow::data::host%]"
         }
+      }
     }
   }
 }

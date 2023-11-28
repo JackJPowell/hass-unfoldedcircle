@@ -6,16 +6,16 @@
 # what the unit is, so it can display the correct range. For predefined types (such as
 # battery), the unit_of_measurement should match what's expected.
 import logging
+
 from homeassistant.const import (
+    DATA_MEBIBYTES,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_ILLUMINANCE,
     PERCENTAGE,
-    DATA_MEBIBYTES,
+    EntityCategory,
 )
-from homeassistant.const import EntityCategory
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
-from homeassistant.components.sensor import SensorStateClass
 
 from .const import DOMAIN
 

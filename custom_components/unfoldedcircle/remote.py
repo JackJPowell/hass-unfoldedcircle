@@ -1,19 +1,16 @@
-"""Remote sensor platform for Unfolded Circle"""
-from typing import Any
+"""Remote sensor platform for Unfolded Circle."""
+from collections.abc import Iterable
 import logging
+from typing import Any
 
-from homeassistant.components.remote import RemoteEntity, RemoteEntityFeature, RemoteEntityDescription
+from homeassistant.components.remote import RemoteEntity, RemoteEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.entity import ToggleEntityDescription
 from homeassistant.helpers.device_registry import DeviceInfo
-from collections.abc import Iterable
-from .const import DOMAIN
+from homeassistant.helpers.entity import ToggleEntityDescription
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from homeassistant.const import (
-    ATTR_BATTERY_CHARGING,
-)
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
