@@ -1,17 +1,14 @@
-"""Binary sensor platform for Unfolded Circle"""
-from typing import Any
+"""Binary sensor platform for Unfolded Circle."""
 import logging
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import ATTR_BATTERY_CHARGING
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.device_registry import DeviceInfo
-from .const import DOMAIN
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from homeassistant.const import (
-    ATTR_BATTERY_CHARGING,
-)
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -76,4 +73,4 @@ class BinarySensor(BinarySensorEntity):
         return self._remote.is_charging
 
     async def async_update(self) -> None:
-       await self._remote.update()
+        await self._remote.update()

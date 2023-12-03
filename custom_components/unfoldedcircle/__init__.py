@@ -1,15 +1,14 @@
 """The Unfolded Circle Remote integration."""
 from __future__ import annotations
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
-from homeassistant.components import zeroconf
-from urllib.parse import urlparse
 
 from pyUnfoldedCircleRemote.remote import UCRemote
 
-#from . import ucRemote as remote
+from homeassistant.components import zeroconf
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
+from homeassistant.core import HomeAssistant
 
+# from . import ucRemote as remote
 from .const import DOMAIN
 
 # TODO List the platforms that you want to support.
@@ -37,6 +36,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(update_listener))
+    await zeroconf.async_get_async_instance(hass)
     return True
 
 
@@ -46,6 +46,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop(entry.entry_id)
 
     return unload_ok
+
 
 async def update_listener(hass, entry):
     await hass.config_entries.async_reload(entry.entry_id)

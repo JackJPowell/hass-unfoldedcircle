@@ -81,10 +81,14 @@ target:
 > **device:** will match the case-sensitive name of your remote defined in the web configurator on the remote page. **command** will match the case-senstitive name of the pre-defined (custom or codeset) command defined for that remote. **num_repeats** is optional.
 
 
+## Zeroconf
+Your Remote Two will now be automatically discovered on the network. If you have already configured the remote two integration, you can ignore this discovery. 
+Currently, there is insufficient data sent in the mdns broadcast to identify if you have previosly added this device to home assistant. Until that changes, a single click of ignore will hide the request from view. 
+
 ## Future Ideas
 - [x] Implement a remote entity to send IR commands (Easy)
 - [x] Implement a service entity to send power commands to the remote itself (Easy)
-- [ ] Add support for zeroconf discovery
+- [x] Add support for zeroconf discovery
 - [ ] Provide the ability to adjust settings on the remote from within home assistant (Useful?)
 - [ ] Provide the ability to reconfigure the integration from the UI
 

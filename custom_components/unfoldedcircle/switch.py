@@ -2,19 +2,20 @@
 from __future__ import annotations
 
 import logging
-import typing
 
 import voluptuous as vol
 
-# Import the device class from the component that you want to support
-import homeassistant.helpers.config_validation as cv
 from homeassistant.components.switch import PLATFORM_SCHEMA, SwitchEntity
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
+
+# Import the device class from the component that you want to support
+import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import DiscoveryInfoType
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers.device_registry import DeviceInfo
+
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)

@@ -1,13 +1,13 @@
-"""Button for Unfolded Circle"""
-from typing import Any
+"""Button for Unfolded Circle."""
 import logging
 
-from homeassistant.components.button import ButtonEntity, ButtonDeviceClass
+from homeassistant.components.button import ButtonDeviceClass, ButtonEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.const import EntityCategory
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)

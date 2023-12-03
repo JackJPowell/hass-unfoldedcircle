@@ -1,16 +1,16 @@
 """Update sensor."""
-from typing import Any
 import logging
+from typing import Any
 
 from homeassistant.components.update import UpdateEntity
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.const import EntityCategory
-from homeassistant.helpers.device_registry import DeviceInfo
-from .const import DOMAIN
-
 from homeassistant.components.update.const import UpdateEntityFeature
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
