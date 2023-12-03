@@ -69,7 +69,6 @@ async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]
         CONF_SERIAL: remote.serial_number,
     }
 
-
 class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Unfolded Circle Remote."""
 
@@ -86,32 +85,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
     # def async_get_options_flow(config_entry: ConfigEntry) -> UnfoldedCircleRemoteOptionsFlowHandler:
     #     """Get the options flow for this handler."""
     #     return UnfoldedCircleRemoteOptionsFlowHandler(config_entry)
-
-    # async def async_login(self, data: dict[str, Any], host: str = "") -> dict[str, Any]:
-    #     if host != "":
-    #         self.api = UCRemote(host, data["pin"])
-    #     else:
-    #         self.api = UCRemote(data["host"], data["pin"])
-
-    #     if not await self.api.can_connect():
-    #         raise InvalidAuth
-
-    #     for key in await self.api.get_api_keys():
-    #         if key.get("name") == AUTH_APIKEY_NAME:
-    #             await self.api.revoke_api_key()
-    #     key = await self.api.create_api_key()
-    #     await self.api.get_remote_information()
-
-    #     if not key:
-    #         raise InvalidAuth("Unable to login: failed to create API key")
-
-    #     return {
-    #         "title": "Unfolded Circle",
-    #         "apiKey": key,
-    #         "host": host,
-    #         "pin": data["pin"],
-    #         CONF_SERIAL: self.api.serial_number,
-    #     }
 
     async def async_step_zeroconf(self, discovery_info: ZeroconfServiceInfo):
         """Handle zeroconf discovery."""
@@ -200,48 +173,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
-        )
-
-        # async def async_step_auth(self, user_input=None):
-        #     """Provide PIN code in order to authenticate and create an API key."""
-        #     errors: Dict[str, str] = {}
-
-        #     if user_input is not None:
-        #         pin = user_input[CONF_PIN]
-        #         self.api.pin = pin
-        #         try:
-        #             apikey = await self.async_login(user_input)
-        #         except UCRemote.HTTPError as e:
-        #             _LOGGER.warning(
-        #                 "Error while creating API key on %s: %s",
-        #                 self.api.endpoint,
-        #                 e.message,
-        #             )
-        #             errors["base"] = "connection"
-        #         except UCRemote.AuthenticationError as e:
-        #             _LOGGER.warning(
-        #                 "Authentication error on %s: %s",
-        #                 self.api.endpoint,
-        #                 e.message,
-        #             )
-        #             errors["base"] = "auth"
-        #         except TimeoutError as e:
-        #             _LOGGER.warning(
-        #                 "Timed out while creating API key on %s: %s",
-        #                 self.api.endpoint,
-        #                 e.message,
-        #             )
-        #             errors["base"] = "timeout"
-        #         else:
-        #             self.api.apikey = apikey
-        #             self.api_keyname = AUTH_APIKEY_NAME
-        #             return await self.async_step_finish()
-
-        auth_schema = vol.Schema({vol.Required(CONF_PIN): str})
-        return self.async_show_form(
-            step_id="auth",
-            data_schema=auth_schema,
-            errors=errors,
         )
 
     async def _async_set_unique_id_and_abort_if_already_configured(
