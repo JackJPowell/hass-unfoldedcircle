@@ -89,6 +89,7 @@ Currently, there is insufficient data sent in the mdns broadcast to identify if 
 - [x] Implement a remote entity to send IR commands (Easy)
 - [x] Implement a service entity to send power commands to the remote itself (Easy)
 - [x] Add support for zeroconf discovery
+- [ ] Once WOL is added by the remote developers, implement it in the hass integration to wake the remote prior to sending commands
 - [ ] Provide the ability to adjust settings on the remote from within home assistant (Useful?)
 - [ ] Provide the ability to reconfigure the integration from the UI
 
