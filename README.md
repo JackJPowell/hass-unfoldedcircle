@@ -32,8 +32,18 @@ While the manual installation above seems like less steps, it's important to not
 
 
 ## Configuration
-There is a config flow for this integration. After installing the custom component:
+There is a config flow for this integration. After installing the custom component and restarting:
 
+1. You should receive a notification that a new device was discovered.
+2. Navigate to  **Settings** -> **Devices & Services** and click Configure on the newly discovered Remote Two Device.
+3. *You will now begin the configuration flow process*
+4. **PIN** can be found on the remote by enabling the web configurator
+   1. Enable the web configurator by tapping in the upper right on your profile icon
+   2. Make sure the toggle is 'ON' and a PIN will be displayed. If not, click the refresh button
+   3. The **PIN** is only required during initial setup. You are free to change it immediately after
+5. Click Submit and select your device area.
+
+**Alternatively, if you do not have zeroconf discovery enabled, or your remote was not automatically discovered:**
 1. Go to **Settings** -> **Devices & Services** -> **Integrations**
 2. Click **+ ADD INTEGRATION** to setup a new integration
 3. Search for **Unfolded Circle** and select it
