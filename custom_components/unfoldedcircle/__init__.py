@@ -1,18 +1,15 @@
 """The Unfolded Circle Remote integration."""
 from __future__ import annotations
 
-from pyUnfoldedCircleRemote.remote import UCRemote
-
+from pyUnfoldedCircleRemote.remote import Remote
 from homeassistant.components import zeroconf
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
-# from . import ucRemote as remote
-from .const import DOMAIN
+from .const import DOMAIN, UNFOLDED_CIRCLE_API, UNFOLDED_CIRCLE_COORDINATOR
+from .coordinator import UnfoldedCircleRemoteCoordinator
 
-# TODO List the platforms that you want to support.
-# For your initial PR, limit it to 1 platform.
 PLATFORMS: list[Platform] = [
     Platform.SWITCH,
     Platform.SENSOR,
@@ -26,14 +23,14 @@ PLATFORMS: list[Platform] = [
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Unfolded Circle Remote from a config entry."""
 
-    hass.data.setdefault(DOMAIN, {})
-    # TODO 1. Create API instance
-    # TODO 2. Validate the API connection (and authentication)
-    # TODO 3. Store an API object for your platforms to access
-    # hass.data[DOMAIN][entry.entry_id] = MyApi(...)
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = UCRemote(
-        entry.data["host"], entry.data["pin"], entry.data["apiKey"]
-    )
+    remote_api = Remote(entry.data["host"], entry.data["pin"], entry.data["apiKey"])
+    coordinator = UnfoldedCircleRemoteCoordinator(hass, remote_api)
+
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+        UNFOLDED_CIRCLE_COORDINATOR: coordinator,
+        UNFOLDED_CIRCLE_API: remote_api,
+    }
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(update_listener))
     await zeroconf.async_get_async_instance(hass)
@@ -48,5 +45,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok
 
 
-async def update_listener(hass, entry):
+async def update_listener(hass: HomeAssistant, entry: ConfigEntry):
+    """Update Listener."""
     await hass.config_entries.async_reload(entry.entry_id)

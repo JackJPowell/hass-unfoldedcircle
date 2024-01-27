@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
+from .const import DOMAIN, UNFOLDED_CIRCLE_API
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -18,7 +18,8 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    remote = hass.data[DOMAIN][config_entry.entry_id]
+    """Set up entity in HA."""
+    remote = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_API]
 
     # Verify that passed in configuration works
     if not await remote.can_connect():
@@ -57,7 +58,7 @@ class Button(ButtonEntity):
             configuration_url=self._remote.configuration_url,
         )
 
-    def __init__(self, remote):
+    def __init__(self, remote) -> None:
         """Initialize the sensor."""
         self._remote = remote
         self._attr_unique_id = f"{self._remote.serial_number}_restart_button"
@@ -66,7 +67,7 @@ class Button(ButtonEntity):
     @property
     def available(self) -> bool:
         """Return if entity is available."""
-        return self._remote._online
+        return self._remote.online
 
     async def async_press(self) -> None:
         """Press the button."""

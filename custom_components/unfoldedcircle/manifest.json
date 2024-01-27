@@ -4,12 +4,12 @@
   "codeowners": ["@jackjpowell"],
   "config_flow": true,
   "dependencies": ["network", "zeroconf"],
-  "version": "0.1.1",
+  "version": "0.3.0",
   "documentation": "https://github.com/JackJPowell/hass-unfoldedcircle",
   "homekit": {},
   "integration_type": "device",
   "iot_class": "local_polling",
-  "requirements": ["pyUnfoldedCircleRemote==0.1.2"],
+  "requirements": ["pyUnfoldedCircleRemote==0.3.0"],
   "ssdp": [],
   "zeroconf": ["_uc-remote._tcp.local."]
 }

@@ -10,7 +10,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import ToggleEntityDescription
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
+from .const import DOMAIN, UNFOLDED_CIRCLE_API
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,7 +20,8 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    remote = hass.data[DOMAIN][config_entry.entry_id]
+    """Set up Platform."""
+    remote = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_API]
 
     # Verify that passed in configuration works
     if not await remote.can_connect():
@@ -40,6 +41,8 @@ async def async_setup_entry(
 
 
 class RemoteSensor(RemoteEntity):
+    """Remote Sensor."""
+
     # The class of this device. Note the value should come from the homeassistant.const
     # module. More information on the available devices classes can be seen here:
     # https://developers.home-assistant.io/docs/core/entity/sensor
@@ -63,7 +66,7 @@ class RemoteSensor(RemoteEntity):
             configuration_url=self._remote.configuration_url,
         )
 
-    def __init__(self, remote):
+    def __init__(self, remote) -> None:
         """Initialize the sensor."""
         self._remote = remote
 
@@ -87,6 +90,7 @@ class RemoteSensor(RemoteEntity):
         self._attr_is_on = False
 
     async def async_send_command(self, command: Iterable[str], **kwargs):
+        """Send a remote command."""
         for indv_command in command:
             await self._remote.send_remote_command(
                 device=kwargs.get("device"),

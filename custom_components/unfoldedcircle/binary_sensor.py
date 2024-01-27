@@ -4,11 +4,13 @@ import logging
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_BATTERY_CHARGING
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
+from .coordinator import UnfoldedCircleRemoteCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -18,23 +20,29 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    remote = hass.data[DOMAIN][config_entry.entry_id]
+    """Use to setup entity."""
+    coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
 
     # Verify that passed in configuration works
-    if not await remote.can_connect():
+    if not await coordinator.api.can_connect():
         _LOGGER.error("Could not connect to Remote")
         return
 
     # Get Basic Device Information
-    await remote.update()
+    await coordinator.api.update()
+    await coordinator.async_config_entry_first_refresh()
 
     new_devices = []
-    new_devices.append(BinarySensor(remote))
+    new_devices.append(BinarySensor(coordinator))
     if new_devices:
         async_add_entities(new_devices)
 
 
-class BinarySensor(BinarySensorEntity):
+class BinarySensor(
+    CoordinatorEntity[UnfoldedCircleRemoteCoordinator], BinarySensorEntity
+):
+    """Class representing a binary sensor."""
+
     # The class of this device. Note the value should come from the homeassistant.const
     # module. More information on the available devices classes can be seen here:
     # https://developers.home-assistant.io/docs/core/entity/sensor
@@ -46,31 +54,35 @@ class BinarySensor(BinarySensorEntity):
         return DeviceInfo(
             identifiers={
                 # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, self._remote.serial_number)
+                (DOMAIN, self.coordinator.api.serial_number)
             },
-            name=self._remote.name,
-            manufacturer=self._remote.manufacturer,
-            model=self._remote.model_name,
-            sw_version=self._remote.sw_version,
-            hw_version=self._remote.hw_revision,
-            configuration_url=self._remote.configuration_url,
+            name=self.coordinator.api.name,
+            manufacturer=self.coordinator.api.manufacturer,
+            model=self.coordinator.api.model_name,
+            sw_version=self.coordinator.api.sw_version,
+            hw_version=self.coordinator.api.hw_revision,
+            configuration_url=self.coordinator.api.configuration_url,
         )
 
-    def __init__(self, remote):
-        """Initialize the sensor."""
-        self._remote = remote
+    def __init__(self, coordinator) -> None:
+        """Initialize Binary Sensor."""
+        super().__init__(self, coordinator)
+        self.coordinator = coordinator
 
-        # As per the sensor, this must be a unique value within this domain. This is done
-        # by using the device ID, and appending "_battery"
-        self._attr_unique_id = f"{self._remote.serial_number}_charging_status"
+        # As per the sensor, this must be a unique value within this domain.
+        self._attr_unique_id = f"{self.coordinator.api.serial_number}_charging_status"
 
         # The name of the entity
-        self._attr_name = f"{self._remote.name} Charging Status"
+        self._attr_name = f"{self.coordinator.api.name} Charging Status"
+        self._attr_native_value = False
 
     @property
     def is_on(self):
         """Return the state of the binary sensor."""
-        return self._remote.is_charging
+        return self.coordinator.api.is_charging
 
-    async def async_update(self) -> None:
-        await self._remote.update()
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        self._attr_native_value = self.coordinator.api.is_charging
+        self.async_write_ha_state()

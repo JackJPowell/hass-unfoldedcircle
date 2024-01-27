@@ -2,15 +2,14 @@
 import logging
 from typing import Any
 
-from homeassistant.components.update import UpdateEntity
-from homeassistant.components.update.const import UpdateEntityFeature
+from homeassistant.components.update import UpdateEntity, UpdateEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
+from .const import DOMAIN, UNFOLDED_CIRCLE_API
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,7 +19,8 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    remote = hass.data[DOMAIN][config_entry.entry_id]
+    """Set up platform."""
+    remote = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_API]
 
     # Verify that passed in configuration works
     if not await remote.can_connect():
@@ -37,9 +37,7 @@ async def async_setup_entry(
 
 
 class Update(UpdateEntity):
-    # The class of this device. Note the value should come from the homeassistant.const
-    # module. More information on the available devices classes can be seen here:
-    # https://developers.home-assistant.io/docs/core/entity/sensor
+    """Update Entity."""
 
     _attr_icon = "mdi:update"
 
@@ -59,12 +57,9 @@ class Update(UpdateEntity):
             configuration_url=self._remote.configuration_url,
         )
 
-    def __init__(self, remote):
+    def __init__(self, remote) -> None:
         """Initialize the sensor."""
         self._remote = remote
-
-        # As per the sensor, this must be a unique value within this domain. This is done
-        # by using the device ID, and appending "_battery"
         self._attr_unique_id = f"{self._remote.name}_update_status"
 
         # The name of the entity
@@ -79,7 +74,7 @@ class Update(UpdateEntity):
         self._attr_entity_category = EntityCategory.CONFIG
 
         # self._attr_state: None = None
-        # _attr_release_summary = #TODO
+        # _attr_release_summary =
         self._attr_supported_features = UpdateEntityFeature(
             0
         )  # UpdateEntityFeature.INSTALL
@@ -106,6 +101,7 @@ class Update(UpdateEntity):
         # self._attr_in_progress = False
 
     async def async_update(self) -> None:
+        """Update update information."""
         await self._remote.get_remote_update_information()
         self._attr_latest_version = self._remote.latest_sw_version
         self._attr_installed_version = self._remote.sw_version

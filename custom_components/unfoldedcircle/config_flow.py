@@ -1,20 +1,17 @@
 """Config flow for Unfolded Circle Remote integration."""
-from __future__ import annotations
-
 import logging
 from typing import Any
 
-from pyUnfoldedCircleRemote.remote import UCRemote
+from pyUnfoldedCircleRemote.remote import Remote
 import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
-from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PIN, CONF_PORT
+from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 
-# from . import ucRemote
 from .const import CONF_SERIAL, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,15 +32,15 @@ async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
     """
     if host != "":
-        remote = UCRemote(host, data["pin"])
+        remote = Remote(host, data["pin"])
     else:
-        remote = UCRemote(data["host"], data["pin"])
+        remote = Remote(data["host"], data["pin"])
 
     if not await remote.can_connect():
         raise InvalidAuth
 
     for key in await remote.get_api_keys():
-        if key.get("name") == AUTH_APIKEY_NAME:
+        if key.get("name") == Remote.AUTH_APIKEY_NAME:
             await remote.revoke_api_key()
 
     key = await remote.create_api_key()
@@ -69,6 +66,7 @@ async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]
         CONF_SERIAL: remote.serial_number,
     }
 
+
 class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Unfolded Circle Remote."""
 
@@ -76,7 +74,8 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
     CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_POLL
 
     def __init__(self) -> None:
-        self.api: UCRemote = None
+        """PSN Config Flow."""
+        self.api: Remote = None
         self.api_keyname: str = None
         self.discovery_info: dict[str, Any] = {}
 
