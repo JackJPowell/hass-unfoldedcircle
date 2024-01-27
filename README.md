@@ -57,7 +57,7 @@ There is a config flow for this integration. After installing the custom compone
 
 
 ## Usage
-After the device is configured, the integration will expose 4 entities plus the number of activities you have defined on your remote. These are grouped by device.
+After the device is configured, the integration will expose 9 entities plus the number of activities you have defined on your remote. These are grouped by device.
 
 - Sensors
     - Battery: Reporting current charge percentage
@@ -99,7 +99,7 @@ Currently, there is insufficient data sent in the mdns broadcast to identify if 
 - [x] Implement a remote entity to send IR commands (Easy)
 - [x] Implement a service entity to send power commands to the remote itself (Easy)
 - [x] Add support for zeroconf discovery
-- [ ] Implement Home Assistant Coordinator Class to have some empathy for the machine
+- [x] Implement Home Assistant Coordinator Class to have some empathy for the machine
 - [ ] Once WOL is added by the remote developers, implement it in the hass integration to wake the remote prior to sending commands
 - [ ] Provide the ability to adjust settings on the remote from within home assistant (Useful?)
 - [ ] Provide the ability to reconfigure the integration from the UI
