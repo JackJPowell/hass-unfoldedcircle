@@ -1,0 +1,34 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3.5.3
+
+      - name: Set version number
+        shell: bash
+        run: |
+          yq -i -o json '.version="${{ github.event.release.tag_name }}"' \
+            "${{ github.workspace }}/custom_components/unfoldedcircle/manifest.json"
+
+      - name: ZIP integration directory
+        shell: bash
+        run: |
+          cd "${{ github.workspace }}/custom_components/unfoldedcircle"
+          zip unfoldedcircle.zip -r ./
+
+      - name: Upload ZIP file to release
+        uses: softprops/action-gh-release@v0.1.15
+        with:
+          files: ${{ github.workspace }}/custom_components/unfoldedcircle/pura.zip
