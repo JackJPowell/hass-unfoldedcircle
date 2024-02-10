@@ -1,6 +1,7 @@
 """Platform for sensor integration."""
-from dataclasses import dataclass
+
 import logging
+from dataclasses import dataclass
 from typing import cast
 
 from homeassistant.components.sensor import (
@@ -54,6 +55,7 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         has_entity_name=False,
         unique_id="memory_available",
         suggested_display_precision=0,
+        icon="mdi:memory",
     ),
     UnfoldedCircleSensorEntityDescription(
         key="storage_available",
@@ -64,6 +66,7 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         has_entity_name=False,
         unique_id="storage_available",
         suggested_display_precision=0,
+        icon="mdi:harddisk",
     ),
     UnfoldedCircleSensorEntityDescription(
         key="cpu_load_one",
@@ -73,6 +76,7 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         has_entity_name=False,
         unique_id="cpu_load_1_min",
         suggested_display_precision=2,
+        icon="mdi:cpu-64-bit",
     ),
 )
 

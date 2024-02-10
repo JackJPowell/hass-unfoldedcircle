@@ -1,16 +1,16 @@
 """Config flow for Unfolded Circle Remote integration."""
+
 import logging
 from typing import Any
 
-from pyUnfoldedCircleRemote.remote import Remote
 import voluptuous as vol
-
 from homeassistant import config_entries
 from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
+from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 from .const import CONF_SERIAL, DOMAIN
 
@@ -31,13 +31,21 @@ async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]
 
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
     """
+    errors = {}
     if host != "":
         remote = Remote(host, data["pin"])
     else:
         remote = Remote(data["host"], data["pin"])
 
-    if not await remote.can_connect():
-        raise InvalidAuth
+    try:
+        await remote.can_connect()
+    except AuthenticationError as err:
+        _LOGGER.exception(err)
+        raise InvalidAuth from err
+    except Exception as ex:  # pylint: disable=broad-except
+        _LOGGER.exception(ex)
+        errors["base"] = "unknown"
+        raise CannotConnect from ex
 
     for key in await remote.get_api_keys():
         if key.get("name") == Remote.AUTH_APIKEY_NAME:
@@ -74,7 +82,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
     CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_POLL
 
     def __init__(self) -> None:
-        """PSN Config Flow."""
+        """Unfolded Circle Config Flow."""
         self.api: Remote = None
         self.api_keyname: str = None
         self.discovery_info: dict[str, Any] = {}
@@ -128,10 +136,8 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             info = await validate_input(user_input, self.discovery_info[CONF_HOST])
         except CannotConnect as ex:
             _LOGGER.error(ex)
-            errors = {"base": ex.error_code}
         except InvalidAuth as ex:
             _LOGGER.error(ex)
-            errors = {"base": ex.error_code}
         else:
             return self.async_create_entry(
                 title="Remote two",
@@ -181,6 +187,56 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         await self.async_set_unique_id(unique_id)
         self._abort_if_unique_id_configured(
             updates={CONF_HOST: self.discovery_info[CONF_HOST]},
+        )
+
+    async def async_step_reauth(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Perform reauth upon an API authentication error."""
+        user_input["pin"] = None
+        user_input["apiKey"] = None
+        return await self.async_step_reauth_confirm(user_input)
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Dialog that informs the user that reauth is required."""
+        errors = {}
+        if user_input is None:
+            user_input = {}
+
+        if user_input.get("pin") is None:
+            return self.async_show_form(
+                step_id="reauth_confirm", data_schema=STEP_ZEROCONF_DATA_SCHEMA
+            )
+
+        try:
+            existing_entry = await self.async_set_unique_id(DOMAIN)
+            info = await validate_input(user_input, existing_entry.data["host"])
+        except CannotConnect:
+            _LOGGER.exception("Cannot Connect")
+            errors["base"] = "Cannot Connect"
+        except InvalidAuth:
+            _LOGGER.exception("Invalid PIN")
+            errors["base"] = "Invalid PIN"
+        except Exception as ex:  # pylint: disable=broad-except
+            _LOGGER.exception(ex)
+            errors["base"] = "unknown"
+        else:
+            existing_entry = await self.async_set_unique_id(DOMAIN)
+            if existing_entry:
+                self.hass.config_entries.async_update_entry(existing_entry, data=info)
+                await self.hass.config_entries.async_reload(existing_entry.entry_id)
+                return self.async_abort(reason="reauth_successful")
+
+            return self.async_create_entry(
+                title="Remote two",
+                data=info,
+            )
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=STEP_ZEROCONF_DATA_SCHEMA,
+            errors=errors,
         )
 
 

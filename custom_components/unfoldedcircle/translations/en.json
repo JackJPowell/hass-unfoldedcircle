@@ -20,6 +20,12 @@
           "pin": "PIN Code"
         },
         "title": "Remote Two"
+      },
+      "reauth_confirm": {
+        "data": {
+          "pin": "PIN Code"
+        },
+        "title": "Reauthenticate with PIN"
       }
     }
   },
