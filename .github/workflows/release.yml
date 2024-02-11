@@ -31,4 +31,4 @@ jobs:
       - name: Upload ZIP file to release
         uses: softprops/action-gh-release@v0.1.15
         with:
-          files: ${{ github.workspace }}/custom_components/unfoldedcircle/pura.zip
+          files: ${{ github.workspace }}/custom_components/unfoldedcircle/unfoldedcircle.zip
