@@ -7,7 +7,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
+from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_API, UNFOLDED_CIRCLE_COORDINATOR
 from .coordinator import UnfoldedCircleRemoteCoordinator
@@ -19,6 +19,7 @@ PLATFORMS: list[Platform] = [
     Platform.UPDATE,
     Platform.BUTTON,
     Platform.REMOTE,
+    Platform.SELECT
 ]
 
 
@@ -38,6 +39,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         UNFOLDED_CIRCLE_COORDINATOR: coordinator,
         UNFOLDED_CIRCLE_API: remote_api,
     }
+
+    # Retrieve info from Remote
+    # Get Basic Device Information
+    await coordinator.api.update()
+    await coordinator.async_config_entry_first_refresh()
+
+    # Add devices
+    await coordinator.api.get_activities()
+    await coordinator.api.get_activity_groups()
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(update_listener))

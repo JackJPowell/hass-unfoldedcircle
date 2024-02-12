@@ -30,14 +30,12 @@ async def async_setup_entry(
         _LOGGER.error("Could not connect to Remote")
         return
 
-    # Get Basic Device Information
-    await coordinator.api.update()
-    await coordinator.async_config_entry_first_refresh()
+    activity_ids = []
+    for activity_group in coordinator.api.activity_groups:
+        activity_ids.append(activity_group.activities)
 
-    # Add devices
-    await coordinator.api.get_activities()
     async_add_entities(
-        UCRemoteSwitch(coordinator, switch) for switch in coordinator.api.activities
+        UCRemoteSwitch(coordinator, switch) for switch in filter(lambda a: a._id not in activity_ids, coordinator.api.activities)
     )
 
 
