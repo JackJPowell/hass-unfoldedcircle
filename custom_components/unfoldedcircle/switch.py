@@ -32,7 +32,7 @@ async def async_setup_entry(
 
     activity_ids = []
     for activity_group in coordinator.api.activity_groups:
-        activity_ids.append(activity_group.activities)
+        activity_ids.extend(activity_group.activities)
 
     async_add_entities(
         UCRemoteSwitch(coordinator, switch) for switch in filter(lambda a: a._id not in activity_ids, coordinator.api.activities)
