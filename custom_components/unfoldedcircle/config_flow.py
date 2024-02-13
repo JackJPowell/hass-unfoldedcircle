@@ -59,6 +59,7 @@ async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]
 
     # api_key = await UnfoldedCircleRemoteConfigFlow.async_login()
     await remote.get_remote_information()
+    await remote.get_remote_configuration()
 
     # If you cannot connect:
     # throw CannotConnect
@@ -67,7 +68,7 @@ async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]
 
     # Return info that you want to store in the config entry.
     return {
-        "title": "Remote Two",
+        "title": remote.name,
         "apiKey": key,
         "host": remote.endpoint,
         "pin": data["pin"],
@@ -140,7 +141,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.error(ex)
         else:
             return self.async_create_entry(
-                title="Remote two",
+                title=info.get("title"),
                 data=info,
             )
 
@@ -230,7 +231,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 return self.async_abort(reason="reauth_successful")
 
             return self.async_create_entry(
-                title="Remote two",
+                title=info["title"],
                 data=info,
             )
         return self.async_show_form(
