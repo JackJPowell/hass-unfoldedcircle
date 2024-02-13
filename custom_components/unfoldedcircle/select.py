@@ -13,6 +13,7 @@ import logging
 
 _LOGGER = logging.getLogger(__name__)
 
+POWER_OFF_LABEL = "Power Off"
 
 async def async_setup_entry(
         hass: HomeAssistant,
@@ -54,7 +55,7 @@ class SelectUCRemoteActivity(
         self._state = activity_group.state
         self._attr_icon = "mdi:remote-tv"
         self._attr_native_value = "OFF"
-        self._activities: dict[str, any] = {}
+        self._activities: dict[str, any] = {POWER_OFF_LABEL: "OFF"}
         _LOGGER.debug("Activity groups %s", self.activity_group.activities)
         for activity_id in self.activity_group.activities:
             for activity in coordinator.api.activities:
@@ -78,14 +79,28 @@ class SelectUCRemoteActivity(
         )
 
     @property
+    def translation_key(self) -> str | None:
+        return "activity_group"
+
+    @property
     def current_option(self) -> str:
         for activity_name, activity in self._activities.items():
+            if activity_name == POWER_OFF_LABEL:
+                continue
             if activity.is_on():
                 return activity_name
-        return ""
+        return POWER_OFF_LABEL
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
+        if option == POWER_OFF_LABEL:
+            for activity_name, activity in self._activities.items():
+                if activity_name == POWER_OFF_LABEL:
+                    continue
+                if activity.state == "ON":
+                    await activity.turn_off()
+                    break
+            return
         activity = self._activities.get(option, None)
         if activity is None:
             return

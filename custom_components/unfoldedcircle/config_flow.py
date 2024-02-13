@@ -82,6 +82,8 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
     CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_POLL
 
+    reauth_entry: ConfigEntry | None = None
+
     def __init__(self) -> None:
         """Unfolded Circle Config Flow."""
         self.api: Remote = None
@@ -206,14 +208,21 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is None:
             user_input = {}
 
+        self.reauth_entry = self.hass.config_entries.async_get_entry(
+            self.context["entry_id"]
+        )
+
+        _LOGGER.debug("RC2 async_step_reauth_confirm %s", self.reauth_entry)
+
         if user_input.get("pin") is None:
             return self.async_show_form(
                 step_id="reauth_confirm", data_schema=STEP_ZEROCONF_DATA_SCHEMA
             )
 
         try:
-            existing_entry = await self.async_set_unique_id(DOMAIN)
-            info = await validate_input(user_input, existing_entry.data["host"])
+            existing_entry = await self.async_set_unique_id(self.reauth_entry.unique_id)
+            _LOGGER.debug("RC2 existing_entry %s", existing_entry)
+            info = await validate_input(user_input, self.reauth_entry.data[CONF_HOST])
         except CannotConnect:
             _LOGGER.exception("Cannot Connect")
             errors["base"] = "Cannot Connect"
@@ -224,7 +233,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.exception(ex)
             errors["base"] = "unknown"
         else:
-            existing_entry = await self.async_set_unique_id(DOMAIN)
+            existing_entry = await self.async_set_unique_id(self.reauth_entry.unique_id)
             if existing_entry:
                 self.hass.config_entries.async_update_entry(existing_entry, data=info)
                 await self.hass.config_entries.async_reload(existing_entry.entry_id)
