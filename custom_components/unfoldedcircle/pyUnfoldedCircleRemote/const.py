@@ -1,7 +1,6 @@
 from enum import Enum
 
-# AUTH_APIKEY_NAME = "pyUnfoldedCircle"
-AUTH_APIKEY_NAME = "HAUnfoldedCircle"
+AUTH_APIKEY_NAME = "pyUnfoldedCircle"
 AUTH_USERNAME = "web-configurator"
 WS_RECONNECTION_DELAY = 10  # seconds
 

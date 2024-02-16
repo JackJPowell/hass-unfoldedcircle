@@ -40,13 +40,6 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.polling_data = False
 
     async def init_websocket(self):
-        # await self.api.update()
-        # Check which events to listen according to enabled entities
-        # self.subscribe_events["entity_activity"] = True
-        # self.subscribe_events["activity_groups"] = True
-        # self.subscribe_events["battery_status"] = True
-        #self.subscribe_events["ambient_light"] = True
-
         self.remote_websocket.events_to_subscribe = ["software_updates", *list(self.subscribe_events.keys())]
         _LOGGER.debug("Unfolded Circle Remote events list to subscribe %s", self.remote_websocket.events_to_subscribe)
         self.websocket_task = asyncio.create_task(
@@ -54,8 +47,6 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def update(self, message: any):
         try:
-            # TODO Avoid requesting more data : missing software updates (message format ?)
-            # await self.api.update()
             # Update internal data from the message
             self.api.update_from_message(message)
             # Trigger update of entities
@@ -66,23 +57,17 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def reconnection_ws(self):
         _LOGGER.debug("Unfolded Circle Remote coordinator refresh data after a period of disconnection")
-
         async def refresh():
             await self.api.update()
             await self._async_update_data()
-
         asyncio.run(refresh())
-        # asyncio.run(self._async_update_data())
 
     def receive_data(self, message: any):
         _LOGGER.debug("Unfolded Circle Remote coordinator received data %s", message)
         self.update(message)
-        # asyncio.run(self.update(message))
-        # asyncio.create_task(self.update(message)).result()
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Get the latest data from the Unfolded Circle Remote."""
-        _LOGGER.debug("Unfolded Circle Remote _async_update_data")
         try:
             if self.polling_data:
                 group = asyncio.gather(
@@ -98,7 +83,6 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 await group
 
             self.data = vars(self.api)
-            _LOGGER.debug("Unfolded Circle Remote Data Update values")
             return vars(self.api)
         except HTTPError as err:
             if err.code == 401:
