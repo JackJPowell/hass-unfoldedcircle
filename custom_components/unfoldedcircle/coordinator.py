@@ -29,7 +29,7 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             hass,
             name=DOMAIN,
             logger=_LOGGER,
-            # update_interval=DEVICE_SCAN_INTERVAL,
+            update_interval=DEVICE_SCAN_INTERVAL,
         )
         self.hass = hass
         self.api: Remote = unfolded_circle_remote_device
@@ -37,6 +37,7 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.remote_websocket = RemoteWebsocket(self.api.endpoint, self.api.apikey)
         self.websocket_task = None
         self.subscribe_events = {}
+        self.polling_data = False
 
     async def init_websocket(self):
         # await self.api.update()
@@ -83,7 +84,19 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Get the latest data from the Unfolded Circle Remote."""
         _LOGGER.debug("Unfolded Circle Remote _async_update_data")
         try:
-            # await self.api.update()
+            if self.polling_data:
+                group = asyncio.gather(
+                    self.api.get_remote_configuration(),
+                    self.api.get_remote_information(),
+                    self.api.get_stats(),
+                    self.api.get_remote_display_settings(),
+                    self.api.get_remote_button_settings(),
+                    self.api.get_remote_sound_settings(),
+                    self.api.get_remote_haptic_settings(),
+                    self.api.get_remote_power_saving_settings(),
+                )
+                await group
+
             self.data = vars(self.api)
             _LOGGER.debug("Unfolded Circle Remote Data Update values")
             return vars(self.api)

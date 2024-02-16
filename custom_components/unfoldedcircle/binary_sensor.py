@@ -83,6 +83,5 @@ class BinarySensor(
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        _LOGGER.debug("BinarySensor _handle_coordinator_update")
         self._attr_native_value = self.coordinator.api.is_charging
         self.async_write_ha_state()

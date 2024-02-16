@@ -119,10 +119,14 @@ class UnfoldedCircleSensor(
 
     async def async_added_to_hass(self) -> None:
         """Run when this Entity has been added to HA."""
+        # Add websocket events according to corresponding entities
         if self.entity_description.key == "ambient_light_intensity":
             self.coordinator.subscribe_events["ambient_light"] = True
         if self.entity_description.key == "battery_level":
             self.coordinator.subscribe_events["battery_status"] = True
+        # Enable polling if one of those entities is enabled
+        if self.entity_description.key in ["memory_available", "storage_available", "cpu_load_one"]:
+            self.coordinator.polling_data = True
         await super().async_added_to_hass()
 
     @property
@@ -163,7 +167,6 @@ class UnfoldedCircleSensor(
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        _LOGGER.debug("Sensor _handle_coordinator_update")
         self._attr_native_value = self.get_value()
         self.async_write_ha_state()
 
