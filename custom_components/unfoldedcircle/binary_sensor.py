@@ -39,7 +39,8 @@ class BinarySensor(
     device_class = ATTR_BATTERY_CHARGING
 
     async def async_added_to_hass(self) -> None:
-        _LOGGER.debug("BinarySensor async_added_to_hass")
+        self.coordinator.subscribe_events["battery_status"] = True
+        await super().async_added_to_hass()
 
     @property
     def device_info(self) -> DeviceInfo:

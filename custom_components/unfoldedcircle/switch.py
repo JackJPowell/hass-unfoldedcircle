@@ -67,11 +67,11 @@ class UCRemoteSwitch(CoordinatorEntity[UnfoldedCircleRemoteCoordinator], SwitchE
         self._attr_native_value = "OFF"
 
 
-    # HA BUG ? uncommenting stops callback _handle_coordinator_update calls
-    # async def async_added_to_hass(self):
-    #     """Run when this Entity has been added to HA."""
-    #     self.coordinator.subscribe_events["entity_activity"] = True
-    #     self.coordinator.subscribe_events["activity_groups"] = True
+    async def async_added_to_hass(self):
+        """Run when this Entity has been added to HA."""
+        await super().async_added_to_hass()
+        self.coordinator.subscribe_events["entity_activity"] = True
+        self.coordinator.subscribe_events["activity_groups"] = True
 
     @property
     def should_poll(self) -> bool:

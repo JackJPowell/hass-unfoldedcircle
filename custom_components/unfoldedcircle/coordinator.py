@@ -41,10 +41,9 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def init_websocket(self):
         # await self.api.update()
         # Check which events to listen according to enabled entities
-        # HA BUG TO INVESTIGATE
-        self.subscribe_events["entity_activity"] = True
-        self.subscribe_events["activity_groups"] = True
-        self.subscribe_events["battery_status"] = True
+        # self.subscribe_events["entity_activity"] = True
+        # self.subscribe_events["activity_groups"] = True
+        # self.subscribe_events["battery_status"] = True
         #self.subscribe_events["ambient_light"] = True
 
         self.remote_websocket.events_to_subscribe = ["software_updates", *list(self.subscribe_events.keys())]

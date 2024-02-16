@@ -117,13 +117,13 @@ class UnfoldedCircleSensor(
         self.entity_description = description
         self._state: StateType = None
 
-    # HA BUG
-    # async def async_added_to_hass(self) -> None:
-    #     """Run when this Entity has been added to HA."""
-    #     if self.entity_description.key == "ambient_light_intensity":
-    #         self.coordinator.subscribe_events["ambient_light"] = True
-    #     if self.entity_description.key == "battery_level":
-    #         self.coordinator.subscribe_events["battery_status"] = True
+    async def async_added_to_hass(self) -> None:
+        """Run when this Entity has been added to HA."""
+        if self.entity_description.key == "ambient_light_intensity":
+            self.coordinator.subscribe_events["ambient_light"] = True
+        if self.entity_description.key == "battery_level":
+            self.coordinator.subscribe_events["battery_status"] = True
+        await super().async_added_to_hass()
 
     @property
     def device_info(self) -> DeviceInfo:

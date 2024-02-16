@@ -51,11 +51,11 @@ class SelectUCRemoteActivity(
                 if activity._id == activity_id:
                     self._activities[activity._name] = activity
 
-    # HA BUG : _handle_coordinator_update not called when this is uncommented
-    # async def async_added_to_hass(self):
-    #     """Run when this Entity has been added to HA."""
-    #     self.coordinator.subscribe_events["entity_activity"] = True
-    #     self.coordinator.subscribe_events["activity_groups"] = True
+    async def async_added_to_hass(self):
+        """Run when this Entity has been added to HA."""
+        self.coordinator.subscribe_events["entity_activity"] = True
+        self.coordinator.subscribe_events["activity_groups"] = True
+        await super().async_added_to_hass()
 
     @property
     def should_poll(self) -> bool:
