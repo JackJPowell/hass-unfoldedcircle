@@ -21,14 +21,6 @@ async def async_setup_entry(
     """Set up entity in HA."""
     remote = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_API]
 
-    # Verify that passed in configuration works
-    if not await remote.can_connect():
-        _LOGGER.error("Could not connect to Remote")
-        return
-
-    # Get Basic Device Information
-    await remote.update()
-
     new_devices = []
     new_devices.append(Button(remote))
     if new_devices:
@@ -63,6 +55,10 @@ class Button(ButtonEntity):
         self._remote = remote
         self._attr_unique_id = f"{self._remote.serial_number}_restart_button"
         self._attr_name = f"{self._remote.name} Restart Remote"
+
+    @property
+    def should_poll(self) -> bool:
+        return False
 
     @property
     def available(self) -> bool:

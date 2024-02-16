@@ -12,6 +12,8 @@ from urllib.parse import urljoin, urlparse
 import aiohttp
 import zeroconf
 
+from .const import AUTH_APIKEY_NAME, AUTH_USERNAME, RemoteUpdateType
+
 _LOGGER = logging.getLogger(__name__)
 
 ZEROCONF_TIMEOUT = 3
@@ -93,9 +95,6 @@ class RemoteGroup(list):
 
 class Remote:
     """Unfolded Circle Remote Class."""
-    AUTH_APIKEY_NAME = "pyUnfoldedCircle"
-    AUTH_USERNAME = "web-configurator"
-    
 
     def __init__(self, api_url, pin=None, apikey=None) -> None:
         """Create a new UC Remote Object."""
@@ -104,7 +103,7 @@ class Remote:
         self.apikey = apikey
         self.pin = pin
         self.activity_groups: [ActivityGroup] = []
-        self.activities = []
+        self.activities: [Activity] = []
         self._name = ""
         self._model_name = ""
         self._model_number = ""
@@ -143,6 +142,7 @@ class Remote:
         self._docks = []
         self._ir_custom = []
         self._ir_codesets = []
+        self._last_update_type = RemoteUpdateType.NONE
 
     @property
     def name(self):
@@ -307,6 +307,11 @@ class Remote:
         """CPU Load 1 minute."""
         return self._cpu_load_one
 
+    @property
+    def last_update_type(self) -> RemoteUpdateType:
+        """Last update type from received message."""
+        return self._last_update_type
+
     ### URL Helpers ###
     def validate_url(self, uri):
         """Validate passed in URL and attempts to correct api endpoint if path isn't supplied."""
@@ -354,7 +359,7 @@ class Remote:
                 headers=headers, timeout=aiohttp.ClientTimeout(total=5)
             )
         if self.pin:
-            auth = aiohttp.BasicAuth(self.AUTH_USERNAME, self.pin)
+            auth = aiohttp.BasicAuth(AUTH_USERNAME, self.pin)
             return aiohttp.ClientSession(
                 auth=auth, timeout=aiohttp.ClientTimeout(total=2)
             )
@@ -387,7 +392,7 @@ class Remote:
 
     async def create_api_key(self) -> str:
         """Create api Key."""
-        body = {"name": self.AUTH_APIKEY_NAME, "scopes": ["admin"]}
+        body = {"name": AUTH_APIKEY_NAME, "scopes": ["admin"]}
 
         async with self.client() as session, session.post(
             self.url("auth/api_keys"), json=body
@@ -841,8 +846,64 @@ class Remote:
             response = await response.json()
             return response == 200
 
-    async def update(self) -> dict[str, Any]:
+    async def get_activities_state(self):
+        """Get activity state for a remote entity."""
+        async with self.client() as session, session.get(
+            self.url("activities")
+        ) as response:
+            await self.raise_on_error(response)
+            current_activities = await response.json()
+            for current_activity in current_activities:
+                for activity in self.activities:
+                    if activity._id == current_activity["entity_id"]:
+                        activity._state = current_activity["attributes"]["state"]
+
+    def update_from_message(self, message: any) -> RemoteUpdateType:
+        """Update internal data from received message data instead of requesting the remote"""
+        try:
+            # Beware when modifying this code : if an attribute is missing in one of the if clauses,
+            # it will raise an exception and skip the other if clauses
+            data = json.loads(message)
+            if data["msg"] == "ambient_light":
+                _LOGGER.debug("Unfoldded circle remote update light")
+                self._ambient_light_intensity = data["msg_data"]["intensity"]
+                self._last_update_type = RemoteUpdateType.AMBIENT_LIGHT
+                return self._last_update_type
+            if data["msg"] == "battery_status":
+                _LOGGER.debug("Unfoldded circle remote update battery")
+                self._battery_status = data["msg_data"]["status"]
+                self._battery_level = data["msg_data"]["capacity"]
+                self._is_charging = data["msg_data"]["power_supply"]
+                self._last_update_type = RemoteUpdateType.BATTERY
+                return self._last_update_type
+            if (data["msg_data"]["entity_type"] == "activity"
+                    and (data["msg_data"]["new_state"]["attributes"]["state"] == "ON"
+                         or data["msg_data"]["new_state"]["attributes"]["state"] == "OFF")):
+                _LOGGER.debug("Unfoldded circle remote update activity")
+                new_state = data["msg_data"]["new_state"]["attributes"]["state"]
+                activity_id = data["msg_data"]["entity_id"]
+                for activity in self.activities:
+                    if activity._id == activity_id:
+                        activity._state = new_state
+
+                for activity_group in self.activity_groups:
+                    if activity_group.is_activity_in_group(activity_id):
+                        group_state = "OFF"
+                        for activity in self.activities:
+                            if activity_group.is_activity_in_group(activity._id) and activity.is_on():
+                                group_state = "ON"
+                                break
+                        activity_group._state = group_state
+                self._last_update_type = RemoteUpdateType.ACTIVITY
+                return self._last_update_type
+
+        except (KeyError, IndexError):
+            pass
+        return RemoteUpdateType.OTHER
+
+    async def update(self):
         """Retrivies all information about the remote."""
+        _LOGGER.debug("Unfoldded circle remote update data")
         group = asyncio.gather(
             self.get_remote_battery_information(),
             self.get_remote_ambient_light_information(),
@@ -855,14 +916,13 @@ class Remote:
             self.get_remote_sound_settings(),
             self.get_remote_haptic_settings(),
             self.get_remote_power_saving_settings(),
+            self.get_activities_state()
         )
         await group
 
-        for activity in self.activities:
-            await activity.update()
-
         for activity_group in self.activity_groups:
             await activity_group.update()
+        _LOGGER.debug("Unfoldded circle remote data updated")
 
 class ActivityGroup:
     """Class representing a Unfolded Circle Remote Activity Group."""
@@ -887,6 +947,12 @@ class ActivityGroup:
     def state(self):
         """State of the Activity group."""
         return self._state
+
+    def is_activity_in_group(self, activity_id: str) -> bool:
+        if activity_id in self.activities:
+            return True
+        else:
+            return False
 
     async def update(self) -> None:
         """Update activity state information."""

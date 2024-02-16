@@ -10,14 +10,13 @@ from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
+
+from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME
 from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 from .const import CONF_SERIAL, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
-
-AUTH_APIKEY_NAME = "pyUnfoldedCircle"
-AUTH_USERNAME = "web-configurator"
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {vol.Required("pin"): str, vol.Required("host"): str}
@@ -48,7 +47,7 @@ async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]
         raise CannotConnect from ex
 
     for key in await remote.get_api_keys():
-        if key.get("name") == Remote.AUTH_APIKEY_NAME:
+        if key.get("name") == AUTH_APIKEY_NAME:
             await remote.revoke_api_key()
 
     key = await remote.create_api_key()

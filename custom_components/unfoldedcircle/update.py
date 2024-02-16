@@ -22,14 +22,6 @@ async def async_setup_entry(
     """Set up platform."""
     remote = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_API]
 
-    # Verify that passed in configuration works
-    if not await remote.can_connect():
-        _LOGGER.error("Could not connect to Remote")
-        return
-
-    # Get Basic Device Information
-    await remote.update()
-
     new_devices = []
     new_devices.append(Update(remote))
     if new_devices:
@@ -79,6 +71,10 @@ class Update(UpdateEntity):
             0
         )  # UpdateEntityFeature.INSTALL
         self._attr_title = f"{self._remote.name} Firmware"
+
+    @property
+    def should_poll(self) -> bool:
+        return False
 
     async def async_install(
         self, version: str | None, backup: bool, **kwargs: Any

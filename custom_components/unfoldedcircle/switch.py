@@ -11,6 +11,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 from .coordinator import UnfoldedCircleRemoteCoordinator
+from .pyUnfoldedCircleRemote.const import RemoteUpdateType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,11 +25,6 @@ async def async_setup_entry(
     """Set up the Switch platform."""
     # Setup connection with devices
     coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
-
-    # Verify that passed in configuration works
-    if not await coordinator.api.can_connect():
-        _LOGGER.error("Could not connect to Remote")
-        return
 
     activity_ids = []
     for activity_group in coordinator.api.activity_groups:
@@ -70,6 +66,17 @@ class UCRemoteSwitch(CoordinatorEntity[UnfoldedCircleRemoteCoordinator], SwitchE
         self._attr_icon = "mdi:remote-tv"
         self._attr_native_value = "OFF"
 
+
+    # HA BUG ? uncommenting stops callback _handle_coordinator_update calls
+    # async def async_added_to_hass(self):
+    #     """Run when this Entity has been added to HA."""
+    #     self.coordinator.subscribe_events["entity_activity"] = True
+    #     self.coordinator.subscribe_events["activity_groups"] = True
+
+    @property
+    def should_poll(self) -> bool:
+        return False
+
     @property
     def is_on(self) -> bool | None:
         """Return true if switch is on."""
@@ -88,5 +95,11 @@ class UCRemoteSwitch(CoordinatorEntity[UnfoldedCircleRemoteCoordinator], SwitchE
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
+        try:
+            last_update_type = self.coordinator.api.last_update_type
+            if last_update_type != RemoteUpdateType.ACTIVITY:
+                return
+        except (KeyError, IndexError):
+            return
         self._state = self.switch.state
         self.async_write_ha_state()

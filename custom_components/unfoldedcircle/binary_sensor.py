@@ -22,16 +22,6 @@ async def async_setup_entry(
 ) -> None:
     """Use to setup entity."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
-
-    # Verify that passed in configuration works
-    if not await coordinator.api.can_connect():
-        _LOGGER.error("Could not connect to Remote")
-        return
-
-    # Get Basic Device Information
-    await coordinator.api.update()
-    await coordinator.async_config_entry_first_refresh()
-
     new_devices = []
     new_devices.append(BinarySensor(coordinator))
     if new_devices:
@@ -47,6 +37,9 @@ class BinarySensor(
     # module. More information on the available devices classes can be seen here:
     # https://developers.home-assistant.io/docs/core/entity/sensor
     device_class = ATTR_BATTERY_CHARGING
+
+    async def async_added_to_hass(self) -> None:
+        _LOGGER.debug("BinarySensor async_added_to_hass")
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -77,12 +70,18 @@ class BinarySensor(
         self._attr_native_value = False
 
     @property
+    def should_poll(self) -> bool:
+        return False
+
+    @property
     def is_on(self):
         """Return the state of the binary sensor."""
-        return self.coordinator.api.is_charging
+        self._attr_native_value = self.coordinator.api.is_charging
+        return self._attr_native_value
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
+        _LOGGER.debug("BinarySensor _handle_coordinator_update")
         self._attr_native_value = self.coordinator.api.is_charging
         self.async_write_ha_state()

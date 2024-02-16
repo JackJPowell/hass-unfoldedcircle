@@ -23,13 +23,7 @@ async def async_setup_entry(
     """Set up Platform."""
     remote = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_API]
 
-    # Verify that passed in configuration works
-    if not await remote.can_connect():
-        _LOGGER.error("Could not connect to Remote")
-        return
-
     # Get Basic Device Information
-    await remote.update()
     await remote.get_remotes()
     await remote.get_remote_codesets()
     await remote.get_docks()
@@ -80,6 +74,10 @@ class RemoteSensor(RemoteEntity):
         self._attr_is_on = False
         for activity in self._remote.activities:
             self._attr_activity_list.append(activity.name)
+
+    @property
+    def should_poll(self) -> bool:
+        return False
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the entity on."""

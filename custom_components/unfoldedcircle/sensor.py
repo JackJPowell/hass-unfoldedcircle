@@ -27,7 +27,6 @@ class UnfoldedCircleSensorEntityDescription(SensorEntityDescription):
 
     unique_id: str = ""
 
-
 UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
     UnfoldedCircleSensorEntityDescription(
         key="battery_level",
@@ -45,6 +44,7 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         name="Illuminance",
         has_entity_name=False,
         unique_id="illuminance",
+        entity_registry_enabled_default=False,
     ),
     UnfoldedCircleSensorEntityDescription(
         key="memory_available",
@@ -85,15 +85,6 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
     """Add sensors for passed config_entry in HA."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
 
-    # Verify that passed in configuration works
-    if not await coordinator.api.can_connect():
-        _LOGGER.error("Could not connect to remote api")
-        return
-
-    # Get Basic Device Information
-    await coordinator.api.update()
-    await coordinator.async_config_entry_first_refresh()
-
     async_add_entities(
         UnfoldedCircleSensor(coordinator, description)
         for description in UNFOLDED_CIRCLE_SENSOR
@@ -108,7 +99,7 @@ class UnfoldedCircleSensor(
     entity_description: UNFOLDED_CIRCLE_SENSOR
 
     def __init__(
-        self, coordinator, description: UnfoldedCircleSensorEntityDescription
+            self, coordinator, description: UnfoldedCircleSensorEntityDescription
     ) -> None:
         """Initialize Unfolded Circle Sensor."""
         super().__init__(self, coordinator)
@@ -126,6 +117,14 @@ class UnfoldedCircleSensor(
         self.entity_description = description
         self._state: StateType = None
 
+    # HA BUG
+    # async def async_added_to_hass(self) -> None:
+    #     """Run when this Entity has been added to HA."""
+    #     if self.entity_description.key == "ambient_light_intensity":
+    #         self.coordinator.subscribe_events["ambient_light"] = True
+    #     if self.entity_description.key == "battery_level":
+    #         self.coordinator.subscribe_events["battery_status"] = True
+
     @property
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
@@ -142,6 +141,18 @@ class UnfoldedCircleSensor(
             configuration_url=self.coordinator.api.configuration_url,
         )
 
+    def get_value(self) -> StateType:
+        if self.coordinator.data:
+            key = "_" + self.entity_description.key
+            state = self.coordinator.data.get(key)
+            self._state = cast(StateType, state)
+            self._attr_native_value = self._state
+        return self._state
+
+    @property
+    def should_poll(self) -> bool:
+        return False
+
     # This property is important to let HA know if this entity is online or not.
     # If an entity is offline (return False), the UI will refelect this.
     @property
@@ -152,15 +163,11 @@ class UnfoldedCircleSensor(
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-
-        self._attr_native_value = self.coordinator.data.get(self.entity_description.key)
+        _LOGGER.debug("Sensor _handle_coordinator_update")
+        self._attr_native_value = self.get_value()
         self.async_write_ha_state()
 
     @property
     def native_value(self) -> StateType:
         """Return native value for entity."""
-        if self.coordinator.data:
-            key = "_" + self.entity_description.key
-            state = self.coordinator.data.get(key)
-            self._state = cast(StateType, state)
-        return self._state
+        return self.get_value()
