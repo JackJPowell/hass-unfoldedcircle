@@ -40,7 +40,7 @@ class SelectUCRemoteActivity(
         self.activity_group = activity_group
         self._name = f"{self.coordinator.api.name} {activity_group.name}"
         self._attr_name = f"{self.coordinator.api.name} {activity_group.name}"
-        self._attr_unique_id = activity_group._id
+        self._attr_unique_id = f"{self.coordinator.api.serial_number}_{activity_group._id}"
         self._state = activity_group.state
         self._attr_icon = "mdi:remote-tv"
         self._attr_native_value = "OFF"
