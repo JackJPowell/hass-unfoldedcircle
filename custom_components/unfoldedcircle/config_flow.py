@@ -4,7 +4,7 @@ import logging
 from typing import Any
 
 import voluptuous as vol
-from homeassistant import config_entries
+from homeassistant import config_entries, data_entry_flow
 from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT
@@ -106,7 +106,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         endpoint = f"http://{host}:{port}/api/"
 
         self.discovery_info.update(
-            {CONF_HOST: host, CONF_PORT: port, CONF_NAME: "Remote Two"}
+            {CONF_HOST: host, CONF_PORT: port, CONF_NAME: "Remote Two ("+host+")"}
         )
 
         self.context.update(
@@ -118,6 +118,25 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 "product": "Product",
             }
         )
+
+        existing_entries = self.hass.config_entries.async_entries(DOMAIN)
+        if existing_entries:
+            for existing_entry in existing_entries:
+                try:
+                    ip_address = existing_entry.data.get("ip_address")
+                    for ip_address2 in discovery_info.ip_addresses:
+                        if ip_address == ip_address2.compressed:
+                            _LOGGER.debug("Unfolded circle remote discovered already configured %s", discovery_info)
+                            raise data_entry_flow.AbortFlow("already_configured")
+                            #self._abort_if_unique_id_configured(existing_entry[CONF_SERIAL])
+                except (KeyError, IndexError):
+                    pass
+
+
+        _LOGGER.debug("Unfolded circle remote found %s %s :", host, discovery_info)
+        if discovery_info.ip_addresses:
+            for ip_address in discovery_info.ip_addresses:
+                _LOGGER.debug("%s", ip_address.compressed)
 
         # Registry entry unique id (hostname) is null when host is supplied manually so can't check here
         # as we don't know the serial number

@@ -1,7 +1,7 @@
 """Remote sensor platform for Unfolded Circle."""
 from collections.abc import Iterable
 import logging
-from typing import Any
+from typing import Any, Mapping
 
 from homeassistant.components.remote import RemoteEntity, RemoteEntityFeature
 from homeassistant.config_entries import ConfigEntry
@@ -87,11 +87,15 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
     def is_on(self) -> bool | None:
         return self.update_state()
 
+    @property
+    def extra_state_attributes(self) -> Mapping[str, Any] | None:
+        return self._extra_state_attributes
+
     def update_state(self) -> bool:
         self._attr_is_on = False
         self._attr_current_activity = None
         for activity in self._remote.activities:
-            self._extra_state_attributes[activity.name] = activity.is_on()
+            self._extra_state_attributes[activity.name] = activity._state
             if activity.is_on():
                 self._attr_current_activity = activity.name
                 self._attr_is_on = True
