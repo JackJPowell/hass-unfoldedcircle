@@ -72,12 +72,12 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
         # The name of the entity
         self._attr_name = f"{self._remote.name} Remote"
         self._attr_activity_list = []
+        self._extra_state_attributes = {}
         self._attr_is_on = False
+
         for activity in self._remote.activities:
             self._attr_activity_list.append(activity.name)
-        for activity in self._remote.activities:
-            if activity.is_on():
-                self._attr_is_on = True
+        self.update_state()
 
     @property
     def should_poll(self) -> bool:
@@ -89,8 +89,11 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
 
     def update_state(self) -> bool:
         self._attr_is_on = False
+        self._attr_current_activity = None
         for activity in self._remote.activities:
+            self._extra_state_attributes[activity.name] = activity.is_on()
             if activity.is_on():
+                self._attr_current_activity = activity.name
                 self._attr_is_on = True
         return self._attr_is_on
 
