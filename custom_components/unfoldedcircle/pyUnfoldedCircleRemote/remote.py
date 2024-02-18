@@ -109,6 +109,8 @@ class Remote:
         self._serial_number = ""
         self._hw_revision = ""
         self._manufacturer = "Unfolded Circle"
+        self._address = ""
+        self._ip_address = ""
         self._battery_level = 0
         self._battery_status = ""
         self._is_charging = False
@@ -415,6 +417,17 @@ class Remote:
                 self.url("auth/api_keys/" + api_key_id)
         ) as response:
             await self.raise_on_error(response)
+
+    async def get_remote_wifi_info(self) -> str:
+        """Get System wifi information from remote. address."""
+        async with self.client() as session, session.get(
+                self.url("system/wifi")
+        ) as response:
+            await self.raise_on_error(response)
+            information = await response.json()
+            self._address = information.get("address")
+            self._ip_address = information.get("ip_address")
+            return information
 
     async def get_remote_information(self) -> str:
         """Get System information from remote. model_name, model_number, serial_number, hw_revision."""

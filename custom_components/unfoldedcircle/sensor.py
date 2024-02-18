@@ -17,6 +17,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 from .coordinator import UnfoldedCircleRemoteCoordinator
+from .entity import UnfoldedCircleEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -91,8 +92,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
     )
 
 
-class UnfoldedCircleSensor(
-    CoordinatorEntity[UnfoldedCircleRemoteCoordinator], SensorEntity
+class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity
 ):
     """Unfolded Circle Sensor Class."""
 
@@ -102,9 +102,7 @@ class UnfoldedCircleSensor(
             self, coordinator, description: UnfoldedCircleSensorEntityDescription
     ) -> None:
         """Initialize Unfolded Circle Sensor."""
-        super().__init__(self, coordinator)
-        self.coordinator = coordinator
-
+        super().__init__(coordinator)
         self._attr_unique_id = (
             f"{self.coordinator.api.serial_number}_{description.unique_id}"
         )
@@ -128,6 +126,15 @@ class UnfoldedCircleSensor(
         if self.entity_description.key in ["memory_available", "storage_available", "cpu_load_one"]:
             self.coordinator.polling_data = True
         await super().async_added_to_hass()
+
+    # Too complicated : relead integration instead
+    # async def async_will_remove_from_hass(self) -> None:
+    #     await super().async_will_remove_from_hass()
+    #     if self.entity_description.key == "ambient_light_intensity":
+    #         try:
+    #             del self.coordinator.subscribe_events["ambient_light"]
+    #         except Exception:
+    #             pass
 
     @property
     def device_info(self) -> DeviceInfo:

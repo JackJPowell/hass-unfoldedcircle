@@ -11,6 +11,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 from .coordinator import UnfoldedCircleRemoteCoordinator
+from .entity import UnfoldedCircleEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ async def async_setup_entry(
 
 
 class BinarySensor(
-    CoordinatorEntity[UnfoldedCircleRemoteCoordinator], BinarySensorEntity
+    UnfoldedCircleEntity, BinarySensorEntity
 ):
     """Class representing a binary sensor."""
 
@@ -60,8 +61,7 @@ class BinarySensor(
 
     def __init__(self, coordinator) -> None:
         """Initialize Binary Sensor."""
-        super().__init__(self, coordinator)
-        self.coordinator = coordinator
+        super().__init__(coordinator)
 
         # As per the sensor, this must be a unique value within this domain.
         self._attr_unique_id = f"{self.coordinator.api.serial_number}_charging_status"

@@ -2,14 +2,14 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from typing import Any
 from urllib.error import HTTPError
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed, CoordinatorEntity
+
 from .pyUnfoldedCircleRemote.remote import Remote
 
 from . import RemoteWebsocket
@@ -22,6 +22,7 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Data update coordinator for an Unfolded Circle Remote device."""
     # List of events to subscribe to the websocket
     subscribe_events: dict[str, bool]
+    entities: [CoordinatorEntity]
 
     def __init__(self, hass: HomeAssistant, unfolded_circle_remote_device) -> None:
         """Initialize the Coordinator."""
@@ -38,6 +39,7 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.websocket_task = None
         self.subscribe_events = {}
         self.polling_data = False
+        self.entities = []
 
     async def init_websocket(self):
         self.remote_websocket.events_to_subscribe = ["software_updates", *list(self.subscribe_events.keys())]

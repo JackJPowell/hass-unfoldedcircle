@@ -5,11 +5,12 @@ from typing import Any
 from homeassistant.components.update import UpdateEntity, UpdateEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, UNFOLDED_CIRCLE_API
+from .const import DOMAIN, UNFOLDED_CIRCLE_API, UNFOLDED_CIRCLE_COORDINATOR
+from .entity import UnfoldedCircleEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,14 +22,14 @@ async def async_setup_entry(
 ) -> None:
     """Set up platform."""
     remote = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_API]
-
+    coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
     new_devices = []
-    new_devices.append(Update(remote))
+    new_devices.append(Update(coordinator, remote))
     if new_devices:
         async_add_entities(new_devices)
 
 
-class Update(UpdateEntity):
+class Update(UnfoldedCircleEntity, UpdateEntity):
     """Update Entity."""
 
     _attr_icon = "mdi:update"
@@ -49,8 +50,9 @@ class Update(UpdateEntity):
             configuration_url=self._remote.configuration_url,
         )
 
-    def __init__(self, remote) -> None:
+    def __init__(self, coordinator, remote) -> None:
         """Initialize the sensor."""
+        super().__init__(coordinator)
         self._remote = remote
         self._attr_unique_id = f"{self._remote.name}_update_status"
 
@@ -101,3 +103,9 @@ class Update(UpdateEntity):
         await self._remote.get_remote_update_information()
         self._attr_latest_version = self._remote.latest_sw_version
         self._attr_installed_version = self._remote.sw_version
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        # Update only if activity changed
+        self.async_write_ha_state()

@@ -11,6 +11,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 from .coordinator import UnfoldedCircleRemoteCoordinator
+from .entity import UnfoldedCircleEntity
 from .pyUnfoldedCircleRemote.const import RemoteUpdateType
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ async def async_setup_entry(
     )
 
 
-class UCRemoteSwitch(CoordinatorEntity[UnfoldedCircleRemoteCoordinator], SwitchEntity):
+class UCRemoteSwitch(UnfoldedCircleEntity, SwitchEntity):
     """Class representing an unfolded circle activity."""
 
     @property
@@ -56,8 +57,7 @@ class UCRemoteSwitch(CoordinatorEntity[UnfoldedCircleRemoteCoordinator], SwitchE
 
     def __init__(self, coordinator, switch) -> None:
         """Initialize a switch."""
-        super().__init__(self, coordinator)
-        self.coordinator = coordinator
+        super().__init__(coordinator)
         self.switch = switch
         self._name = f"{self.coordinator.api.name} {switch.name}"
         self._attr_name = f"{self.coordinator.api.name} {switch.name}"

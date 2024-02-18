@@ -11,11 +11,13 @@ from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 
 import logging
 
+from .entity import UnfoldedCircleEntity
 from .pyUnfoldedCircleRemote.const import RemoteUpdateType
 
 _LOGGER = logging.getLogger(__name__)
 
 POWER_OFF_LABEL = "Power Off"
+
 
 async def async_setup_entry(
         hass: HomeAssistant,
@@ -29,14 +31,12 @@ async def async_setup_entry(
     )
 
 
-class SelectUCRemoteActivity(
-    CoordinatorEntity[UnfoldedCircleRemoteCoordinator], SelectEntity):
+class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
     """Select entity class."""
 
     def __init__(self, coordinator, activity_group) -> None:
         """Initialize a switch."""
-        super().__init__(self, coordinator)
-        self.coordinator = coordinator
+        super().__init__(coordinator)
         self.activity_group = activity_group
         self._name = f"{self.coordinator.api.name} {activity_group.name}"
         self._attr_name = f"{self.coordinator.api.name} {activity_group.name}"

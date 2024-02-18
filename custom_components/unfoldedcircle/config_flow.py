@@ -59,6 +59,7 @@ async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]
     # api_key = await UnfoldedCircleRemoteConfigFlow.async_login()
     await remote.get_remote_information()
     await remote.get_remote_configuration()
+    await remote.get_remote_wifi_info()
 
     # If you cannot connect:
     # throw CannotConnect
@@ -71,6 +72,8 @@ async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]
         "apiKey": key,
         "host": remote.endpoint,
         "pin": data["pin"],
+        "address": remote._address,
+        "ip_address": remote._ip_address,
         CONF_SERIAL: remote.serial_number,
     }
 
@@ -116,10 +119,10 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             }
         )
 
-        if hostname:
-            await self._async_set_unique_id_and_abort_if_already_configured(hostname)
-
-        _LOGGER.debug("Unfolded Circle Device discovered: %s", endpoint)
+        # Registry entry unique id (hostname) is null when host is supplied manually so can't check here
+        # as we don't know the serial number
+        # if hostname:
+        #     await self._async_set_unique_id_and_abort_if_already_configured(hostname)
 
         return await self.async_step_zeroconf_confirm()
 
@@ -136,6 +139,12 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             )
         try:
             info = await validate_input(user_input, self.discovery_info[CONF_HOST])
+            self.discovery_info.update(
+                {CONF_SERIAL: info[CONF_SERIAL]}
+            )
+            # Check unique ID here based on serial number
+            await self._async_set_unique_id_and_abort_if_already_configured(info[CONF_SERIAL])
+
         except CannotConnect as ex:
             _LOGGER.error(ex)
         except InvalidAuth as ex:
@@ -168,6 +177,11 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
 
         try:
             info = await validate_input(user_input, "")
+            self.discovery_info.update(
+                {CONF_SERIAL: info[CONF_SERIAL]}
+            )
+            # Check unique ID here based on serial number
+            await self._async_set_unique_id_and_abort_if_already_configured(info[CONF_SERIAL])
         except CannotConnect:
             errors["base"] = "cannot_connect"
         except InvalidAuth:
@@ -188,7 +202,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         """Set the unique ID and abort if already configured."""
         await self.async_set_unique_id(unique_id)
         self._abort_if_unique_id_configured(
-            updates={CONF_HOST: self.discovery_info[CONF_HOST]},
+            updates={CONF_SERIAL: self.discovery_info[CONF_SERIAL]},
         )
 
     async def async_step_reauth(
