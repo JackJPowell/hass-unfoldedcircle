@@ -57,14 +57,15 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except Exception as ex:
             _LOGGER.error("Unfolded Circle Remote error while updating entities", ex)
 
-    def reconnection_ws(self):
+    async def reconnection_ws(self):
         _LOGGER.debug("Unfolded Circle Remote coordinator refresh data after a period of disconnection")
-        async def refresh():
+        try:
             await self.api.update()
-            await self._async_update_data()
-        asyncio.run(refresh())
+            self.async_set_updated_data(vars(self.api))
+        except Exception as ex:
+            _LOGGER.error("Unfolded Circle Remote reconnection_ws error while updating entities", ex)
 
-    def receive_data(self, message: any):
+    async def receive_data(self, message: any):
         _LOGGER.debug("Unfolded Circle Remote coordinator received data %s", message)
         self.update(message)
 

@@ -1,4 +1,5 @@
 """Remote sensor platform for Unfolded Circle."""
+import asyncio
 from collections.abc import Iterable
 import logging
 from typing import Any, Mapping
@@ -16,6 +17,11 @@ from .entity import UnfoldedCircleEntity
 _LOGGER = logging.getLogger(__name__)
 
 
+async def init_device_data(remote):
+    await remote.get_remotes()
+    await remote.get_remote_codesets()
+    await remote.get_docks()
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -25,9 +31,8 @@ async def async_setup_entry(
     remote = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_API]
     coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
     # Get Basic Device Information
-    await remote.get_remotes()
-    await remote.get_remote_codesets()
-    await remote.get_docks()
+    # Async task because it may raise timeouts
+    asyncio.ensure_future(init_device_data(remote))
 
     new_devices = []
     new_devices.append(RemoteSensor(coordinator, remote))

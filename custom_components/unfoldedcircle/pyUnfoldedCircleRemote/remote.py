@@ -474,15 +474,13 @@ class Remote:
                     name = next(iter(activity_group_data.get("name").values()))
                 activity_group = ActivityGroup(group_id=activity_group_data.get("group_id"),
                                                name=name, remote=self, state=activity_group_data.get("state"))
-                async with self.client() as session2, session2.get(
-                        self.url("activity_groups/" + activity_group_data.get("group_id"))
-                ) as response2:
-                    await self.raise_on_error(response2)
-                    activity_group_definition = await  response2.json()
-                    for activity in activity_group_definition.get("activities"):
-                        # _LOGGER.debug("get_activity_groups activity %s", json.dumps(activity, indent=2))
-                        activity_group.activities.append(activity.get("entity_id"))
-                    await response2.json()
+                response2 = await session.get(self.url("activity_groups/" + activity_group_data.get("group_id")))
+                await self.raise_on_error(response2)
+                activity_group_definition = await  response2.json()
+                for activity in activity_group_definition.get("activities"):
+                    # _LOGGER.debug("get_activity_groups activity %s", json.dumps(activity, indent=2))
+                    activity_group.activities.append(activity.get("entity_id"))
+                await response2.json()
                 self.activity_groups.append(activity_group)
             return await response.json()
 
@@ -929,7 +927,9 @@ class Remote:
             self.get_remote_sound_settings(),
             self.get_remote_haptic_settings(),
             self.get_remote_power_saving_settings(),
-            self.get_activities_state()
+            self.get_activities_state(),
+            self.get_activities(),
+            self.get_activity_groups()
         )
         await group
 

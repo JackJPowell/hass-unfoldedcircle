@@ -20,7 +20,7 @@ from .const import CONF_SERIAL, DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
-    {vol.Required("pin"): str, vol.Required("host"): str}
+    {vol.Required("host"): str, vol.Required("pin"): str}
 )
 
 STEP_ZEROCONF_DATA_SCHEMA = vol.Schema({vol.Required("pin"): str})
@@ -149,12 +149,12 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         #         except (KeyError, IndexError):
         #             pass
 
-        _LOGGER.debug("Unfolded circle remote found %s %s :", host, discovery_info)
+        _LOGGER.debug("Unfolded circle remote found %s %s %s :", mac_address, host, discovery_info)
 
         # Use mac address as unique id as this is the only common information between zeroconf and user conf
         if mac_address:
             await self._async_set_unique_id_and_abort_if_already_configured(mac_address)
-
+        _LOGGER.debug("Unfolded circle remote found %s next step for registering", mac_address)
         return await self.async_step_zeroconf_confirm()
 
     async def async_step_zeroconf_confirm(

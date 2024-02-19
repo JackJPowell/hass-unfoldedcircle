@@ -3,7 +3,7 @@ import logging
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_BATTERY_CHARGING
+from homeassistant.const import ATTR_BATTERY_CHARGING, EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -24,12 +24,65 @@ async def async_setup_entry(
     """Use to setup entity."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
     new_devices = []
-    new_devices.append(BinarySensor(coordinator))
+    new_devices.append(BatteryBinarySensor(coordinator))
+    new_devices.append(PollingBinarySensor(coordinator))
     if new_devices:
         async_add_entities(new_devices)
 
 
-class BinarySensor(
+class PollingBinarySensor(
+    UnfoldedCircleEntity, BinarySensorEntity
+):
+    """Class representing a binary sensor."""
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return the device info."""
+        return DeviceInfo(
+            identifiers={
+                # Serial numbers are unique identifiers within a specific domain
+                (DOMAIN, self.coordinator.api.serial_number)
+            },
+            name=self.coordinator.api.name,
+            manufacturer=self.coordinator.api.manufacturer,
+            model=self.coordinator.api.model_name,
+            sw_version=self.coordinator.api.sw_version,
+            hw_version=self.coordinator.api.hw_revision,
+            configuration_url=self.coordinator.api.configuration_url,
+        )
+
+    def __init__(self, coordinator) -> None:
+        """Initialize Binary Sensor."""
+        super().__init__(coordinator)
+
+        # As per the sensor, this must be a unique value within this domain.
+        self._attr_unique_id = f"{self.coordinator.api.serial_number}_polling_status"
+
+        # The name of the entity
+        self._attr_name = f"{self.coordinator.api.name} Polling Status"
+        self._attr_native_value = self.coordinator.polling_data
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    @property
+    def should_poll(self) -> bool:
+        return False
+
+    @property
+    def is_on(self):
+        """Return the state of the binary sensor."""
+        self._attr_native_value = self.coordinator.polling_data
+        return self._attr_native_value
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        self._attr_native_value = self.coordinator.polling_data
+        self.async_write_ha_state()
+
+class BatteryBinarySensor(
     UnfoldedCircleEntity, BinarySensorEntity
 ):
     """Class representing a binary sensor."""

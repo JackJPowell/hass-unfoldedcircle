@@ -2,7 +2,7 @@ import json
 import logging
 import asyncio
 import re
-from typing import Callable
+from typing import Callable, Coroutine
 
 import websockets
 import requests
@@ -12,6 +12,18 @@ from websockets import WebSocketClientProtocol
 from .const import AUTH_APIKEY_NAME, WS_RECONNECTION_DELAY
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class LoggerAdapter(logging.LoggerAdapter):
+    """Logger class for websocket for debugging. Add connection ID and client IP address to websockets logs."""
+
+    def process(self, msg, kwargs):
+        try:
+            websocket = kwargs["extra"]["websocket"]
+        except KeyError:
+            return msg, kwargs
+        # xff = websocket.request_headers.get("X-Forwarded-For")
+        return f"{websocket.id} {msg}", kwargs
 
 
 def parse_hostname(uri):
@@ -35,44 +47,56 @@ class RemoteWebsocket:
         self.hostname = parse_hostname(hostname)
         self.api_key = api_key
         self.websocket = None
-        self.endpoint = "ws://"+self.hostname+"/ws"
-        self.api_endpoint = "http://"+self.hostname + "/api"
+        self.endpoint = "ws://" + self.hostname + "/ws"
+        self.api_endpoint = "http://" + self.hostname + "/api"
         self.events_to_subscribe = [
-                "software_updates",
-            ]
+            "software_updates",
+        ]
 
-    async def init_websocket(self, receive_callback: Callable[[any], None], reconnection_callback: Callable[[], None]):
+    async def init_websocket(self, receive_callback: Callable[..., Coroutine],
+                             reconnection_callback: Callable[..., Coroutine]):
         """Initialize websocket connection with the registered API key."""
         await self.close_websocket()
         _LOGGER.debug("UnfoldedCircleRemote websocket init connection to %s", self.endpoint)
+        # logger = logging.getLogger("websockets.client")
+        # logger.setLevel(logging.DEBUG)
+
         first = True
-        async for websocket in websockets.connect(self.endpoint, extra_headers={"API-KEY": self.api_key}):
+        async for websocket in websockets.connect(self.endpoint, extra_headers={"API-KEY": self.api_key},
+                                                  #logger=LoggerAdapter(logger, None),
+                                                  ping_interval=30,
+                                                  ping_timeout=30,
+                                                  close_timeout=20):
             try:
                 _LOGGER.debug("UnfoldedCircleRemote websocket connection initialized")
                 self.websocket = websocket
-                await self.subscribe_events()
-                # Call reconnection callback after reconnection success:
-                # useful to extract fresh information with APIs after a long period of disconnection (sleep)
                 if first:
                     first = False
                 else:
-                    reconnection_callback()
+                    # Call reconnection callback after reconnection success:
+                    # useful to extract fresh information with APIs after a long period of disconnection (sleep)
+                    asyncio.ensure_future(reconnection_callback())
+                # Subscribe to events we are interesting in
+                asyncio.ensure_future(self.subscribe_events())
+
                 while True:
                     async for message in websocket:
                         try:
-                            receive_callback(message)
+                            asyncio.ensure_future(receive_callback(message))
                         except Exception as ex:
                             _LOGGER.debug("UnfoldedCircleRemote exception in websocket receive callback", ex)
-            except websockets.ConnectionClosed:
-                _LOGGER.debug("UnfoldedCircleRemote websocket closed. Waiting before reconnecting...")
+            except websockets.ConnectionClosed as error:
+                _LOGGER.debug("UnfoldedCircleRemote websocket closed. Waiting before reconnecting...", error)
                 await asyncio.sleep(WS_RECONNECTION_DELAY)
                 continue
+        _LOGGER.error("UnfoldedCircleRemote exiting init_websocket, this is not normal")
+
     async def close_websocket(self):
         if self.websocket is not None:
-            await self.websocket.close(1001, "Close connection") # 1001 : going away
+            await self.websocket.close(1001, "Close connection")  # 1001 : going away
             self.websocket = None
 
-    async def subscribe_events(self):
+    async def subscribe_events(self) -> None:
         """Subscribe to necessary events."""
         # Available channels :
         # "all" "configuration" "entities" "entity_button" "entity_switch" "entity_climate" "entity_cover"
@@ -83,12 +107,13 @@ class RemoteWebsocket:
             "channels": self.events_to_subscribe
         }})
 
-    async def send_message(self, message: any):
+    async def send_message(self, message: any) -> None:
         """Send a message to the connected websocket."""
         try:
             await self.websocket.send(json.dumps(message))
         except Exception as ex:
             _LOGGER.warning("UnfoldedCircleRemote error while sending message to remote", ex)
+            raise ex
 
     def create_api_key(self):
         """Create API key using rest API. Need to call login_api first"""

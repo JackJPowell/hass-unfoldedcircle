@@ -57,6 +57,7 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         unique_id="memory_available",
         suggested_display_precision=0,
         icon="mdi:memory",
+        entity_registry_enabled_default=False,
     ),
     UnfoldedCircleSensorEntityDescription(
         key="storage_available",
@@ -68,6 +69,7 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         unique_id="storage_available",
         suggested_display_precision=0,
         icon="mdi:harddisk",
+        entity_registry_enabled_default=False,
     ),
     UnfoldedCircleSensorEntityDescription(
         key="cpu_load_one",
@@ -78,6 +80,7 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         unique_id="cpu_load_1_min",
         suggested_display_precision=2,
         icon="mdi:cpu-64-bit",
+        entity_registry_enabled_default=False,
     ),
 )
 

@@ -2,7 +2,7 @@ from enum import Enum
 
 AUTH_APIKEY_NAME = "HApyUnfoldedCircle"
 AUTH_USERNAME = "web-configurator"
-WS_RECONNECTION_DELAY = 10  # seconds
+WS_RECONNECTION_DELAY = 30  # seconds
 
 
 class RemoteUpdateType(Enum):
