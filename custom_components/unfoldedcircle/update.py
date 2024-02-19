@@ -108,4 +108,6 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         # Update only if activity changed
+        self._attr_latest_version = self._remote.latest_sw_version
+        self._attr_installed_version = self._remote.sw_version
         self.async_write_ha_state()

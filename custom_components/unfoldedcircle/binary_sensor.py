@@ -1,5 +1,6 @@
 """Binary sensor platform for Unfolded Circle."""
 import logging
+from typing import Mapping, Any
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
@@ -65,6 +66,7 @@ class PollingBinarySensor(
         self._attr_name = f"{self.coordinator.api.name} Polling Status"
         self._attr_native_value = self.coordinator.polling_data
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
+        self._extra_state_attributes = {}
 
     @property
     def should_poll(self) -> bool:
@@ -76,10 +78,18 @@ class PollingBinarySensor(
         self._attr_native_value = self.coordinator.polling_data
         return self._attr_native_value
 
+    @property
+    def extra_state_attributes(self) -> Mapping[str, Any] | None:
+        return self._extra_state_attributes
+
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         self._attr_native_value = self.coordinator.polling_data
+        self._extra_state_attributes["Polling state"] = self.coordinator.polling_data
+        self._extra_state_attributes["Websocket state"] = self.coordinator.websocket_task is not None
+        self._extra_state_attributes["Websocket events"] = (
+            ", ".join(self.coordinator.remote_websocket.events_to_subscribe))
         self.async_write_ha_state()
 
 class BatteryBinarySensor(
