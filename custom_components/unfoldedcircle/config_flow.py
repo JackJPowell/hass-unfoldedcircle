@@ -1,13 +1,14 @@
 """Config flow for Unfolded Circle Remote integration."""
 
 import logging
+import re
 from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries, data_entry_flow
 from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
-from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT
+from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT, CONF_MAC
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 
@@ -61,6 +62,10 @@ async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]
     await remote.get_remote_configuration()
     await remote.get_remote_wifi_info()
 
+    mac_address = None
+    if remote._address:
+        mac_address = remote._address.replace(":", "").lower()
+
     # If you cannot connect:
     # throw CannotConnect
     # If the authentication is wrong:
@@ -75,6 +80,7 @@ async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]
         "address": remote._address,
         "ip_address": remote._ip_address,
         CONF_SERIAL: remote.serial_number,
+        CONF_MAC: mac_address
     }
 
 
@@ -102,11 +108,21 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle zeroconf discovery."""
         host = discovery_info.ip_address.compressed
         port = discovery_info.port
-        hostname = discovery_info.hostname
+        hostname = discovery_info.hostname # RemoteTwo-AABBCCDDEEFF-2.local. where AABBCCDDEEFF = mac address
+        name = discovery_info.name  # RemoteTwo-AABBCCDDEEFF-2.local. where AABBCCDDEEFF = mac address
         endpoint = f"http://{host}:{port}/api/"
 
+        mac_address = None
+        try:
+            mac_address = re.match("^[^-]+-([^-]+)-", hostname).group(1).lower()
+        except Exception:
+            try:
+                mac_address = re.match("^[^-]+-([^-]+)-", name).group(1).lower()
+            except Exception:
+                pass
+
         self.discovery_info.update(
-            {CONF_HOST: host, CONF_PORT: port, CONF_NAME: "Remote Two ("+host+")"}
+            {CONF_HOST: host, CONF_PORT: port, CONF_NAME: "Remote Two ("+host+")", CONF_MAC: mac_address}
         )
 
         self.context.update(
@@ -119,29 +135,25 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             }
         )
 
-        existing_entries = self.hass.config_entries.async_entries(DOMAIN)
-        if existing_entries:
-            for existing_entry in existing_entries:
-                try:
-                    ip_address = existing_entry.data.get("ip_address")
-                    for ip_address2 in discovery_info.ip_addresses:
-                        if ip_address == ip_address2.compressed:
-                            _LOGGER.debug("Unfolded circle remote discovered already configured %s", discovery_info)
-                            raise data_entry_flow.AbortFlow("already_configured")
-                            #self._abort_if_unique_id_configured(existing_entry[CONF_SERIAL])
-                except (KeyError, IndexError):
-                    pass
-
+        # Other approach : abandonned
+        # existing_entries = self.hass.config_entries.async_entries(DOMAIN)
+        # if existing_entries:
+        #     for existing_entry in existing_entries:
+        #         try:
+        #             ip_address = existing_entry.data.get("ip_address")
+        #             for ip_address2 in discovery_info.ip_addresses:
+        #                 if ip_address == ip_address2.compressed:
+        #                     _LOGGER.debug("Unfolded circle remote discovered already configured %s", discovery_info)
+        #                     raise data_entry_flow.AbortFlow("already_configured")
+        #                     #self._abort_if_unique_id_configured(existing_entry[CONF_SERIAL])
+        #         except (KeyError, IndexError):
+        #             pass
 
         _LOGGER.debug("Unfolded circle remote found %s %s :", host, discovery_info)
-        if discovery_info.ip_addresses:
-            for ip_address in discovery_info.ip_addresses:
-                _LOGGER.debug("%s", ip_address.compressed)
 
-        # Registry entry unique id (hostname) is null when host is supplied manually so can't check here
-        # as we don't know the serial number
-        # if hostname:
-        #     await self._async_set_unique_id_and_abort_if_already_configured(hostname)
+        # Use mac address as unique id as this is the only common information between zeroconf and user conf
+        if mac_address:
+            await self._async_set_unique_id_and_abort_if_already_configured(mac_address)
 
         return await self.async_step_zeroconf_confirm()
 
@@ -159,10 +171,10 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         try:
             info = await validate_input(user_input, self.discovery_info[CONF_HOST])
             self.discovery_info.update(
-                {CONF_SERIAL: info[CONF_SERIAL]}
+                {CONF_MAC: info[CONF_MAC]}
             )
             # Check unique ID here based on serial number
-            await self._async_set_unique_id_and_abort_if_already_configured(info[CONF_SERIAL])
+            await self._async_set_unique_id_and_abort_if_already_configured(info[CONF_MAC])
 
         except CannotConnect as ex:
             _LOGGER.error(ex)
@@ -197,10 +209,10 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         try:
             info = await validate_input(user_input, "")
             self.discovery_info.update(
-                {CONF_SERIAL: info[CONF_SERIAL]}
+                {CONF_MAC: info[CONF_MAC]}
             )
             # Check unique ID here based on serial number
-            await self._async_set_unique_id_and_abort_if_already_configured(info[CONF_SERIAL])
+            await self._async_set_unique_id_and_abort_if_already_configured(info[CONF_MAC])
         except CannotConnect:
             errors["base"] = "cannot_connect"
         except InvalidAuth:
@@ -221,7 +233,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         """Set the unique ID and abort if already configured."""
         await self.async_set_unique_id(unique_id)
         self._abort_if_unique_id_configured(
-            updates={CONF_SERIAL: self.discovery_info[CONF_SERIAL]},
+            updates={CONF_MAC: self.discovery_info[CONF_MAC]},
         )
 
     async def async_step_reauth(
