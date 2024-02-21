@@ -34,22 +34,6 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
 
     _attr_icon = "mdi:update"
 
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return DeviceInfo(
-            identifiers={
-                # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, self._remote.serial_number)
-            },
-            name=self._remote.name,
-            manufacturer=self._remote.manufacturer,
-            model=self._remote.model_name,
-            sw_version=self._remote.sw_version,
-            hw_version=self._remote.hw_revision,
-            configuration_url=self._remote.configuration_url,
-        )
-
     def __init__(self, coordinator, remote) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
@@ -73,10 +57,6 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
             0
         )  # UpdateEntityFeature.INSTALL
         self._attr_title = f"{self._remote.name} Firmware"
-
-    @property
-    def should_poll(self) -> bool:
-        return False
 
     async def async_install(
         self, version: str | None, backup: bool, **kwargs: Any

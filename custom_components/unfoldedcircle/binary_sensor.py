@@ -39,22 +39,6 @@ class PollingBinarySensor(
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
 
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return DeviceInfo(
-            identifiers={
-                # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, self.coordinator.api.serial_number)
-            },
-            name=self.coordinator.api.name,
-            manufacturer=self.coordinator.api.manufacturer,
-            model=self.coordinator.api.model_name,
-            sw_version=self.coordinator.api.sw_version,
-            hw_version=self.coordinator.api.hw_revision,
-            configuration_url=self.coordinator.api.configuration_url,
-        )
-
     def __init__(self, coordinator) -> None:
         """Initialize Binary Sensor."""
         super().__init__(coordinator)
@@ -67,10 +51,6 @@ class PollingBinarySensor(
         self._attr_native_value = self.coordinator.polling_data
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._extra_state_attributes = {}
-
-    @property
-    def should_poll(self) -> bool:
-        return False
 
     @property
     def is_on(self):
@@ -106,22 +86,6 @@ class BatteryBinarySensor(
         self.coordinator.subscribe_events["battery_status"] = True
         await super().async_added_to_hass()
 
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return DeviceInfo(
-            identifiers={
-                # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, self.coordinator.api.serial_number)
-            },
-            name=self.coordinator.api.name,
-            manufacturer=self.coordinator.api.manufacturer,
-            model=self.coordinator.api.model_name,
-            sw_version=self.coordinator.api.sw_version,
-            hw_version=self.coordinator.api.hw_revision,
-            configuration_url=self.coordinator.api.configuration_url,
-        )
-
     def __init__(self, coordinator) -> None:
         """Initialize Binary Sensor."""
         super().__init__(coordinator)
@@ -132,10 +96,6 @@ class BatteryBinarySensor(
         # The name of the entity
         self._attr_name = f"{self.coordinator.api.name} Charging Status"
         self._attr_native_value = False
-
-    @property
-    def should_poll(self) -> bool:
-        return False
 
     @property
     def is_on(self):

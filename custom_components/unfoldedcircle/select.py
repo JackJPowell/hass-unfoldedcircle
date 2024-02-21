@@ -1,10 +1,13 @@
 """Select platform for Electrolux Status."""
+from typing import Mapping, Any, cast
+
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from .pyUnfoldedCircleRemote.remote import Activity
 
 from . import UnfoldedCircleRemoteCoordinator
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
@@ -44,7 +47,8 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
         self._state = activity_group.state
         self._attr_icon = "mdi:remote-tv"
         self._attr_native_value = "OFF"
-        self._activities: dict[str, any] = {POWER_OFF_LABEL: "OFF"}
+        self._extra_state_attributes = {}
+        self._activities: dict[str, Activity | str] = {POWER_OFF_LABEL: "OFF"}
         # _LOGGER.debug("Activity groups %s", self.activity_group.activities)
         for activity_id in self.activity_group.activities:
             for activity in coordinator.api.activities:
@@ -58,24 +62,8 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
         await super().async_added_to_hass()
 
     @property
-    def should_poll(self) -> bool:
-        return False
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return DeviceInfo(
-            identifiers={
-                # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, self.coordinator.api.serial_number)
-            },
-            name=self.coordinator.api.name,
-            manufacturer=self.coordinator.api.manufacturer,
-            model=self.coordinator.api.model_name,
-            sw_version=self.coordinator.api.sw_version,
-            hw_version=self.coordinator.api.hw_revision,
-            configuration_url=self.coordinator.api.configuration_url,
-        )
+    def extra_state_attributes(self) -> Mapping[str, Any] | None:
+        return self._extra_state_attributes
 
     @property
     def translation_key(self) -> str | None:
@@ -118,6 +106,7 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
             last_update_type = self.coordinator.api.last_update_type
             if last_update_type != RemoteUpdateType.ACTIVITY:
                 return
+            self._extra_state_attributes = {}
         except (KeyError, IndexError):
             _LOGGER.debug("Unfolded Circle Remote select _handle_coordinator_update error")
             return
@@ -125,4 +114,8 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
         for activity_name, activity in self._activities.items():
             if activity_name == POWER_OFF_LABEL:
                 continue
+            activity = cast(Activity, activity)
+            if activity.is_on():
+                for entity in activity.mediaplayer_entities:
+                    self._extra_state_attributes[entity.name] = entity.state
         self.async_write_ha_state()

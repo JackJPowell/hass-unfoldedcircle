@@ -2,6 +2,7 @@
 
 import logging
 import re
+import requests
 from typing import Any
 
 import voluptuous as vol
@@ -125,9 +126,26 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             {CONF_HOST: host, CONF_PORT: port, CONF_NAME: "Remote Two ("+host+")", CONF_MAC: mac_address}
         )
 
+        _LOGGER.debug("Unfolded circle remote found %s %s %s :", mac_address, host, discovery_info)
+
+        # Use mac address as unique id as this is the only common information between zeroconf and user conf
+        if mac_address:
+            await self._async_set_unique_id_and_abort_if_already_configured(mac_address)
+
+        # Retrieve device friendly name set by user after checking if unique ID was not already defined and registered
+        device_name = "Remote Two"
+        try:
+            response = requests.get(endpoint+"pub/version")
+            data = await response.json()
+            device_name = data.get("device_name", None)
+            if not device_name:
+                device_name = "Remote Two"
+        except Exception:
+            pass
+
         self.context.update(
             {
-                "title_placeholders": {"name": "Remote Two"},
+                "title_placeholders": {"name": device_name},
                 "configuration_url": (
                     f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
                 ),
@@ -135,25 +153,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             }
         )
 
-        # Other approach : abandonned
-        # existing_entries = self.hass.config_entries.async_entries(DOMAIN)
-        # if existing_entries:
-        #     for existing_entry in existing_entries:
-        #         try:
-        #             ip_address = existing_entry.data.get("ip_address")
-        #             for ip_address2 in discovery_info.ip_addresses:
-        #                 if ip_address == ip_address2.compressed:
-        #                     _LOGGER.debug("Unfolded circle remote discovered already configured %s", discovery_info)
-        #                     raise data_entry_flow.AbortFlow("already_configured")
-        #                     #self._abort_if_unique_id_configured(existing_entry[CONF_SERIAL])
-        #         except (KeyError, IndexError):
-        #             pass
 
-        _LOGGER.debug("Unfolded circle remote found %s %s %s :", mac_address, host, discovery_info)
-
-        # Use mac address as unique id as this is the only common information between zeroconf and user conf
-        if mac_address:
-            await self._async_set_unique_id_and_abort_if_already_configured(mac_address)
         _LOGGER.debug("Unfolded circle remote found %s next step for registering", mac_address)
         return await self.async_step_zeroconf_confirm()
 

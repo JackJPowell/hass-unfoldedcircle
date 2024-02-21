@@ -139,22 +139,6 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity
     #         except Exception:
     #             pass
 
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return DeviceInfo(
-            identifiers={
-                # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, self.coordinator.api.serial_number)
-            },
-            name=self.coordinator.api.name,
-            manufacturer=self.coordinator.api.manufacturer,
-            model=self.coordinator.api.model_name,
-            sw_version=self.coordinator.api.sw_version,
-            hw_version=self.coordinator.api.hw_revision,
-            configuration_url=self.coordinator.api.configuration_url,
-        )
-
     def get_value(self) -> StateType:
         if self.coordinator.data:
             key = "_" + self.entity_description.key
@@ -162,10 +146,6 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity
             self._state = cast(StateType, state)
             self._attr_native_value = self._state
         return self._state
-
-    @property
-    def should_poll(self) -> bool:
-        return False
 
     # This property is important to let HA know if this entity is online or not.
     # If an entity is offline (return False), the UI will refelect this.

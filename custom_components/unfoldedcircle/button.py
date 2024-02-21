@@ -35,32 +35,12 @@ class Button(UnfoldedCircleEntity, ButtonEntity):
     _attr_icon = "mdi:gesture-tap-button"
     _attr_device_class = ButtonDeviceClass.RESTART
 
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return DeviceInfo(
-            identifiers={
-                # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, self._remote.serial_number)
-            },
-            name=self._remote.name,
-            manufacturer=self._remote.manufacturer,
-            model=self._remote.model_name,
-            sw_version=self._remote.sw_version,
-            hw_version=self._remote.hw_revision,
-            configuration_url=self._remote.configuration_url,
-        )
-
     def __init__(self, coordinator, remote) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._remote = remote
         self._attr_unique_id = f"{self._remote.serial_number}_restart_button"
         self._attr_name = f"{self._remote.name} Restart Remote"
-
-    @property
-    def should_poll(self) -> bool:
-        return False
 
     @property
     def available(self) -> bool:

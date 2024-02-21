@@ -50,22 +50,6 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
     entity_description: ToggleEntityDescription
     _attr_supported_features: RemoteEntityFeature = RemoteEntityFeature.ACTIVITY
 
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return DeviceInfo(
-            identifiers={
-                # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, self._remote.serial_number)
-            },
-            name=self._remote.name,
-            manufacturer=self._remote.manufacturer,
-            model=self._remote.model_name,
-            sw_version=self._remote.sw_version,
-            hw_version=self._remote.hw_revision,
-            configuration_url=self._remote.configuration_url,
-        )
-
     def __init__(self, coordinator, remote) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
@@ -85,10 +69,6 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
         self.update_state()
 
     @property
-    def should_poll(self) -> bool:
-        return False
-
-    @property
     def is_on(self) -> bool | None:
         return self.update_state()
 
@@ -104,6 +84,14 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
             if activity.is_on():
                 self._attr_current_activity = activity.name
                 self._attr_is_on = True
+        for activity in self._remote.activities:
+            for entity in activity.mediaplayer_entities:
+                self._extra_state_attributes[entity._name] = entity.state
+                if len(entity.source_list) > 0:
+                    self._extra_state_attributes["Media Player :" +entity._name+" sources"] = ", ".join(entity.source_list)
+                if entity.current_source is not None:
+                    self._extra_state_attributes["Media Player :" +entity._name + " current source"] = entity.current_source
+
         return self._attr_is_on
 
     async def async_turn_on(self, **kwargs: Any) -> None:

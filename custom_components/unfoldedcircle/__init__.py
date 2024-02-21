@@ -23,7 +23,8 @@ PLATFORMS: list[Platform] = [
     Platform.UPDATE,
     Platform.BUTTON,
     Platform.REMOTE,
-    Platform.SELECT
+    Platform.SELECT,
+    Platform.MEDIA_PLAYER
 ]
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
@@ -51,7 +52,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_config_entry_first_refresh()
 
     # Extract activities and activity groups
-    await coordinator.api.update()
+    await coordinator.api.init()
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(update_listener))

@@ -39,22 +39,6 @@ async def async_setup_entry(
 class UCRemoteSwitch(UnfoldedCircleEntity, SwitchEntity):
     """Class representing an unfolded circle activity."""
 
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return DeviceInfo(
-            identifiers={
-                # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, self.coordinator.api.serial_number)
-            },
-            name=self.coordinator.api.name,
-            manufacturer=self.coordinator.api.manufacturer,
-            model=self.coordinator.api.model_name,
-            sw_version=self.coordinator.api.sw_version,
-            hw_version=self.coordinator.api.hw_revision,
-            configuration_url=self.coordinator.api.configuration_url,
-        )
-
     def __init__(self, coordinator, switch) -> None:
         """Initialize a switch."""
         super().__init__(coordinator)
@@ -72,10 +56,6 @@ class UCRemoteSwitch(UnfoldedCircleEntity, SwitchEntity):
         await super().async_added_to_hass()
         self.coordinator.subscribe_events["entity_activity"] = True
         self.coordinator.subscribe_events["activity_groups"] = True
-
-    @property
-    def should_poll(self) -> bool:
-        return False
 
     @property
     def is_on(self) -> bool | None:

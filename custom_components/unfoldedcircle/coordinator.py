@@ -53,7 +53,7 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.api.update_from_message(message)
             # Trigger update of entities
             self.async_set_updated_data(vars(self.api))
-            asyncio.create_task(self._async_update_data()).result()
+            # asyncio.create_task(self._async_update_data()).result()
         except Exception as ex:
             _LOGGER.error("Unfolded Circle Remote error while updating entities", ex)
 
@@ -66,8 +66,38 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER.error("Unfolded Circle Remote reconnection_ws error while updating entities", ex)
 
     async def receive_data(self, message: any):
-        _LOGGER.debug("Unfolded Circle Remote coordinator received data %s", message)
+        # _LOGGER.debug("Unfolded Circle Remote coordinator received data %s", message)
         self.update(message)
+        self.debug_structure()
+
+    def debug_structure(self):
+        debug_info = []
+        for activity_group in self.api.activity_groups:
+            debug_info.append("Activity group "+activity_group.name+" ("+activity_group._id+") :")
+            active_media_entity = None
+            for entity in self.entities:
+                if hasattr(entity, "_active_media_entity") and entity.activity_group == activity_group:
+                    active_media_entity = entity._active_media_entity
+            if active_media_entity is None:
+                debug_info.append("  No active media entity for this group")
+            for activity in activity_group.activities:
+                debug_info.append(" - Activity "+activity.name+" ("+activity._id+") : "+activity.state)
+                for media_entity in activity.mediaplayer_entities:
+                    if active_media_entity and active_media_entity == media_entity:
+                        debug_info.append(
+                            "   > Media " + media_entity.name + " (" + media_entity._id + ") : " + media_entity._state)
+                    else:
+                        debug_info.append(
+                            "   - Media " + media_entity.name + " (" + media_entity._id + ") : " + media_entity._state)
+        debug_info.append("Media player entities from remote :")
+        for media_entity in self.api._entities:
+            debug_info.append(
+                " - Player " + media_entity.name + " (" + media_entity._id + ") : " + media_entity._state)
+        debug_info.append("Media player entities for HA :")
+        for entity in self.entities:
+            if hasattr(entity, "_active_media_entity"):
+                debug_info.append(" - Linked to activity group " + entity.activity_group.name +" : "+entity.state)
+        _LOGGER.debug("UC2 debug structure\n%s", "\n".join(debug_info))
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Get the latest data from the Unfolded Circle Remote."""

@@ -10,6 +10,7 @@ from urllib.parse import urljoin, urlparse
 
 import aiohttp
 import zeroconf
+from homeassistant.util import utcnow
 
 from .const import AUTH_APIKEY_NAME, AUTH_USERNAME, RemoteUpdateType
 
@@ -103,6 +104,7 @@ class Remote:
         self.pin = pin
         self.activity_groups: [ActivityGroup] = []
         self.activities: [Activity] = []
+        self._entities: [UCMediaPlayerEntity] = []
         self._name = ""
         self._model_name = ""
         self._model_number = ""
@@ -144,6 +146,7 @@ class Remote:
         self._ir_custom = []
         self._ir_codesets = []
         self._last_update_type = RemoteUpdateType.NONE
+
 
     @property
     def name(self):
@@ -457,7 +460,16 @@ class Remote:
         ) as response:
             await self.raise_on_error(response)
             for activity in await response.json():
-                self.activities.append(Activity(activity=activity, remote=self))
+                new_activity = Activity(activity=activity, remote=self)
+                self.activities.append(new_activity)
+                if new_activity.is_on():
+                    response2 = await session.get(self.url("activities/" + new_activity._id))
+                    data = await response2.json()
+                    #_LOGGER.debug("Unfolded circle extract active activity data %s %s", new_activity.name, data)
+                    try:
+                        self.update_activity_entities(new_activity, data["options"]["included_entities"])
+                    except (KeyError, IndexError):
+                        pass
             return await response.json()
 
     async def get_activity_groups(self):
@@ -468,7 +480,7 @@ class Remote:
             await self.raise_on_error(response)
             self.activity_groups = []
             for activity_group_data in await response.json():
-                _LOGGER.debug("get_activity_groups %s", json.dumps(activity_group_data, indent=2))
+                # _LOGGER.debug("get_activity_groups %s", json.dumps(activity_group_data, indent=2))
                 name = "DEFAULT"
                 if activity_group_data.get("name", None) and isinstance(activity_group_data.get("name", None), dict):
                     name = next(iter(activity_group_data.get("name").values()))
@@ -478,8 +490,9 @@ class Remote:
                 await self.raise_on_error(response2)
                 activity_group_definition = await  response2.json()
                 for activity in activity_group_definition.get("activities"):
-                    # _LOGGER.debug("get_activity_groups activity %s", json.dumps(activity, indent=2))
-                    activity_group.activities.append(activity.get("entity_id"))
+                    for local_activity in self.activities:
+                        if local_activity._id == activity.get("entity_id"):
+                            activity_group.activities.append(local_activity)
                 await response2.json()
                 self.activity_groups.append(activity_group)
             return await response.json()
@@ -733,6 +746,14 @@ class Remote:
                 if entity_id == current_activity["entity_id"]:
                     return current_activity["attributes"]["state"]
 
+    async def get_activity(self, entity_id) -> any:
+        """Get activity state for a remote entity."""
+        async with self.client() as session, session.get(
+                self.url("activities/"+entity_id)
+        ) as response:
+            await self.raise_on_error(response)
+            return await response.json()
+
     async def post_system_command(self, cmd) -> str:
         """POST a system command to the remote."""
         if cmd in SYSTEM_COMMANDS:
@@ -862,40 +883,84 @@ class Remote:
                 self.url("activities")
         ) as response:
             await self.raise_on_error(response)
-            current_activities = await response.json()
-            for current_activity in current_activities:
+            updated_activities = await response.json()
+            for updated_activity in updated_activities:
                 for activity in self.activities:
-                    if activity._id == current_activity["entity_id"]:
-                        activity._state = current_activity["attributes"]["state"]
+                    if activity._id == updated_activity["entity_id"]:
+                        activity._state = updated_activity["attributes"]["state"]
 
-    def update_from_message(self, message: any) -> RemoteUpdateType:
+    def update_from_message(self, message: any) -> None:
         """Update internal data from received message data instead of requesting the remote"""
+        data = json.loads(message)
+        # _LOGGER.debug("RC2 received websocket message %s",data)
         try:
             # Beware when modifying this code : if an attribute is missing in one of the if clauses,
             # it will raise an exception and skip the other if clauses
             # TODO Missing software updates (message format ?)
-            data = json.loads(message)
             if data["msg"] == "ambient_light":
                 _LOGGER.debug("Unfoldded circle remote update light")
                 self._ambient_light_intensity = data["msg_data"]["intensity"]
                 self._last_update_type = RemoteUpdateType.AMBIENT_LIGHT
-                return self._last_update_type
+                return
             if data["msg"] == "battery_status":
                 _LOGGER.debug("Unfoldded circle remote update battery")
                 self._battery_status = data["msg_data"]["status"]
                 self._battery_level = data["msg_data"]["capacity"]
                 self._is_charging = data["msg_data"]["power_supply"]
                 self._last_update_type = RemoteUpdateType.BATTERY
-                return self._last_update_type
+                return
+        except (KeyError, IndexError):
+            pass
+        try:
+            # Extract media player entities for future use
+            if (data["msg_data"]["entity_type"] == "media_player"
+                    and data["msg_data"]["new_state"]["attributes"]):
+                attributes = data["msg_data"]["new_state"]["attributes"]
+                entity_id = data["msg_data"]["entity_id"]
+                entity: UCMediaPlayerEntity = self.get_entity(entity_id)
+                entity.update_attributes(attributes)
+                self._last_update_type = RemoteUpdateType.ACTIVITY
+        except (KeyError, IndexError) as ex:
+            _LOGGER.debug("Unfoldded circle remote update error while reading data %s", data, ex)
+            pass
+        try:
+            # Only message where we have the link between the new activity and the media player entities (one message per media player entity)
+            # We don't want to extract all media player entities by API one by one so we get them dynamically through websockets
+            # and this is the only message here that gives the link activity -> entities
+            # TODO : not sure this will happen like that all the time :
+            #  ["msg_data"]["new_state"]["attributes"]["step"]["command"] = { "cmd_id": "media_player.on", "entity_id": "<media player entity id>"...}
+            if (data["msg_data"]["entity_type"] == "activity"
+                    and data["msg_data"]["new_state"]["attributes"]["state"] == "RUNNING"
+                    and data["msg_data"]["new_state"]["attributes"]["step"]["entity"]["type"] == "media_player"
+                    and data["msg_data"]["new_state"]["attributes"]["step"]["command"]["cmd_id"] == "media_player.on"):
+                _LOGGER.debug("Unfoldded circle remote update link between activity and entities")
+                activity_id = data["msg_data"]["entity_id"]
+                entity_id = data["msg_data"]["new_state"]["attributes"]["step"]["command"]["entity_id"]
+                entity_data = data["msg_data"]["new_state"]["attributes"]["step"]["entity"]
+                entity_data["entity_id"] = entity_id
+                for activity in self.activities:
+                    if activity._id == activity_id:
+                        self.update_activity_entities(activity, [entity_data])
+                self._last_update_type = RemoteUpdateType.ACTIVITY
+        except (KeyError, IndexError):
+            pass
+        try:
+            # Activity On or Off
             if (data["msg_data"]["entity_type"] == "activity"
                     and (data["msg_data"]["new_state"]["attributes"]["state"] == "ON"
                          or data["msg_data"]["new_state"]["attributes"]["state"] == "OFF")):
                 _LOGGER.debug("Unfoldded circle remote update activity")
                 new_state = data["msg_data"]["new_state"]["attributes"]["state"]
                 activity_id = data["msg_data"]["entity_id"]
+
                 for activity in self.activities:
                     if activity._id == activity_id:
                         activity._state = new_state
+                        # Check after included entities in activity
+                        if (data["msg_data"]["new_state"].get("options")
+                                and data["msg_data"]["new_state"]["options"].get("included_entities")):
+                            included_entities = data["msg_data"]["new_state"]["options"]["included_entities"]
+                            self.update_activity_entities(activity, included_entities)
 
                 for activity_group in self.activity_groups:
                     if activity_group.is_activity_in_group(activity_id):
@@ -906,11 +971,66 @@ class Remote:
                                 break
                         activity_group._state = group_state
                 self._last_update_type = RemoteUpdateType.ACTIVITY
-                return self._last_update_type
-
         except (KeyError, IndexError):
             pass
-        return RemoteUpdateType.OTHER
+
+    def get_entity(self, entity_id) -> any:
+        for entity in self._entities:
+            if entity._id == entity_id:
+                return entity
+        entity = UCMediaPlayerEntity(entity_id, self)
+        self._entities.append(entity)
+        return entity
+
+    async def get_entity_data(self, entity_id) -> any:
+        """Update remote status."""
+        async with self.client() as session, session.get(
+                self.url("entities/"+entity_id)
+        ) as response:
+            await self.raise_on_error(response)
+            information = await response.json()
+            return information
+
+
+    def update_activity_entities(self, activity, included_entities: any):
+        _LOGGER.debug("Unfoldded circle remote update_activity_entities %s %s", activity.name, included_entities)
+        for included_entity in included_entities:
+            entity_type = included_entity.get("entity_type", None)
+            if entity_type is None:
+                entity_type = included_entity.get("type", None)
+            if entity_type != "media_player":
+                continue
+            entity: UCMediaPlayerEntity = self.get_entity(included_entity["entity_id"])
+            if included_entity.get("name", None) is not None:
+                entity._name = next(iter(included_entity["name"].values()))
+            if included_entity.get("entity_commands", None) is not None:
+                entity._entity_commands = included_entity["entity_commands"]
+            activity.add_mediaplayer_entity(entity)
+
+    async def init(self):
+        """Retrieves all information about the remote."""
+        _LOGGER.debug("Unfoldded circle remote init data")
+        group = asyncio.gather(
+            self.get_remote_battery_information(),
+            self.get_remote_ambient_light_information(),
+            self.get_remote_update_information(),
+            self.get_remote_configuration(),
+            self.get_remote_information(),
+            self.get_stats(),
+            self.get_remote_display_settings(),
+            self.get_remote_button_settings(),
+            self.get_remote_sound_settings(),
+            self.get_remote_haptic_settings(),
+            self.get_remote_power_saving_settings(),
+            self.get_activities(),
+            self.get_activities_state(),
+            self.get_activity_groups()
+        )
+        await group
+
+        for activity_group in self.activity_groups:
+            await activity_group.update()
+        _LOGGER.debug("Unfoldded circle remote data initialized")
 
     async def update(self):
         """Retrieves all information about the remote."""
@@ -927,9 +1047,7 @@ class Remote:
             self.get_remote_sound_settings(),
             self.get_remote_haptic_settings(),
             self.get_remote_power_saving_settings(),
-            self.get_activities_state(),
-            self.get_activities(),
-            self.get_activity_groups()
+            self.get_activities_state()
         )
         await group
 
@@ -937,6 +1055,225 @@ class Remote:
             await activity_group.update()
         _LOGGER.debug("Unfoldded circle remote data updated")
 
+
+class UCMediaPlayerEntity:
+    """Internal class to track the media player entities reported by the remote"""
+    def __init__(self, entity_id: str, remote: Remote) -> None:
+        self._id = entity_id
+        self._remote = remote
+        self._state = "OFF"
+        self._name = entity_id
+        self._type = "media_player"
+        self._source_list = []
+        self._current_source = ""
+        self._media_title = ""
+        self._media_artist = ""
+        self._media_album = ""
+        self._media_type = ""
+        self._media_duration = 0
+        self._media_position = 0
+        self._muted = False
+        self._media_image_url = None
+        self._entity_commands: [str] = []
+        self._media_position_updated_at = None
+
+    @property
+    def available_commands(self) -> [str]:
+        return self._entity_commands
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def state(self) -> str:
+        return self._state
+
+    @property
+    def source_list(self) -> [str]:
+        return self._source_list
+
+    @property
+    def current_source(self) -> str:
+        return self._current_source
+
+    @property
+    def media_image_url(self) -> str:
+        return self._media_image_url
+
+    @property
+    def media_title(self) -> str:
+        return self._media_title
+
+    @property
+    def media_artist(self) -> str:
+        return self._media_artist
+
+    @property
+    def media_album(self) -> str:
+        return self._media_album
+
+    @property
+    def media_type(self) -> str:
+        return self._media_type
+
+    @property
+    def media_duration(self) -> int:
+        return self._media_duration
+
+    @property
+    def media_position(self) -> int:
+        return self._media_position
+
+    @property
+    def media_position_updated_at(self):
+        """Last time status was updated."""
+        return self._media_position_updated_at
+
+    @property
+    def muted(self) -> bool:
+        return self._muted
+
+    @property
+    def is_on(self) -> bool:
+        if self._state != "OFF":
+            return True
+        return False
+
+    def update_attributes(self, attributes: any) -> dict[str, any]:
+        attributes_changed = {"entity_id": self._id, "name": self.name}
+        if attributes.get("state", None):
+            self._state = attributes.get("state", None)
+            attributes_changed["state"] = self._state
+        if attributes.get("media_image_url", None):
+            self._media_image_url = attributes.get("media_image_url", None)
+            attributes_changed["media_image_url"] = True
+        if attributes.get("source", None):
+            self._current_source = attributes.get("source", None)
+            attributes_changed["source"] = self._current_source
+        if attributes.get("source_list", None):
+            self._source_list = attributes.get("source_list", None)
+            attributes_changed["source_list"] = self._source_list
+        if attributes.get("media_duration", None):
+            self._media_duration = attributes.get("media_duration", 0)
+            attributes_changed["media_duration"] = self._media_duration
+            # When media changes, media_duration is sent but not media_position
+            # we assume new position to 0
+            if attributes.get("media_position", None) is None:
+                self._media_position = 0
+                self._media_position_updated_at = utcnow()
+                attributes_changed["media_position"] = self._media_position
+        if attributes.get("media_artist", None):
+            self._media_artist = attributes.get("media_artist", None)
+            attributes_changed["media_artist"] = self._media_artist
+        if attributes.get("media_album", None):
+            self._media_album = attributes.get("media_album", None)
+            attributes_changed["media_album"] = self._media_album
+        if attributes.get("media_title", None):
+            self._media_title = attributes.get("media_title", None)
+            attributes_changed["media_title"] = self._media_title
+        if attributes.get("media_position", None):
+            self._media_position = attributes.get("media_position", 0)
+            self._media_position_updated_at = utcnow()
+            attributes_changed["media_position"] = self._media_position
+        if attributes.get("muted", None):
+            self._muted = attributes.get("muted", None)
+            attributes_changed["muted"] = self._muted
+        if attributes.get("media_type", None):
+            self._media_type = attributes.get("media_type", None)
+            attributes_changed["media_type"] = self._media_type
+        _LOGGER.debug("UC2 attributes changed %s", attributes_changed)
+        return attributes_changed
+
+    async def turn_on(self) -> None:
+        """Turn on the media player."""
+        body = {"entity_id": self._id, "cmd_id": "media_player.on"}
+        async with self._remote.client() as session, session.put(
+                self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
+            await self._remote.raise_on_error(response)
+            self._state = "ON"
+
+    async def turn_off(self) -> None:
+        """Turn off the media player."""
+        body = {"entity_id": self._id, "cmd_id": "media_player.off"}
+        async with self._remote.client() as session, session.put(
+                self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
+            await self._remote.raise_on_error(response)
+            self._state = "OFF"
+
+    async def select_source(self, source) -> None:
+        """Select source of the media player."""
+        body = {"entity_id": self._id, "cmd_id": "media_player.select_source", "params": {"source": source}}
+        async with self._remote.client() as session, session.put(
+                self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
+            await self._remote.raise_on_error(response)
+
+    async def volume_up(self) -> None:
+        """Raise volume of the media player."""
+        body = {"entity_id": self._id, "cmd_id": "media_player.volume_up"}
+        async with self._remote.client() as session, session.put(
+                self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
+            await self._remote.raise_on_error(response)
+
+    async def volume_down(self) -> None:
+        """Decrease the volume of the media player."""
+        body = {"entity_id": self._id, "cmd_id": "media_player.volume_down"}
+        async with self._remote.client() as session, session.put(
+                self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
+            await self._remote.raise_on_error(response)
+
+    async def mute(self) -> None:
+        """Mute the volume of the media player."""
+        body = {"entity_id": self._id, "cmd_id": "media_player.mute"}
+        async with self._remote.client() as session, session.put(
+                self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
+            await self._remote.raise_on_error(response)
+
+    async def play_pause(self) -> None:
+        """Play pause the media player."""
+        body = {"entity_id": self._id, "cmd_id": "media_player.play_pause"}
+        async with self._remote.client() as session, session.put(
+                self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
+            await self._remote.raise_on_error(response)
+
+    async def stop(self) -> None:
+        """Stop the media player."""
+        body = {"entity_id": self._id, "cmd_id": "media_player.stop"}
+        async with self._remote.client() as session, session.put(
+                self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
+            await self._remote.raise_on_error(response)
+
+    async def next(self) -> None:
+        """Next track/chapter of the media player."""
+        body = {"entity_id": self._id, "cmd_id": "media_player.next"}
+        async with self._remote.client() as session, session.put(
+                self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
+            await self._remote.raise_on_error(response)
+
+    async def previous(self) -> None:
+        """Previous track/chapter of the media player."""
+        body = {"entity_id": self._id, "cmd_id": "media_player.previous"}
+        async with self._remote.client() as session, session.put(
+                self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
+            await self._remote.raise_on_error(response)
+
+    async def seek(self, position: float) -> None:
+        """Next track/chapter of the media player."""
+        body = {"entity_id": self._id, "cmd_id": "media_player.seek", "params":{"media_position": position}}
+        async with self._remote.client() as session, session.put(
+                self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
+            await self._remote.raise_on_error(response)
 
 class ActivityGroup:
     """Class representing a Unfolded Circle Remote Activity Group."""
@@ -946,7 +1283,7 @@ class ActivityGroup:
         self._remote = remote
         self._state = state
         self._name = name
-        self.activities: [str] = []
+        self.activities: [Activity] = []
 
     @property
     def name(self):
@@ -963,16 +1300,23 @@ class ActivityGroup:
         """State of the Activity group."""
         return self._state
 
+    def get_activity(self, activity_id: str) -> any:
+        for activity in self.activities:
+            if activity._id == activity_id:
+                return activity
+        return None
+
     def is_activity_in_group(self, activity_id: str) -> bool:
-        if activity_id in self.activities:
+        if self.get_activity(activity_id):
             return True
-        else:
-            return False
+        return False
 
     async def update(self) -> None:
-        """Update activity state information."""
-        # TODO Necessary to update activity group state as we have it from activity itself ?
-        # self._state = await self._remote.get_activity_group(self._id)
+        """Update activity state information only for active activities."""
+        # Find the best media player (if any) entity for each activity group
+        for activity in self.activities:
+            if activity.is_on():
+                await activity.update()
 
 
 class Activity:
@@ -984,6 +1328,7 @@ class Activity:
         self._id = activity["entity_id"]
         self._remote = remote
         self._state = activity.get("attributes").get("state")
+        self._mediaplayer_entities: [UCMediaPlayerEntity] = []
 
     @property
     def name(self):
@@ -1004,6 +1349,17 @@ class Activity:
     def remote(self):
         """Remote Object."""
         return self._remote
+
+    @property
+    def mediaplayer_entities(self) -> [UCMediaPlayerEntity]:
+        """Media player entities associated to this activity"""
+        return self._mediaplayer_entities
+
+    def add_mediaplayer_entity(self, entity: UCMediaPlayerEntity):
+        for existing_entity in self._mediaplayer_entities:
+            if existing_entity._id == entity._id:
+                return
+        self._mediaplayer_entities.append(entity)
 
     async def turn_on(self) -> None:
         """Turn on an Activity."""
@@ -1031,7 +1387,23 @@ class Activity:
 
     async def update(self) -> None:
         """Update activity state information."""
-        self._state = await self._remote.get_activity_state(self._id)
+        activity_info = await self._remote.get_activity(self._id)
+        self._state = activity_info["attributes"]["state"]
+        try:
+            included_entities = activity_info["options"]["included_entities"]
+            for entity_info in included_entities:
+                if entity_info["entity_type"] != "media_player":
+                    continue
+                try:
+                    entity = self._remote.get_entity(entity_info["entity_id"])
+                    entity._entity_commands = entity_info["entity_commands"]
+                    entity._name = next(iter(entity_info["name"].values()))
+                    data = await self._remote.get_entity_data(entity._id)
+                    entity.update_attributes(data["attributes"])
+                except Exception:
+                    pass
+        except (KeyError, IndexError):
+            pass
         # await self._remote.update()
 
 
