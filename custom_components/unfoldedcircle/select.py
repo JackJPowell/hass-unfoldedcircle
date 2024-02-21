@@ -48,12 +48,7 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
         self._attr_icon = "mdi:remote-tv"
         self._attr_native_value = "OFF"
         self._extra_state_attributes = {}
-        self._activities: dict[str, Activity | str] = {POWER_OFF_LABEL: "OFF"}
         # _LOGGER.debug("Activity groups %s", self.activity_group.activities)
-        for activity_id in self.activity_group.activities:
-            for activity in coordinator.api.activities:
-                if activity._id == activity_id:
-                    self._activities[activity._name] = activity
 
     async def async_added_to_hass(self):
         """Run when this Entity has been added to HA."""
@@ -71,32 +66,29 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
 
     @property
     def current_option(self) -> str:
-        for activity_name, activity in self._activities.items():
-            if activity_name == POWER_OFF_LABEL:
-                continue
+        for activity in self.activity_group.activities:
             if activity.is_on():
-                return activity_name
+                return activity.name
         return POWER_OFF_LABEL
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
         if option == POWER_OFF_LABEL:
-            for activity_name, activity in self._activities.items():
-                if activity_name == POWER_OFF_LABEL:
-                    continue
-                if activity.state == "ON":
+            for activity in self.activity_group.activities:
+                if activity.is_on():
                     await activity.turn_off()
-                    break
             return
-        activity = self._activities.get(option, None)
-        if activity is None:
-            return
-        await activity.turn_on()
+        for activity in self.activity_group.activities:
+            if activity.name == option:
+                await activity.turn_on()
 
     @property
     def options(self) -> list[str]:
         """Return a set of selectable options."""
-        return list(self._activities.keys())
+        option_list = [POWER_OFF_LABEL]
+        for activity in self.activity_group.activities:
+            option_list.append(activity.name)
+        return option_list
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -111,10 +103,7 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
             _LOGGER.debug("Unfolded Circle Remote select _handle_coordinator_update error")
             return
         self._state = self.activity_group.state
-        for activity_name, activity in self._activities.items():
-            if activity_name == POWER_OFF_LABEL:
-                continue
-            activity = cast(Activity, activity)
+        for activity in self.activity_group.activities:
             if activity.is_on():
                 for entity in activity.mediaplayer_entities:
                     self._extra_state_attributes[entity.name] = entity.state

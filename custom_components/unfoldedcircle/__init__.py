@@ -47,12 +47,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         UNFOLDED_CIRCLE_API: remote_api,
     }
 
+    # Extract activities and activity groups
+    await coordinator.api.init()
+
     # Retrieve info from Remote
     # Get Basic Device Information
     await coordinator.async_config_entry_first_refresh()
-
-    # Extract activities and activity groups
-    await coordinator.api.init()
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(update_listener))

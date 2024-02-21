@@ -472,6 +472,18 @@ class Remote:
                         pass
             return await response.json()
 
+    async def get_activities_state(self):
+        """Get activity state for a remote entity."""
+        async with self.client() as session, session.get(
+                self.url("activities")
+        ) as response:
+            await self.raise_on_error(response)
+            updated_activities = await response.json()
+            for updated_activity in updated_activities:
+                for activity in self.activities:
+                    if activity._id == updated_activity["entity_id"]:
+                        activity._state = updated_activity["attributes"]["state"]
+
     async def get_activity_groups(self):
         """Return activity groups with the list of activity IDs from Unfolded Circle Remote."""
         async with self.client() as session, session.get(
@@ -877,17 +889,6 @@ class Remote:
             response = await response.json()
             return response == 200
 
-    async def get_activities_state(self):
-        """Get activity state for a remote entity."""
-        async with self.client() as session, session.get(
-                self.url("activities")
-        ) as response:
-            await self.raise_on_error(response)
-            updated_activities = await response.json()
-            for updated_activity in updated_activities:
-                for activity in self.activities:
-                    if activity._id == updated_activity["entity_id"]:
-                        activity._state = updated_activity["attributes"]["state"]
 
     def update_from_message(self, message: any) -> None:
         """Update internal data from received message data instead of requesting the remote"""
@@ -1022,11 +1023,11 @@ class Remote:
             self.get_remote_sound_settings(),
             self.get_remote_haptic_settings(),
             self.get_remote_power_saving_settings(),
-            self.get_activities(),
-            self.get_activities_state(),
-            self.get_activity_groups()
+            self.get_activities()
         )
         await group
+
+        await self.get_activity_groups()
 
         for activity_group in self.activity_groups:
             await activity_group.update()

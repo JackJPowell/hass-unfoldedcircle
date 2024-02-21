@@ -68,7 +68,8 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def receive_data(self, message: any):
         # _LOGGER.debug("Unfolded Circle Remote coordinator received data %s", message)
         self.update(message)
-        self.debug_structure()
+        if logging.DEBUG:
+            self.debug_structure()
 
     def debug_structure(self):
         debug_info = []
