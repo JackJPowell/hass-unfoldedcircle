@@ -891,7 +891,7 @@ class Remote:
 
 
     def update_from_message(self, message: any) -> None:
-        """Update internal data from received message data instead of requesting the remote"""
+        """Update internal data from received websocket messages data instead of requesting the remote"""
         data = json.loads(message)
         # _LOGGER.debug("RC2 received websocket message %s",data)
         try:
@@ -1034,7 +1034,7 @@ class Remote:
         _LOGGER.debug("Unfoldded circle remote data initialized")
 
     async def update(self):
-        """Retrieves all information about the remote."""
+        """Updates necessary information about the remote."""
         _LOGGER.debug("Unfoldded circle remote update data")
         group = asyncio.gather(
             self.get_remote_battery_information(),
@@ -1077,6 +1077,20 @@ class UCMediaPlayerEntity:
         self._media_image_url = None
         self._entity_commands: [str] = []
         self._media_position_updated_at = None
+        self._initialized = False
+
+    async def update_data(self, force=False):
+        """Update entity data from remote"""
+        _LOGGER.debug("RC2 update media player entity from remote %s", self.name)
+        if self._initialized and not force:
+            return
+        data = await self._remote.get_entity_data(self._id)
+        self.update_attributes(data["attributes"])
+        self._initialized = True
+
+    @property
+    def initialized(self) -> bool:
+        return self._initialized
 
     @property
     def available_commands(self) -> [str]:
@@ -1160,10 +1174,10 @@ class UCMediaPlayerEntity:
             attributes_changed["media_duration"] = self._media_duration
             # When media changes, media_duration is sent but not media_position
             # we assume new position to 0
-            if attributes.get("media_position", None) is None:
-                self._media_position = 0
-                self._media_position_updated_at = utcnow()
-                attributes_changed["media_position"] = self._media_position
+            # if attributes.get("media_position", None) is None:
+            #     self._media_position = 0
+            #     self._media_position_updated_at = utcnow()
+            #     attributes_changed["media_position"] = self._media_position
         if attributes.get("media_artist", None):
             self._media_artist = attributes.get("media_artist", None)
             attributes_changed["media_artist"] = self._media_artist
@@ -1399,8 +1413,7 @@ class Activity:
                     entity = self._remote.get_entity(entity_info["entity_id"])
                     entity._entity_commands = entity_info["entity_commands"]
                     entity._name = next(iter(entity_info["name"].values()))
-                    data = await self._remote.get_entity_data(entity._id)
-                    entity.update_attributes(data["attributes"])
+                    await entity.update_data()
                 except Exception:
                     pass
         except (KeyError, IndexError):

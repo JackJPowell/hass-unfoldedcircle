@@ -1,4 +1,5 @@
 """Select platform for Electrolux Status."""
+import asyncio
 import base64
 import re
 import hashlib
@@ -356,8 +357,15 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
             if last_update_type != RemoteUpdateType.ACTIVITY:
                 return
             self.update_state()
+            if self._active_media_entity and not self._active_media_entity.initialized:
+                _LOGGER.debug("Unfolded circle changed active media player entity not initialized, update it")
+                return asyncio.run_coroutine_threadsafe(
+                    self._active_media_entity.update_data(), self.coordinator.hass.loop
+                ).result()
+                # asyncio.ensure_future(self._active_media_entity.update_data())
         except (KeyError, IndexError):
             _LOGGER.debug("Unfolded Circle Remote MediaPlayer _handle_coordinator_update error")
             return
         # self._state = self.activity_group.state
         self.async_write_ha_state()
+        return super()._handle_coordinator_update()

@@ -27,12 +27,13 @@ async def async_setup_entry(
     # Setup connection with devices
     coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
 
-    activity_ids = []
+    activities = []
     for activity_group in coordinator.api.activity_groups:
-        activity_ids.extend(activity_group.activities)
+        activities.extend(activity_group.activities)
 
+    # Create switch for each activity only for activities not defined in any activity group
     async_add_entities(
-        UCRemoteSwitch(coordinator, switch) for switch in filter(lambda a: a._id not in activity_ids, coordinator.api.activities)
+        UCRemoteSwitch(coordinator, switch) for switch in filter(lambda a: a not in activities, coordinator.api.activities)
     )
 
 
@@ -45,7 +46,7 @@ class UCRemoteSwitch(UnfoldedCircleEntity, SwitchEntity):
         self.switch = switch
         self._name = f"{self.coordinator.api.name} {switch.name}"
         self._attr_name = f"{self.coordinator.api.name} {switch.name}"
-        self._attr_unique_id = switch._id
+        # self._attr_unique_id = switch._id
         self._state = switch.state
         self._attr_icon = "mdi:remote-tv"
         self._attr_native_value = "OFF"
