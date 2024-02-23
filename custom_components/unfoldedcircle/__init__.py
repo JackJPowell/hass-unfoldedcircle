@@ -9,12 +9,11 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
-from .pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_API, UNFOLDED_CIRCLE_COORDINATOR
 from .coordinator import UnfoldedCircleRemoteCoordinator
-
+from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
+from .pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
 
 PLATFORMS: list[Platform] = [
     Platform.SWITCH,
@@ -24,10 +23,11 @@ PLATFORMS: list[Platform] = [
     Platform.BUTTON,
     Platform.REMOTE,
     Platform.SELECT,
-    Platform.MEDIA_PLAYER
+    Platform.NUMBER,
 ]
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Unfolded Circle Remote from a config entry."""
@@ -64,10 +64,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     try:
-        coordinator: UnfoldedCircleRemoteCoordinator = hass.data[DOMAIN][entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
+        coordinator: UnfoldedCircleRemoteCoordinator = hass.data[DOMAIN][
+            entry.entry_id
+        ][UNFOLDED_CIRCLE_COORDINATOR]
         await coordinator.close_websocket()
     except Exception as ex:
-        _LOGGER.error("Unfolded Circle Remote async_unload_entry error", ex)
+        _LOGGER.error("Unfolded Circle Remote async_unload_entry error: %s", ex)
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         hass.data[DOMAIN].pop(entry.entry_id)
 
@@ -76,7 +78,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def update_listener(hass: HomeAssistant, entry: ConfigEntry):
     """Update Listener."""
-    #TODO Should be ?
-    #await async_unload_entry(hass, entry)
-    #await async_setup_entry(hass, entry)
+    # TODO Should be ?
+    # await async_unload_entry(hass, entry)
+    # await async_setup_entry(hass, entry)
     await hass.config_entries.async_reload(entry.entry_id)
