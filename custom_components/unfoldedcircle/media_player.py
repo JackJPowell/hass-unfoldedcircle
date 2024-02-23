@@ -22,7 +22,7 @@ from homeassistant.helpers.typing import UndefinedType
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 from .entity import UnfoldedCircleEntity
 from .pyUnfoldedCircleRemote.const import RemoteUpdateType
-from .pyUnfoldedCircleRemote.remote import Activity, ActivityGroup, UCMediaPlayerEntity
+from .pyUnfoldedCircleRemote.remote import UCMediaPlayerEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,10 +61,7 @@ async def async_setup_entry(
 ) -> None:
     """Use to setup entity."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
-    async_add_entities(
-        MediaPlayerUCRemote(coordinator, activity_group)
-        for activity_group in coordinator.api.activity_groups
-    )
+    async_add_entities(MediaPlayerUCRemote(coordinator))
 
 
 class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
@@ -72,15 +69,11 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
 
     _attr_supported_features = SUPPORT_MEDIA_PLAYER
 
-    def __init__(self, coordinator, activity_group: ActivityGroup) -> None:
+    def __init__(self, coordinator) -> None:
         """Initialize a switch."""
         super().__init__(coordinator)
-        self.activity_group = activity_group
-        self._name = f"{self.coordinator.api.name} {activity_group.name} player"
-        self._attr_name = f"{self.coordinator.api.name} {activity_group.name} player"
-        self._attr_unique_id = (
-            f"{self.coordinator.api.serial_number}_{activity_group._id}_mediaplayer"
-        )
+        self._attr_name = f"{self.coordinator.api.name} player"
+        self._attr_unique_id = f"{self.coordinator.api.serial_number}_mediaplayer"
         # self._state = activity_group.state
         self._extra_state_attributes = {}
         self._current_activity = None
