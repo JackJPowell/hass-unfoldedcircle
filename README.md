@@ -64,9 +64,9 @@ There is a config flow for this integration. After installing the custom compone
 After the device is configured, the integration will expose 9 entities plus the number of activities you have defined on your remote. These are grouped by device.
 
 - Sensors
-    - Battery*: Reporting current charge percentage
+    - Battery**: Reporting current charge percentage
     - Illuminance: Reporting current lux value from ambient light sensor (disabled by default as it consumes a lot of network requests through the websocket)
-    - Resource Usage*: CPU load, Memory, and Storage Statistics
+    - Resource Usage**: CPU load, Memory, and Storage Statistics
 - Binary Sensor
     - Battery Charging Status: Charging state of device: Helpful in automations to tell if the device is charging (online and available)
 - Update
@@ -86,7 +86,7 @@ After the device is configured, the integration will expose 9 entities plus the 
 - Select
     - One select (dropdown) per activity group. It lets display the current activity and select a new one
 
-* disabled by default to avoid polling data every few seconds and consume the remote battery. If one of those sensors is enabled, the polling will be enabled then. Otherwise data is recovered through a websocket, which means that HA will receive the data from the remote ONLY when it changes. This includes battery state, current activity or played media.
+ ** disabled by default to avoid polling data every few seconds and consume the remote battery. If one of those sensors is enabled, the polling will be enabled then. Otherwise data is recovered through a websocket, which means that HA will receive the data from the remote ONLY when it changes. This includes battery state, current activity or played media.
 
 ## IR Remote Commands
 How to interact with the Remote Service:
