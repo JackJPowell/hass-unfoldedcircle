@@ -134,14 +134,17 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
 
         # Retrieve device friendly name set by user after checking if unique ID was not already defined and registered
         device_name = "Remote Two"
-        try:
-            response = requests.get(endpoint+"pub/version")
-            data = await response.json()
-            device_name = data.get("device_name", None)
-            if not device_name:
-                device_name = "Remote Two"
-        except Exception:
-            pass
+
+        # Problem : Home assistant raises a warning when calling a blocking request in async_step_zeroconf
+        # The goal was to get the device name set by user to distinguish devices
+        # try:
+        #     response = requests.get(endpoint+"pub/version")
+        #     data = await response.json()
+        #     device_name = data.get("device_name", None)
+        #     if not device_name:
+        #         device_name = "Remote Two"
+        # except Exception:
+        #     pass
 
         self.context.update(
             {
