@@ -11,6 +11,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 from .coordinator import UnfoldedCircleRemoteCoordinator
+from .entity import UnfoldedCircleEntity
+from .pyUnfoldedCircleRemote.const import RemoteUpdateType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,52 +27,36 @@ async def async_setup_entry(
     # Setup connection with devices
     coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
 
-    # Verify that passed in configuration works
-    if not await coordinator.api.can_connect():
-        _LOGGER.error("Could not connect to Remote")
-        return
+    activities = []
+    for activity_group in coordinator.api.activity_groups:
+        activities.extend(activity_group.activities)
 
-    # Get Basic Device Information
-    await coordinator.api.update()
-    await coordinator.async_config_entry_first_refresh()
-
-    # Add devices
-    await coordinator.api.get_activities()
+    # Create switch for each activity only for activities not defined in any activity group
     async_add_entities(
-        UCRemoteSwitch(coordinator, switch) for switch in coordinator.api.activities
+        UCRemoteSwitch(coordinator, switch) for switch in filter(lambda a: a not in activities, coordinator.api.activities)
     )
 
 
-class UCRemoteSwitch(CoordinatorEntity[UnfoldedCircleRemoteCoordinator], SwitchEntity):
+class UCRemoteSwitch(UnfoldedCircleEntity, SwitchEntity):
     """Class representing an unfolded circle activity."""
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return DeviceInfo(
-            identifiers={
-                # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, self.coordinator.api.serial_number)
-            },
-            name=self.coordinator.api.name,
-            manufacturer=self.coordinator.api.manufacturer,
-            model=self.coordinator.api.model_name,
-            sw_version=self.coordinator.api.sw_version,
-            hw_version=self.coordinator.api.hw_revision,
-            configuration_url=self.coordinator.api.configuration_url,
-        )
 
     def __init__(self, coordinator, switch) -> None:
         """Initialize a switch."""
-        super().__init__(self, coordinator)
-        self.coordinator = coordinator
+        super().__init__(coordinator)
         self.switch = switch
         self._name = f"{self.coordinator.api.name} {switch.name}"
         self._attr_name = f"{self.coordinator.api.name} {switch.name}"
-        self._attr_unique_id = switch._id
+        # self._attr_unique_id = switch._id
         self._state = switch.state
         self._attr_icon = "mdi:remote-tv"
         self._attr_native_value = "OFF"
+
+
+    async def async_added_to_hass(self):
+        """Run when this Entity has been added to HA."""
+        await super().async_added_to_hass()
+        self.coordinator.subscribe_events["entity_activity"] = True
+        self.coordinator.subscribe_events["activity_groups"] = True
 
     @property
     def is_on(self) -> bool | None:
@@ -90,5 +76,11 @@ class UCRemoteSwitch(CoordinatorEntity[UnfoldedCircleRemoteCoordinator], SwitchE
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
+        try:
+            last_update_type = self.coordinator.api.last_update_type
+            if last_update_type != RemoteUpdateType.ACTIVITY:
+                return
+        except (KeyError, IndexError):
+            return
         self._state = self.switch.state
         self.async_write_ha_state()

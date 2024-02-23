@@ -64,9 +64,9 @@ There is a config flow for this integration. After installing the custom compone
 After the device is configured, the integration will expose 9 entities plus the number of activities you have defined on your remote. These are grouped by device.
 
 - Sensors
-    - Battery: Reporting current charge percentage
-    - Illuminance: Reporting current lux value from ambient light sensor
-    - Resource Usage: CPU load, Memory, and Storage Statistics
+    - Battery**: Reporting current charge percentage
+    - Illuminance: Reporting current lux value from ambient light sensor (disabled by default as it consumes a lot of network requests through the websocket)
+    - Resource Usage**: CPU load, Memory, and Storage Statistics
 - Binary Sensor
     - Battery Charging Status: Charging state of device: Helpful in automations to tell if the device is charging (online and available)
 - Update
@@ -77,8 +77,16 @@ After the device is configured, the integration will expose 9 entities plus the 
 - Button
     - A button is available to restart the remote
 - Remote
-    - A remote is available to send pre-configured IR commands from the dock (See Below)
+    - A remote is available to send pre-configured IR commands from the dock (See Below). It also lets activate an activity. If several activities are active, one of them is picked up to show current activity
+- Media player
+    - A media player entity is available per activity group. An activity group is a set of activities linked together (if a new one is turned on, the current one is turned off). The integration will extract the current media player entity. If multiple media player entities are active within the activity, it will try to guess the more suitable one (if a media is playing for ex)
+    - The current activity within the activity group is displayed and another activity can be enabled in a dropdown list
+    - The artwork will be extracted if any and displayed in the media player entities
+    - Most commands should work according the media player capabilities : playback control, volume control
+- Select
+    - One select (dropdown) per activity group. It lets display the current activity and select a new one
 
+ ** disabled by default to avoid polling data every few seconds and consume the remote battery. If one of those sensors is enabled, the polling will be enabled then. Otherwise data is recovered through a websocket, which means that HA will receive the data from the remote ONLY when it changes. This includes battery state, current activity or played media.
 
 ## IR Remote Commands
 How to interact with the Remote Service:

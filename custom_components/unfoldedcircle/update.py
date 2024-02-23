@@ -5,11 +5,12 @@ from typing import Any
 from homeassistant.components.update import UpdateEntity, UpdateEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, UNFOLDED_CIRCLE_API
+from .const import DOMAIN, UNFOLDED_CIRCLE_API, UNFOLDED_CIRCLE_COORDINATOR
+from .entity import UnfoldedCircleEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,44 +22,21 @@ async def async_setup_entry(
 ) -> None:
     """Set up platform."""
     remote = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_API]
-
-    # Verify that passed in configuration works
-    if not await remote.can_connect():
-        _LOGGER.error("Could not connect to Remote")
-        return
-
-    # Get Basic Device Information
-    await remote.update()
-
+    coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
     new_devices = []
-    new_devices.append(Update(remote))
+    new_devices.append(Update(coordinator, remote))
     if new_devices:
         async_add_entities(new_devices)
 
 
-class Update(UpdateEntity):
+class Update(UnfoldedCircleEntity, UpdateEntity):
     """Update Entity."""
 
     _attr_icon = "mdi:update"
 
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return DeviceInfo(
-            identifiers={
-                # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, self._remote.serial_number)
-            },
-            name=self._remote.name,
-            manufacturer=self._remote.manufacturer,
-            model=self._remote.model_name,
-            sw_version=self._remote.sw_version,
-            hw_version=self._remote.hw_revision,
-            configuration_url=self._remote.configuration_url,
-        )
-
-    def __init__(self, remote) -> None:
+    def __init__(self, coordinator, remote) -> None:
         """Initialize the sensor."""
+        super().__init__(coordinator)
         self._remote = remote
         self._attr_unique_id = f"{self._remote.name}_update_status"
 
@@ -105,3 +83,11 @@ class Update(UpdateEntity):
         await self._remote.get_remote_update_information()
         self._attr_latest_version = self._remote.latest_sw_version
         self._attr_installed_version = self._remote.sw_version
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        # Update only if activity changed
+        self._attr_latest_version = self._remote.latest_sw_version
+        self._attr_installed_version = self._remote.sw_version
+        self.async_write_ha_state()

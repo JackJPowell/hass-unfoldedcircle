@@ -3,7 +3,7 @@ homeassistant>=2023.12
 home-assistant-frontend
 
 # Integration
-pyUnfoldedCircleRemote
+# pyUnfoldedCircleRemote~=0.5.2
 
 # Development
 black
@@ -11,3 +11,10 @@ colorlog==6.7.0
 pip>=21.0
 pylint>=2.17.3
 ruff==0.0.255
+rel~=0.4.9.6
+requests~=2.31.0
+voluptuous~=0.13.1
+aiohttp~=3.9.3
+zeroconf~=0.131.0
+websockets~=12.0
+pyUnfoldedCircleRemote~=0.5.2
