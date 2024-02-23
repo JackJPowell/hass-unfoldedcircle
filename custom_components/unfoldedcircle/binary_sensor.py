@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
+from .coordinator import UnfoldedCircleRemoteCoordinator
 from .entity import UnfoldedCircleEntity
 
 _LOGGER = logging.getLogger(__name__)
@@ -37,7 +38,10 @@ class PollingBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
         """Initialize Binary Sensor."""
         super().__init__(coordinator)
 
+        # As per the sensor, this must be a unique value within this domain.
         self._attr_unique_id = f"{self.coordinator.api.serial_number}_polling_status"
+
+        # The name of the entity
         self._attr_name = f"{self.coordinator.api.name} Polling Status"
         self._attr_native_value = self.coordinator.polling_data
         self._attr_entity_category = EntityCategory.DIAGNOSTIC

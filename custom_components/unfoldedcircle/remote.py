@@ -16,6 +16,12 @@ from .entity import UnfoldedCircleEntity
 _LOGGER = logging.getLogger(__name__)
 
 
+async def init_device_data(remote):
+    await remote.get_remotes()
+    await remote.get_remote_codesets()
+    await remote.get_docks()
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,

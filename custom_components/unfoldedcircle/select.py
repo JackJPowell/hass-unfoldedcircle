@@ -1,7 +1,7 @@
-"""Select platform for Electrolux Status."""
+"""Select platform for Unfolded Circle"""
 
 import logging
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry

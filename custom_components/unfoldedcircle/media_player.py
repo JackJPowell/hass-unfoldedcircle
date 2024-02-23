@@ -22,7 +22,7 @@ from homeassistant.helpers.typing import UndefinedType
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 from .entity import UnfoldedCircleEntity
 from .pyUnfoldedCircleRemote.const import RemoteUpdateType
-from .pyUnfoldedCircleRemote.remote import UCMediaPlayerEntity
+from .pyUnfoldedCircleRemote.remote import ActivityGroup, UCMediaPlayerEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,7 +61,10 @@ async def async_setup_entry(
 ) -> None:
     """Use to setup entity."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
-    async_add_entities(MediaPlayerUCRemote(coordinator))
+    async_add_entities(
+        MediaPlayerUCRemote(coordinator, activity_group)
+        for activity_group in coordinator.api.activity_groups
+    )
 
 
 class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):

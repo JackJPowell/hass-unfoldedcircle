@@ -131,15 +131,6 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
             self.coordinator.polling_data = True
         await super().async_added_to_hass()
 
-    # Too complicated : relead integration instead
-    # async def async_will_remove_from_hass(self) -> None:
-    #     await super().async_will_remove_from_hass()
-    #     if self.entity_description.key == "ambient_light_intensity":
-    #         try:
-    #             del self.coordinator.subscribe_events["ambient_light"]
-    #         except Exception:
-    #             pass
-
     def get_value(self) -> StateType:
         if self.coordinator.data:
             key = "_" + self.entity_description.key
@@ -148,8 +139,6 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
             self._attr_native_value = self._state
         return self._state
 
-    # This property is important to let HA know if this entity is online or not.
-    # If an entity is offline (return False), the UI will refelect this.
     @property
     def available(self) -> bool:
         """Return if available."""

@@ -22,8 +22,8 @@ PLATFORMS: list[Platform] = [
     Platform.UPDATE,
     Platform.BUTTON,
     Platform.REMOTE,
-    Platform.SELECT,
     Platform.NUMBER,
+    Platform.SELECT,
 ]
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)

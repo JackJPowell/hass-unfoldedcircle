@@ -7,22 +7,28 @@ import logging
 import re
 import socket
 import time
+from typing import Any
 from urllib.parse import urljoin, urlparse
 
 import aiohttp
 import zeroconf
+from homeassistant.util import utcnow
 
-from .const import (
-    AUTH_APIKEY_NAME,
-    AUTH_USERNAME,
-    SYSTEM_COMMANDS,
-    ZEROCONF_SERVICE_TYPE,
-    ZEROCONF_TIMEOUT,
-    RemotePowerModes,
-    RemoteUpdateType,
-)
+from .const import AUTH_APIKEY_NAME, AUTH_USERNAME, RemoteUpdateType
 
 _LOGGER = logging.getLogger(__name__)
+
+ZEROCONF_TIMEOUT = 3
+ZEROCONF_SERVICE_TYPE = "_uc-remote._tcp.local."
+
+SYSTEM_COMMANDS = [
+    "STANDBY",
+    "REBOOT",
+    "POWER_OFF",
+    "RESTART",
+    "RESTART_UI",
+    "RESTART_CORE",
+]
 
 
 class HTTPError(BaseException):
@@ -98,16 +104,16 @@ class Remote:
         self.configuration_url = self.derive_configuration_url()
         self.apikey = apikey
         self.pin = pin
-        self.activity_groups: list[ActivityGroup] = []
-        self.activities: list[Activity] = []
-        self._entities: list[UCMediaPlayerEntity] = []
+        self.activity_groups: [ActivityGroup] = []
+        self.activities: [Activity] = []
+        self._entities: [UCMediaPlayerEntity] = []
         self._name = ""
         self._model_name = ""
         self._model_number = ""
         self._serial_number = ""
         self._hw_revision = ""
         self._manufacturer = "Unfolded Circle"
-        self._mac_address = ""
+        self._address = ""
         self._ip_address = ""
         self._battery_level = 0
         self._battery_status = ""
@@ -137,7 +143,6 @@ class Remote:
         self._storage_available = 0
         self._cpu_load = {}
         self._cpu_load_one = 0.0
-        self._power_mode = RemotePowerModes.NORMAL.value
         self._remotes = []
         self._docks = []
         self._ir_custom = []
@@ -268,21 +273,6 @@ class Remote:
         return self._battery_status
 
     @property
-    def power_mode(self):
-        """Remote Power Mode."""
-        match self._power_mode:
-            case RemotePowerModes.NORMAL.value:
-                return "Normal"
-            case RemotePowerModes.IDLE.value:
-                return "Idle"
-            case RemotePowerModes.LOW_POWER.value:
-                return "Low Power"
-            case RemotePowerModes.SUSPEND.value:
-                return "Suspended"
-            case _:
-                return "Unknown"
-
-    @property
     def update_in_progress(self):
         """Remote Update is in progress."""
         return self._update_in_progress
@@ -321,16 +311,6 @@ class Remote:
     def cpu_load_one(self):
         """CPU Load 1 minute."""
         return self._cpu_load_one
-
-    @property
-    def mac_address(self):
-        """MAC Address of Remote"""
-        return self._mac_address
-
-    @property
-    def ip_address(self):
-        """IP Address"""
-        return self._ip_address
 
     @property
     def last_update_type(self) -> RemoteUpdateType:
@@ -372,14 +352,6 @@ class Remote:
         """Join path with base url."""
         return urljoin(self.endpoint, path)
 
-    @staticmethod
-    def url_is_secure(url) -> bool:
-        """Returns true if the configuration url is using a secure protocol"""
-        parsed_url = urlparse(url)
-        if parsed_url.scheme == "https":
-            return True
-        return False
-
     ### HTTP methods ###
     def client(self) -> aiohttp.ClientSession:
         """Create a aiohttp client object with needed headers and defaults."""
@@ -399,10 +371,9 @@ class Remote:
 
     async def can_connect(self) -> bool:
         """Validate we can communicate with the remote given the supplied information."""
-        async with (
-            self.client() as session,
-            session.head(self.url("activities")) as response,
-        ):
+        async with self.client() as session, session.head(
+            self.url("activities")
+        ) as response:
             if response.status == 401:
                 raise AuthenticationError
             return response.status == 200
@@ -418,12 +389,9 @@ class Remote:
     ### Unfolded Circle API Keys ###
     async def get_api_keys(self) -> str:
         """Get all api Keys."""
-        async with (
-            self.client() as session,
-            session.get(
-                self.url("auth/api_keys"),
-            ) as response,
-        ):
+        async with self.client() as session, session.get(
+            self.url("auth/api_keys"),
+        ) as response:
             await self.raise_on_error(response)
             return await response.json()
 
@@ -431,10 +399,9 @@ class Remote:
         """Create api Key."""
         body = {"name": AUTH_APIKEY_NAME, "scopes": ["admin"]}
 
-        async with (
-            self.client() as session,
-            session.post(self.url("auth/api_keys"), json=body) as response,
-        ):
+        async with self.client() as session, session.post(
+            self.url("auth/api_keys"), json=body
+        ) as response:
             await self.raise_on_error(response)
             api_info = await response.json()
             self.apikey = api_info["api_key"]
@@ -450,45 +417,27 @@ class Remote:
             msg = f"API Key '{key_name}' not found."
             raise ApiKeyNotFound(key_name, msg)
 
-        async with (
-            self.client() as session,
-            session.delete(self.url("auth/api_keys/" + api_key_id)) as response,
-        ):
+        async with self.client() as session, session.delete(
+            self.url("auth/api_keys/" + api_key_id)
+        ) as response:
             await self.raise_on_error(response)
-
-    @staticmethod
-    async def get_version_information(base_url) -> str:
-        """Get remote version information /pub/version"""
-        headers = {
-            "Accept": "application/json",
-        }
-        async with (
-            aiohttp.ClientSession(
-                headers=headers, timeout=aiohttp.ClientTimeout(total=5)
-            ) as session,
-            session.get(base_url + "/pub/version") as response,
-        ):
-            return await response.json()
 
     async def get_remote_wifi_info(self) -> str:
         """Get System wifi information from remote. address."""
-        async with (
-            self.client() as session,
-            session.get(self.url("system/wifi")) as response,
-        ):
+        async with self.client() as session, session.get(
+            self.url("system/wifi")
+        ) as response:
             await self.raise_on_error(response)
             information = await response.json()
-            self._mac_address = information.get("address")
+            self._address = information.get("address")
             self._ip_address = information.get("ip_address")
             return information
 
     async def get_remote_information(self) -> str:
-        """Get System information from remote. model_name,
-        model_number, serial_number, hw_revision."""
-        async with (
-            self.client() as session,
-            session.get(self.url("system")) as response,
-        ):
+        """Get System information from remote. model_name, model_number, serial_number, hw_revision."""
+        async with self.client() as session, session.get(
+            self.url("system")
+        ) as response:
             await self.raise_on_error(response)
             information = await response.json()
             self._model_name = information.get("model_name")
@@ -507,32 +456,32 @@ class Remote:
 
     async def get_activities(self):
         """Return activities from Unfolded Circle Remote."""
-        async with (
-            self.client() as session,
-            session.get(self.url("activities?limit=100")) as response,
-        ):
+        async with self.client() as session, session.get(
+            self.url("activities?limit=100")
+        ) as response:
             await self.raise_on_error(response)
             for activity in await response.json():
                 new_activity = Activity(activity=activity, remote=self)
                 self.activities.append(new_activity)
-                response2 = await session.get(
-                    self.url("activities/" + new_activity._id)
-                )
-                data = await response2.json()
-                try:
-                    self.update_activity_entities(
-                        new_activity, data["options"]["included_entities"]
+                if new_activity.is_on():
+                    response2 = await session.get(
+                        self.url("activities/" + new_activity._id)
                     )
-                except (KeyError, IndexError):
-                    pass
+                    data = await response2.json()
+                    # _LOGGER.debug("Unfolded circle extract active activity data %s %s", new_activity.name, data)
+                    try:
+                        self.update_activity_entities(
+                            new_activity, data["options"]["included_entities"]
+                        )
+                    except (KeyError, IndexError):
+                        pass
             return await response.json()
 
     async def get_activities_state(self):
-        """Get activity state for all activities."""
-        async with (
-            self.client() as session,
-            session.get(self.url("activities")) as response,
-        ):
+        """Get activity state for a remote entity."""
+        async with self.client() as session, session.get(
+            self.url("activities")
+        ) as response:
             await self.raise_on_error(response)
             updated_activities = await response.json()
             for updated_activity in updated_activities:
@@ -540,12 +489,11 @@ class Remote:
                     if activity._id == updated_activity["entity_id"]:
                         activity._state = updated_activity["attributes"]["state"]
 
-    async def get_activity_groups(self) -> json:
+    async def get_activity_groups(self):
         """Return activity groups with the list of activity IDs from Unfolded Circle Remote."""
-        async with (
-            self.client() as session,
-            session.get(self.url("activity_groups?limit=100")) as response,
-        ):
+        async with self.client() as session, session.get(
+            self.url("activity_groups?limit=100")
+        ) as response:
             await self.raise_on_error(response)
             self.activity_groups = []
             for activity_group_data in await response.json():
@@ -574,12 +522,11 @@ class Remote:
                 self.activity_groups.append(activity_group)
             return await response.json()
 
-    async def get_remote_battery_information(self) -> json:
+    async def get_remote_battery_information(self) -> str:
         """Get Battery information from remote. battery_level, battery_status, is_charging."""
-        async with (
-            self.client() as session,
-            session.get(self.url("system/power/battery")) as response,
-        ):
+        async with self.client() as session, session.get(
+            self.url("system/power/battery")
+        ) as response:
             await self.raise_on_error(response)
             information = await response.json()
             self._battery_level = information["capacity"]
@@ -587,12 +534,11 @@ class Remote:
             self._is_charging = information["power_supply"]
             return information
 
-    async def get_stats(self) -> json:
+    async def get_stats(self) -> str:
         """Get usage stats from the remote."""
-        async with (
-            self.client() as session,
-            session.get(self.url("pub/status")) as response,
-        ):
+        async with self.client() as session, session.get(
+            self.url("pub/status")
+        ) as response:
             await self.raise_on_error(response)
             status = await response.json()
             self._memory_total = status.get("memory").get("total_memory") / 1048576
@@ -610,14 +556,12 @@ class Remote:
 
             self._cpu_load = status.get("load_avg")
             self._cpu_load_one = status.get("load_avg").get("one")
-            return status
 
     async def get_remote_ambient_light_information(self) -> int:
         """Get Remote Ambient Light Level. ambient_light_intensity."""
-        async with (
-            self.client() as session,
-            session.get(self.url("system/sensors/ambient_light")) as response,
-        ):
+        async with self.client() as session, session.get(
+            self.url("system/sensors/ambient_light")
+        ) as response:
             await self.raise_on_error(response)
             information = await response.json()
             self._ambient_light_intensity = information["intensity"]
@@ -625,10 +569,9 @@ class Remote:
 
     async def get_remote_display_settings(self) -> str:
         """Get remote display settings"""
-        async with (
-            self.client() as session,
-            session.get(self.url("cfg/display")) as response,
-        ):
+        async with self.client() as session, session.get(
+            self.url("cfg/display")
+        ) as response:
             await self.raise_on_error(response)
             settings = await response.json()
             self._display_auto_brightness = settings.get("auto_brightness")
@@ -645,20 +588,18 @@ class Remote:
         if brightness is not None:
             display_settings["brightness"] = brightness
 
-        async with (
-            self.client() as session,
-            session.patch(self.url("cfg/display"), json=display_settings) as response,
-        ):
+        async with self.client() as session, session.patch(
+            self.url("cfg/display"), json=display_settings
+        ) as response:
             await self.raise_on_error(response)
             response = await response.json()
             return True
 
     async def get_remote_button_settings(self) -> str:
         """Get remote button settings"""
-        async with (
-            self.client() as session,
-            session.get(self.url("cfg/button")) as response,
-        ):
+        async with self.client() as session, session.get(
+            self.url("cfg/button")
+        ) as response:
             await self.raise_on_error(response)
             settings = await response.json()
             self._button_backlight = settings.get("auto_brightness")
@@ -675,20 +616,18 @@ class Remote:
         if brightness is not None:
             button_settings["brightness"] = brightness
 
-        async with (
-            self.client() as session,
-            session.patch(self.url("cfg/button"), json=button_settings) as response,
-        ):
+        async with self.client() as session, session.patch(
+            self.url("cfg/button"), json=button_settings
+        ) as response:
             await self.raise_on_error(response)
             response = await response.json()
             return True
 
     async def get_remote_sound_settings(self) -> str:
         """Get remote sound settings"""
-        async with (
-            self.client() as session,
-            session.get(self.url("cfg/sound")) as response,
-        ):
+        async with self.client() as session, session.get(
+            self.url("cfg/sound")
+        ) as response:
             await self.raise_on_error(response)
             settings = await response.json()
             self._sound_effects = settings.get("enabled")
@@ -705,20 +644,18 @@ class Remote:
         if sound_effects_volume is not None:
             sound_settings["volume"] = sound_effects_volume
 
-        async with (
-            self.client() as session,
-            session.patch(self.url("cfg/sound"), json=sound_settings) as response,
-        ):
+        async with self.client() as session, session.patch(
+            self.url("cfg/sound"), json=sound_settings
+        ) as response:
             await self.raise_on_error(response)
             response = await response.json()
             return True
 
     async def get_remote_haptic_settings(self) -> str:
         """Get remote haptic settings"""
-        async with (
-            self.client() as session,
-            session.get(self.url("cfg/haptic")) as response,
-        ):
+        async with self.client() as session, session.get(
+            self.url("cfg/haptic")
+        ) as response:
             await self.raise_on_error(response)
             settings = await response.json()
             self._haptic_feedback = settings.get("enabled")
@@ -730,20 +667,18 @@ class Remote:
         if haptic_feedback is not None:
             haptic_settings["enabled"] = haptic_feedback
 
-        async with (
-            self.client() as session,
-            session.patch(self.url("cfg/haptic"), json=haptic_settings) as response,
-        ):
+        async with self.client() as session, session.patch(
+            self.url("cfg/haptic"), json=haptic_settings
+        ) as response:
             await self.raise_on_error(response)
             response = await response.json()
             return True
 
     async def get_remote_power_saving_settings(self) -> str:
         """Get remote power saving settings"""
-        async with (
-            self.client() as session,
-            session.get(self.url("cfg/power_saving")) as response,
-        ):
+        async with self.client() as session, session.get(
+            self.url("cfg/power_saving")
+        ) as response:
             await self.raise_on_error(response)
             settings = await response.json()
             self._display_timeout = settings.get("display_off_sec")
@@ -763,22 +698,18 @@ class Remote:
         if sleep_timeout is not None:
             power_saving_settings["standby_sec"] = sleep_timeout
 
-        async with (
-            self.client() as session,
-            session.patch(
-                self.url("cfg/power_saving"), json=power_saving_settings
-            ) as response,
-        ):
+        async with self.client() as session, session.patch(
+            self.url("cfg/power_saving"), json=power_saving_settings
+        ) as response:
             await self.raise_on_error(response)
             response = await response.json()
             return True
 
     async def get_remote_update_information(self) -> bool:
         """Get remote update information."""
-        async with (
-            self.client() as session,
-            session.get(self.url("system/update")) as response,
-        ):
+        async with self.client() as session, session.get(
+            self.url("system/update")
+        ) as response:
             await self.raise_on_error(response)
             information = await response.json()
             self._update_in_progress = information["update_in_progress"]
@@ -803,10 +734,9 @@ class Remote:
 
     async def get_remote_force_update_information(self) -> bool:
         """Force a remote firmware update check."""
-        async with (
-            self.client() as session,
-            session.put(self.url("system/update")) as response,
-        ):
+        async with self.client() as session, session.put(
+            self.url("system/update")
+        ) as response:
             await self.raise_on_error(response)
             information = await response.json()
             self._update_in_progress = information["update_in_progress"]
@@ -820,10 +750,9 @@ class Remote:
     async def update_remote(self) -> str:
         """Update Remote."""
         # WIP: Starts the latest firmware update."
-        async with (
-            self.client() as session,
-            session.post(self.url("system/update/latest")) as response,
-        ):
+        async with self.client() as session, session.post(
+            self.url("system/update/latest")
+        ) as response:
             await self.raise_on_error(response)
             information = await response.json()
             return information
@@ -831,20 +760,18 @@ class Remote:
     async def get_update_status(self) -> str:
         """Update remote status."""
         # WIP: Gets Update Status -- Only supports latest."
-        async with (
-            self.client() as session,
-            session.get(self.url("system/update/latest")) as response,
-        ):
+        async with self.client() as session, session.get(
+            self.url("system/update/latest")
+        ) as response:
             await self.raise_on_error(response)
             information = await response.json()
             return information
 
     async def get_activity_state(self, entity_id) -> str:
         """Get activity state for a remote entity."""
-        async with (
-            self.client() as session,
-            session.get(self.url("activities")) as response,
-        ):
+        async with self.client() as session, session.get(
+            self.url("activities")
+        ) as response:
             await self.raise_on_error(response)
             current_activities = await response.json()
             for current_activity in current_activities:
@@ -853,33 +780,30 @@ class Remote:
 
     async def get_activity(self, entity_id) -> any:
         """Get activity state for a remote entity."""
-        async with (
-            self.client() as session,
-            session.get(self.url("activities/" + entity_id)) as response,
-        ):
+        async with self.client() as session, session.get(
+            self.url("activities/" + entity_id)
+        ) as response:
             await self.raise_on_error(response)
             return await response.json()
 
     async def post_system_command(self, cmd) -> str:
         """POST a system command to the remote."""
         if cmd in SYSTEM_COMMANDS:
-            async with (
-                self.client() as session,
-                session.post(self.url("system?cmd=" + cmd)) as response,
-            ):
+            async with self.client() as session, session.post(
+                self.url("system?cmd=" + cmd)
+            ) as response:
                 await self.raise_on_error(response)
                 response = await response.json()
                 return response
         else:
             raise SystemCommandNotFound("Invalid System Command Supplied")
 
-    async def get_remotes(self) -> list:
+    async def get_remotes(self) -> []:
         """Get list of remotes defined. (IR Remotes as defined by Unfolded Circle)."""
         remote_data = {}
-        async with (
-            self.client() as session,
-            session.get(self.url("remotes")) as response,
-        ):
+        async with self.client() as session, session.get(
+            self.url("remotes")
+        ) as response:
             await self.raise_on_error(response)
             remotes = await response.json()
             for remote in remotes:
@@ -891,13 +815,12 @@ class Remote:
                     self._remotes.append(remote_data.copy())
             return self._remotes
 
-    async def get_custom_codesets(self) -> list:
+    async def get_custom_codesets(self) -> []:
         """Get list of IR code sets defined."""
         ir_data = {}
-        async with (
-            self.client() as session,
-            session.get(self.url("ir/codes/custom")) as response,
-        ):
+        async with self.client() as session, session.get(
+            self.url("ir/codes/custom")
+        ) as response:
             await self.raise_on_error(response)
             code_sets = await response.json()
             for ir in code_sets:
@@ -908,16 +831,13 @@ class Remote:
                 self._ir_custom.append(ir_data.copy())
             return self._ir_custom
 
-    async def get_remote_codesets(self) -> list:
+    async def get_remote_codesets(self) -> []:
         """Get list of remote codesets."""
         ir_data = {}
         for remote in self._remotes:
-            async with (
-                self.client() as session,
-                session.get(
-                    self.url("remotes/" + remote.get("entity_id") + "/ir")
-                ) as response,
-            ):
+            async with self.client() as session, session.get(
+                self.url("remotes/" + remote.get("entity_id") + "/ir")
+            ) as response:
                 await self.raise_on_error(response)
                 code_set = await response.json()
                 ir_data = {
@@ -927,13 +847,12 @@ class Remote:
                 self._ir_codesets.append(ir_data.copy())
         return self._ir_codesets
 
-    async def get_docks(self) -> list:
+    async def get_docks(self) -> []:
         """Get list of docks defined."""
         dock_data = {}
-        async with (
-            self.client() as session,
-            session.get(self.url("ir/emitters")) as response,
-        ):
+        async with self.client() as session, session.get(
+            self.url("ir/emitters")
+        ) as response:
             await self.raise_on_error(response)
             docks = await response.json()
             for dock in docks:
@@ -983,19 +902,15 @@ class Remote:
 
         body_merged = {**body, **body_repeat, **body_port}
 
-        async with (
-            self.client() as session,
-            session.put(
-                self.url("ir/emitters/" + emitter + "/send"), json=body_merged
-            ) as response,
-        ):
+        async with self.client() as session, session.put(
+            self.url("ir/emitters/" + emitter + "/send"), json=body_merged
+        ) as response:
             await self.raise_on_error(response)
             response = await response.json()
             return response == 200
 
     def update_from_message(self, message: any) -> None:
-        """Update internal data from received websocket messages
-        data instead of polling the remote"""
+        """Update internal data from received websocket messages data instead of requesting the remote"""
         data = json.loads(message)
         # _LOGGER.debug("RC2 received websocket message %s",data)
         try:
@@ -1014,37 +929,6 @@ class Remote:
                 self._is_charging = data["msg_data"]["power_supply"]
                 self._last_update_type = RemoteUpdateType.BATTERY
                 return
-            if data["msg"] == "configuration_change":
-                _LOGGER.debug("Unfoldded circle configuration change")
-                state = data.get("msg_data").get("new_state")
-                if state.get("display") is not None:
-                    self._display_auto_brightness = state.get("display").get(
-                        "auto_brightness"
-                    )
-                    self._display_brightness = state.get("display").get("brightness")
-                if state.get("button") is not None:
-                    self._button_backlight = state.get("button").get("auto_brightness")
-                    self._button_backlight_brightness = state.get("button").get(
-                        "brightness"
-                    )
-                if state.get("sound") is not None:
-                    self._sound_effects = state.get("sound").get("enabled")
-                    self._sound_effects_volume = state.get("sound").get("volume")
-                if state.get("haptic") is not None:
-                    self._haptic_feedback = state.get("haptic").get("enabled")
-                if state.get("power_saving") is not None:
-                    self._display_timeout = state.get("power_saving").get(
-                        "display_off_sec"
-                    )
-                    self._wakeup_sensitivity = state.get("power_saving").get(
-                        "wakeup_sensitivity"
-                    )
-                    self._sleep_timeout = state.get("power_saving").get("standby_sec")
-                self._last_update_type = RemoteUpdateType.CONFIGURATION
-            if data["msg"] == "power_mode_change":
-                _LOGGER.debug("Unfoldded circle Power Mode change")
-                self._power_mode = data.get("msg_data").get("mode")
-                self._last_update_type = RemoteUpdateType.CONFIGURATION
         except (KeyError, IndexError):
             pass
         try:
@@ -1060,9 +944,7 @@ class Remote:
                 self._last_update_type = RemoteUpdateType.ACTIVITY
         except (KeyError, IndexError) as ex:
             _LOGGER.debug(
-                "Unfoldded circle remote update error while reading data: %s %s",
-                data,
-                ex,
+                "Unfoldded circle remote update error while reading data %s", data, ex
             )
             pass
         try:
@@ -1147,10 +1029,9 @@ class Remote:
 
     async def get_entity_data(self, entity_id) -> any:
         """Update remote status."""
-        async with (
-            self.client() as session,
-            session.get(self.url("entities/" + entity_id)) as response,
-        ):
+        async with self.client() as session, session.get(
+            self.url("entities/" + entity_id)
+        ) as response:
             await self.raise_on_error(response)
             information = await response.json()
             return information
@@ -1190,9 +1071,6 @@ class Remote:
             self.get_remote_haptic_settings(),
             self.get_remote_power_saving_settings(),
             self.get_activities(),
-            self.get_remotes(),
-            self.get_remote_codesets(),
-            self.get_docks(),
         )
         await group
 
@@ -1203,7 +1081,7 @@ class Remote:
         _LOGGER.debug("Unfoldded circle remote data initialized")
 
     async def update(self):
-        """Updates all information about the remote."""
+        """Updates necessary information about the remote."""
         _LOGGER.debug("Unfoldded circle remote update data")
         group = asyncio.gather(
             self.get_remote_battery_information(),
@@ -1225,12 +1103,6 @@ class Remote:
             await activity_group.update()
         _LOGGER.debug("Unfoldded circle remote data updated")
 
-    async def polling_update(self):
-        """Updates only polled information from the remote."""
-        _LOGGER.debug("Unfoldded circle remote update data")
-        group = asyncio.gather(self.get_stats())
-        await group
-
 
 class UCMediaPlayerEntity:
     """Internal class to track the media player entities reported by the remote"""
@@ -1251,7 +1123,7 @@ class UCMediaPlayerEntity:
         self._media_position = 0
         self._muted = False
         self._media_image_url = None
-        self._entity_commands: list[str] = []
+        self._entity_commands: [str] = []
         self._media_position_updated_at = None
         self._initialized = False
 
@@ -1269,7 +1141,7 @@ class UCMediaPlayerEntity:
         return self._initialized
 
     @property
-    def available_commands(self) -> list[str]:
+    def available_commands(self) -> [str]:
         return self._entity_commands
 
     @property
@@ -1281,7 +1153,7 @@ class UCMediaPlayerEntity:
         return self._state
 
     @property
-    def source_list(self) -> list[str]:
+    def source_list(self) -> [str]:
         return self._source_list
 
     @property
@@ -1365,7 +1237,7 @@ class UCMediaPlayerEntity:
             attributes_changed["media_title"] = self._media_title
         if attributes.get("media_position", None):
             self._media_position = attributes.get("media_position", 0)
-            self._media_position_updated_at = time.time
+            self._media_position_updated_at = utcnow()
             attributes_changed["media_position"] = self._media_position
         if attributes.get("muted", None):
             self._muted = attributes.get("muted", None)
@@ -1379,24 +1251,18 @@ class UCMediaPlayerEntity:
     async def turn_on(self) -> None:
         """Turn on the media player."""
         body = {"entity_id": self._id, "cmd_id": "media_player.on"}
-        async with (
-            self._remote.client() as session,
-            session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
-            ) as response,
-        ):
+        async with self._remote.client() as session, session.put(
+            self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
             await self._remote.raise_on_error(response)
             self._state = "ON"
 
     async def turn_off(self) -> None:
         """Turn off the media player."""
         body = {"entity_id": self._id, "cmd_id": "media_player.off"}
-        async with (
-            self._remote.client() as session,
-            session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
-            ) as response,
-        ):
+        async with self._remote.client() as session, session.put(
+            self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
             await self._remote.raise_on_error(response)
             self._state = "OFF"
 
@@ -1407,89 +1273,65 @@ class UCMediaPlayerEntity:
             "cmd_id": "media_player.select_source",
             "params": {"source": source},
         }
-        async with (
-            self._remote.client() as session,
-            session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
-            ) as response,
-        ):
+        async with self._remote.client() as session, session.put(
+            self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
             await self._remote.raise_on_error(response)
 
     async def volume_up(self) -> None:
         """Raise volume of the media player."""
         body = {"entity_id": self._id, "cmd_id": "media_player.volume_up"}
-        async with (
-            self._remote.client() as session,
-            session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
-            ) as response,
-        ):
+        async with self._remote.client() as session, session.put(
+            self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
             await self._remote.raise_on_error(response)
 
     async def volume_down(self) -> None:
         """Decrease the volume of the media player."""
         body = {"entity_id": self._id, "cmd_id": "media_player.volume_down"}
-        async with (
-            self._remote.client() as session,
-            session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
-            ) as response,
-        ):
+        async with self._remote.client() as session, session.put(
+            self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
             await self._remote.raise_on_error(response)
 
     async def mute(self) -> None:
         """Mute the volume of the media player."""
         body = {"entity_id": self._id, "cmd_id": "media_player.mute"}
-        async with (
-            self._remote.client() as session,
-            session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
-            ) as response,
-        ):
+        async with self._remote.client() as session, session.put(
+            self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
             await self._remote.raise_on_error(response)
 
     async def play_pause(self) -> None:
         """Play pause the media player."""
         body = {"entity_id": self._id, "cmd_id": "media_player.play_pause"}
-        async with (
-            self._remote.client() as session,
-            session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
-            ) as response,
-        ):
+        async with self._remote.client() as session, session.put(
+            self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
             await self._remote.raise_on_error(response)
 
     async def stop(self) -> None:
         """Stop the media player."""
         body = {"entity_id": self._id, "cmd_id": "media_player.stop"}
-        async with (
-            self._remote.client() as session,
-            session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
-            ) as response,
-        ):
+        async with self._remote.client() as session, session.put(
+            self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
             await self._remote.raise_on_error(response)
 
     async def next(self) -> None:
         """Next track/chapter of the media player."""
         body = {"entity_id": self._id, "cmd_id": "media_player.next"}
-        async with (
-            self._remote.client() as session,
-            session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
-            ) as response,
-        ):
+        async with self._remote.client() as session, session.put(
+            self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
             await self._remote.raise_on_error(response)
 
     async def previous(self) -> None:
         """Previous track/chapter of the media player."""
         body = {"entity_id": self._id, "cmd_id": "media_player.previous"}
-        async with (
-            self._remote.client() as session,
-            session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
-            ) as response,
-        ):
+        async with self._remote.client() as session, session.put(
+            self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
             await self._remote.raise_on_error(response)
 
     async def seek(self, position: float) -> None:
@@ -1499,12 +1341,9 @@ class UCMediaPlayerEntity:
             "cmd_id": "media_player.seek",
             "params": {"media_position": position},
         }
-        async with (
-            self._remote.client() as session,
-            session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
-            ) as response,
-        ):
+        async with self._remote.client() as session, session.put(
+            self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
             await self._remote.raise_on_error(response)
 
 
@@ -1516,7 +1355,7 @@ class ActivityGroup:
         self._remote = remote
         self._state = state
         self._name = name
-        self.activities: list[Activity] = []
+        self.activities: [Activity] = []
 
     @property
     def name(self):
@@ -1561,7 +1400,7 @@ class Activity:
         self._id = activity["entity_id"]
         self._remote = remote
         self._state = activity.get("attributes").get("state")
-        self._mediaplayer_entities: list[UCMediaPlayerEntity] = []
+        self._mediaplayer_entities: [UCMediaPlayerEntity] = []
 
     @property
     def name(self):
@@ -1584,7 +1423,7 @@ class Activity:
         return self._remote
 
     @property
-    def mediaplayer_entities(self) -> list[UCMediaPlayerEntity]:
+    def mediaplayer_entities(self) -> [UCMediaPlayerEntity]:
         """Media player entities associated to this activity"""
         return self._mediaplayer_entities
 
@@ -1598,12 +1437,9 @@ class Activity:
         """Turn on an Activity."""
         body = {"entity_id": self._id, "cmd_id": "activity.on"}
 
-        async with (
-            self._remote.client() as session,
-            session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
-            ) as response,
-        ):
+        async with self._remote.client() as session, session.put(
+            self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
             await self._remote.raise_on_error(response)
             self._state = "ON"
 
@@ -1611,12 +1447,9 @@ class Activity:
         """Turn off an Activity."""
         body = {"entity_id": self._id, "cmd_id": "activity.off"}
 
-        async with (
-            self._remote.client() as session,
-            session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
-            ) as response,
-        ):
+        async with self._remote.client() as session, session.put(
+            self._remote.url("entities/" + self._id + "/command"), json=body
+        ) as response:
             await self._remote.raise_on_error(response)
             self._state = "OFF"
 
@@ -1642,6 +1475,7 @@ class Activity:
                     pass
         except (KeyError, IndexError):
             pass
+        # await self._remote.update()
 
 
 def discover_devices(apikey):

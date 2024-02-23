@@ -9,5 +9,5 @@ class RemoteUpdateType(Enum):
     ACTIVITY = 0
     BATTERY = 1
     AMBIENT_LIGHT = 2
-    OTHER = 10,
+    OTHER = 10
     NONE = 99

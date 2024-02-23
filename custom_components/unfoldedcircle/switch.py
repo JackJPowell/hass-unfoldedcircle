@@ -133,7 +133,13 @@ class UCRemoteSwitch(UnfoldedCircleEntity, SwitchEntity):
         # self._attr_unique_id = switch._id
         self._state = switch.state
         self._attr_icon = "mdi:remote-tv"
-        self._state: StateType = None
+        self._attr_native_value = "OFF"
+
+    async def async_added_to_hass(self):
+        """Run when this Entity has been added to HA."""
+        await super().async_added_to_hass()
+        self.coordinator.subscribe_events["entity_activity"] = True
+        self.coordinator.subscribe_events["activity_groups"] = True
 
     async def async_added_to_hass(self):
         """Run when this Entity has been added to HA."""
@@ -174,22 +180,6 @@ class UCRemoteConfigSwitch(UnfoldedCircleEntity, SwitchEntity):
 
     entity_description = UNFOLDED_CIRCLE_SWITCH
 
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return DeviceInfo(
-            identifiers={
-                # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, self.coordinator.api.serial_number)
-            },
-            name=self.coordinator.api.name,
-            manufacturer=self.coordinator.api.manufacturer,
-            model=self.coordinator.api.model_name,
-            sw_version=self.coordinator.api.sw_version,
-            hw_version=self.coordinator.api.hw_revision,
-            configuration_url=self.coordinator.api.configuration_url,
-        )
-
     def __init__(
         self, coordinator, description: UnfoldedCircleSwitchEntityDescription
     ) -> None:
@@ -204,11 +194,6 @@ class UCRemoteConfigSwitch(UnfoldedCircleEntity, SwitchEntity):
         self._attr_name = f"{self.coordinator.api.name} {description.name}"
         key = "_" + self._description.key
         self._state = coordinator.data.get(key)
-
-    @property
-    def is_on(self) -> bool | None:
-        """Return true if switch is on."""
-        return self._state is True
 
     async def async_turn_on(self, **kwargs) -> None:
         """Instruct the switch to turn on."""

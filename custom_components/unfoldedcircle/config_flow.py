@@ -5,7 +5,7 @@ import re
 from typing import Any
 
 import voluptuous as vol
-from homeassistant import config_entries
+from homeassistant import config_entries, data_entry_flow
 from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_HOST, CONF_MAC, CONF_NAME, CONF_PORT
@@ -52,6 +52,7 @@ async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]
 
     key = await remote.create_api_key()
     await remote.get_remote_information()
+    await remote.get_remote_configuration()
 
     if not key:
         raise InvalidAuth("Unable to login: failed to create API key")

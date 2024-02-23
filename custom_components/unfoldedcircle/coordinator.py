@@ -1,4 +1,4 @@
-"""The IntelliFire integration."""
+"""Coordinator for Unfolded Circle Integration"""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from homeassistant.helpers.update_coordinator import (
 from . import RemoteWebsocket
 from .const import DEVICE_SCAN_INTERVAL, DOMAIN
 from .pyUnfoldedCircleRemote.remote import Remote
+from .pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -182,6 +183,7 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             ) from ex
 
     async def close_websocket(self):
+        """Close websocket"""
         try:
             if self.websocket_task:
                 self.websocket_task.cancel()
