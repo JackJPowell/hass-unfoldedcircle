@@ -6,7 +6,9 @@
     "switch",
     "update",
     "button",
-    "remote"
+    "remote",
+    "select",
+    "number"
   ],
   "homeassistant": "2023.10.0",
   "iot_class": "Local Push",
