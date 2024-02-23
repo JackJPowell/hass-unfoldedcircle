@@ -1,4 +1,5 @@
 """Platform for Switch integration."""
+
 import logging
 
 from homeassistant.components.switch import SwitchEntity
@@ -7,10 +8,8 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import DiscoveryInfoType
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
-from .coordinator import UnfoldedCircleRemoteCoordinator
 from .entity import UnfoldedCircleEntity
 from .pyUnfoldedCircleRemote.const import RemoteUpdateType
 
@@ -21,7 +20,6 @@ async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
-    discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
     """Set up the Switch platform."""
     # Setup connection with devices
@@ -33,7 +31,8 @@ async def async_setup_entry(
 
     # Create switch for each activity only for activities not defined in any activity group
     async_add_entities(
-        UCRemoteSwitch(coordinator, switch) for switch in filter(lambda a: a not in activities, coordinator.api.activities)
+        UCRemoteSwitch(coordinator, switch)
+        for switch in filter(lambda a: a not in activities, coordinator.api.activities)
     )
 
 
@@ -44,13 +43,11 @@ class UCRemoteSwitch(UnfoldedCircleEntity, SwitchEntity):
         """Initialize a switch."""
         super().__init__(coordinator)
         self.switch = switch
-        self._name = f"{self.coordinator.api.name} {switch.name}"
         self._attr_name = f"{self.coordinator.api.name} {switch.name}"
         # self._attr_unique_id = switch._id
         self._state = switch.state
         self._attr_icon = "mdi:remote-tv"
         self._attr_native_value = "OFF"
-
 
     async def async_added_to_hass(self):
         """Run when this Entity has been added to HA."""

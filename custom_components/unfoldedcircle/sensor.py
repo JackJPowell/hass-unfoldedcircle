@@ -11,12 +11,9 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import LIGHT_LUX, PERCENTAGE, EntityCategory, UnitOfInformation
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.typing import StateType
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
-from .coordinator import UnfoldedCircleRemoteCoordinator
 from .entity import UnfoldedCircleEntity
 
 _LOGGER = logging.getLogger(__name__)
@@ -27,6 +24,7 @@ class UnfoldedCircleSensorEntityDescription(SensorEntityDescription):
     """Class describing Unfolded Circle Remote sensor entities."""
 
     unique_id: str = ""
+
 
 UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
     UnfoldedCircleSensorEntityDescription(
@@ -95,14 +93,13 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
     )
 
 
-class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity
-):
+class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
     """Unfolded Circle Sensor Class."""
 
     entity_description: UNFOLDED_CIRCLE_SENSOR
 
     def __init__(
-            self, coordinator, description: UnfoldedCircleSensorEntityDescription
+        self, coordinator, description: UnfoldedCircleSensorEntityDescription
     ) -> None:
         """Initialize Unfolded Circle Sensor."""
         super().__init__(coordinator)
@@ -126,7 +123,11 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity
         if self.entity_description.key == "battery_level":
             self.coordinator.subscribe_events["battery_status"] = True
         # Enable polling if one of those entities is enabled
-        if self.entity_description.key in ["memory_available", "storage_available", "cpu_load_one"]:
+        if self.entity_description.key in [
+            "memory_available",
+            "storage_available",
+            "cpu_load_one",
+        ]:
             self.coordinator.polling_data = True
         await super().async_added_to_hass()
 

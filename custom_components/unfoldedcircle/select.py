@@ -1,19 +1,14 @@
 """Select platform for Electrolux Status."""
-from typing import Mapping, Any, cast
+
+import logging
+from typing import Any, Mapping
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from .pyUnfoldedCircleRemote.remote import Activity
 
-from . import UnfoldedCircleRemoteCoordinator
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
-
-import logging
-
 from .entity import UnfoldedCircleEntity
 from .pyUnfoldedCircleRemote.const import RemoteUpdateType
 
@@ -23,14 +18,15 @@ POWER_OFF_LABEL = "Power Off"
 
 
 async def async_setup_entry(
-        hass: HomeAssistant,
-        config_entry: ConfigEntry,
-        async_add_entities: AddEntitiesCallback,
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Use to setup entity."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
     async_add_entities(
-        SelectUCRemoteActivity(coordinator, activity_group) for activity_group in coordinator.api.activity_groups
+        SelectUCRemoteActivity(coordinator, activity_group)
+        for activity_group in coordinator.api.activity_groups
     )
 
 
@@ -41,9 +37,10 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
         """Initialize a switch."""
         super().__init__(coordinator)
         self.activity_group = activity_group
-        self._name = f"{self.coordinator.api.name} {activity_group.name}"
         self._attr_name = f"{self.coordinator.api.name} {activity_group.name}"
-        self._attr_unique_id = f"{self.coordinator.api.serial_number}_{activity_group._id}"
+        self._attr_unique_id = (
+            f"{self.coordinator.api.serial_number}_{activity_group._id}"
+        )
         self._state = activity_group.state
         self._attr_icon = "mdi:remote-tv"
         self._attr_native_value = "OFF"
@@ -100,7 +97,9 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
                 return
             self._extra_state_attributes = {}
         except (KeyError, IndexError):
-            _LOGGER.debug("Unfolded Circle Remote select _handle_coordinator_update error")
+            _LOGGER.debug(
+                "Unfolded Circle Remote select _handle_coordinator_update error"
+            )
             return
         self._state = self.activity_group.state
         for activity in self.activity_group.activities:

@@ -14,6 +14,8 @@ from .coordinator import UnfoldedCircleRemoteCoordinator
 TO_REDACT = {
     "apikey",
     "pin",
+    "mac_address",
+    "ip_address",
 }
 
 

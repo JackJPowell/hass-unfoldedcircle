@@ -2,21 +2,19 @@
 
 import logging
 import re
-import requests
 from typing import Any
 
 import voluptuous as vol
-from homeassistant import config_entries, data_entry_flow
+from homeassistant import config_entries
 from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
-from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT, CONF_MAC
+from homeassistant.const import CONF_HOST, CONF_MAC, CONF_NAME, CONF_PORT
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 
+from .const import CONF_SERIAL, DOMAIN
 from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME
 from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
-
-from .const import CONF_SERIAL, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -64,8 +62,8 @@ async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]
     await remote.get_remote_wifi_info()
 
     mac_address = None
-    if remote._address:
-        mac_address = remote._address.replace(":", "").lower()
+    if remote.mac_address:
+        mac_address = remote.mac_address.replace(":", "").lower()
 
     # If you cannot connect:
     # throw CannotConnect
@@ -78,10 +76,10 @@ async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]
         "apiKey": key,
         "host": remote.endpoint,
         "pin": data["pin"],
-        "address": remote._address,
-        "ip_address": remote._ip_address,
+        "mac_address": remote.mac_address,
+        "ip_address": remote.ip_address,
         CONF_SERIAL: remote.serial_number,
-        CONF_MAC: mac_address
+        CONF_MAC: mac_address,
     }
 
 
@@ -109,8 +107,12 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle zeroconf discovery."""
         host = discovery_info.ip_address.compressed
         port = discovery_info.port
-        hostname = discovery_info.hostname # RemoteTwo-AABBCCDDEEFF-2.local. where AABBCCDDEEFF = mac address
-        name = discovery_info.name  # RemoteTwo-AABBCCDDEEFF-2.local. where AABBCCDDEEFF = mac address
+        hostname = (
+            discovery_info.hostname
+        )  # RemoteTwo-AABBCCDDEEFF-2.local. where AABBCCDDEEFF = mac address
+        name = (
+            discovery_info.name
+        )  # RemoteTwo-AABBCCDDEEFF-2.local. where AABBCCDDEEFF = mac address
         endpoint = f"http://{host}:{port}/api/"
 
         mac_address = None
@@ -123,10 +125,17 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 pass
 
         self.discovery_info.update(
-            {CONF_HOST: host, CONF_PORT: port, CONF_NAME: "Remote Two ("+host+")", CONF_MAC: mac_address}
+            {
+                CONF_HOST: host,
+                CONF_PORT: port,
+                CONF_NAME: "Remote Two (" + host + ")",
+                CONF_MAC: mac_address,
+            }
         )
 
-        _LOGGER.debug("Unfolded circle remote found %s %s %s :", mac_address, host, discovery_info)
+        _LOGGER.debug(
+            "Unfolded circle remote found %s %s %s :", mac_address, host, discovery_info
+        )
 
         # Use mac address as unique id as this is the only common information between zeroconf and user conf
         if mac_address:
@@ -135,16 +144,13 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         # Retrieve device friendly name set by user after checking if unique ID was not already defined and registered
         device_name = "Remote Two"
 
-        # Problem : Home assistant raises a warning when calling a blocking request in async_step_zeroconf
-        # The goal was to get the device name set by user to distinguish devices
-        # try:
-        #     response = requests.get(endpoint+"pub/version")
-        #     data = await response.json()
-        #     device_name = data.get("device_name", None)
-        #     if not device_name:
-        #         device_name = "Remote Two"
-        # except Exception:
-        #     pass
+        try:
+            response = await Remote.get_version_information(endpoint)
+            device_name = response.get("device_name", None)
+            if not device_name:
+                device_name = "Remote Two"
+        except Exception:
+            pass
 
         self.context.update(
             {
@@ -156,8 +162,9 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             }
         )
 
-
-        _LOGGER.debug("Unfolded circle remote found %s next step for registering", mac_address)
+        _LOGGER.debug(
+            "Unfolded circle remote found %s next step for registering", mac_address
+        )
         return await self.async_step_zeroconf_confirm()
 
     async def async_step_zeroconf_confirm(
@@ -173,11 +180,11 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             )
         try:
             info = await validate_input(user_input, self.discovery_info[CONF_HOST])
-            self.discovery_info.update(
-                {CONF_MAC: info[CONF_MAC]}
-            )
+            self.discovery_info.update({CONF_MAC: info[CONF_MAC]})
             # Check unique ID here based on serial number
-            await self._async_set_unique_id_and_abort_if_already_configured(info[CONF_MAC])
+            await self._async_set_unique_id_and_abort_if_already_configured(
+                info[CONF_MAC]
+            )
 
         except CannotConnect as ex:
             _LOGGER.error(ex)
@@ -211,11 +218,11 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
 
         try:
             info = await validate_input(user_input, "")
-            self.discovery_info.update(
-                {CONF_MAC: info[CONF_MAC]}
-            )
+            self.discovery_info.update({CONF_MAC: info[CONF_MAC]})
             # Check unique ID here based on serial number
-            await self._async_set_unique_id_and_abort_if_already_configured(info[CONF_MAC])
+            await self._async_set_unique_id_and_abort_if_already_configured(
+                info[CONF_MAC]
+            )
         except CannotConnect:
             errors["base"] = "cannot_connect"
         except InvalidAuth:
