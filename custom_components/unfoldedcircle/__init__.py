@@ -13,7 +13,6 @@ from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from .const import DOMAIN, UNFOLDED_CIRCLE_API, UNFOLDED_CIRCLE_COORDINATOR
 from .coordinator import UnfoldedCircleRemoteCoordinator
 from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
-from .pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
 
 PLATFORMS: list[Platform] = [
     Platform.SWITCH,
@@ -24,6 +23,7 @@ PLATFORMS: list[Platform] = [
     Platform.REMOTE,
     Platform.NUMBER,
     Platform.SELECT,
+    Platform.MEDIA_PLAYER,
 ]
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)

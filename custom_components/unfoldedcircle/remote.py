@@ -16,12 +16,6 @@ from .entity import UnfoldedCircleEntity
 _LOGGER = logging.getLogger(__name__)
 
 
-async def init_device_data(remote):
-    await remote.get_remotes()
-    await remote.get_remote_codesets()
-    await remote.get_docks()
-
-
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -53,7 +47,7 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
 
         for activity in self.coordinator.api.activities:
             self._attr_activity_list.append(activity.name)
-        self.update_state()
+        # self.update_state()
 
     @property
     def is_on(self) -> bool | None:
@@ -110,5 +104,5 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        self.update_state()
+        # self.update_state()
         self.async_write_ha_state()

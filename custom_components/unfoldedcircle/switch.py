@@ -184,7 +184,7 @@ class UCRemoteConfigSwitch(UnfoldedCircleEntity, SwitchEntity):
         self, coordinator, description: UnfoldedCircleSwitchEntityDescription
     ) -> None:
         """Initialize a switch."""
-        super().__init__(self, coordinator)
+        super().__init__(coordinator)
         self._description = description
         self.coordinator = coordinator
         self.entity_description = description

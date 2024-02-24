@@ -75,14 +75,14 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
 
     async def async_update(self) -> None:
         """Update update information."""
-        await self._remote.get_remote_update_information()
-        self._attr_latest_version = self._remote.latest_sw_version
-        self._attr_installed_version = self._remote.sw_version
+        await self.coordinator.api.get_remote_update_information()
+        self._attr_latest_version = self.coordinator.api.latest_sw_version
+        self._attr_installed_version = self.coordinator.api.sw_version
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         # Update only if activity changed
-        self._attr_latest_version = self._remote.latest_sw_version
-        self._attr_installed_version = self._remote.sw_version
+        self._attr_latest_version = self.coordinator.api.latest_sw_version
+        self._attr_installed_version = self.coordinator.api.sw_version
         self.async_write_ha_state()

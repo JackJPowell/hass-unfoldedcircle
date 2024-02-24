@@ -15,7 +15,6 @@ from homeassistant.helpers.update_coordinator import (
     UpdateFailed,
 )
 
-from . import RemoteWebsocket
 from .const import DEVICE_SCAN_INTERVAL, DOMAIN
 from .pyUnfoldedCircleRemote.remote import Remote
 from .pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
