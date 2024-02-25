@@ -103,8 +103,8 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         if self._selected_media_entity is not None and (
             self._selected_media_entity.is_on is False
             or (
-                self._selected_media_entity.state != "PLAYING"
-                and self._selected_media_entity.state != "BUFFERING"
+                self._selected_media_entity.state
+                not in ["PLAYING", "BUFFERING", "PAUSED"]
             )
         ):
             self._selected_media_entity = None
@@ -195,7 +195,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         if self._active_media_entity:
             for activity in self.activities:
                 for entity in activity.mediaplayer_entities:
-                    if entity.state == "PLAYING":
+                    if entity.state in ["PLAYING", "BUFFERING", "PAUSED"]:
                         source_list.append(entity.name)
             return source_list
         return None
