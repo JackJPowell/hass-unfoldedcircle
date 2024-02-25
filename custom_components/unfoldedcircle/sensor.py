@@ -96,7 +96,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
 class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
     """Unfolded Circle Sensor Class."""
 
-    entity_description: UNFOLDED_CIRCLE_SENSOR
+    entity_description = UNFOLDED_CIRCLE_SENSOR
 
     def __init__(
         self, coordinator, description: UnfoldedCircleSensorEntityDescription
@@ -132,6 +132,7 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
         await super().async_added_to_hass()
 
     def get_value(self) -> StateType:
+        """return native value of entity"""
         if self.coordinator.data:
             key = "_" + self.entity_description.key
             state = self.coordinator.data.get(key)
