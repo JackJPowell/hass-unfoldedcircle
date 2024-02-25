@@ -1,4 +1,4 @@
-"""Select platform for Electrolux Status."""
+"""Media Player support for Unfolded Circle."""
 
 import asyncio
 import base64
@@ -61,10 +61,7 @@ async def async_setup_entry(
 ) -> None:
     """Use to setup entity."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
-    async_add_entities(
-        MediaPlayerUCRemote(coordinator, activity_group)
-        for activity_group in coordinator.api.activity_groups
-    )
+    async_add_entities([MediaPlayerUCRemote(coordinator)])
 
 
 class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
@@ -80,8 +77,10 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         # self._state = activity_group.state
         self._extra_state_attributes = {}
         self._current_activity = None
-        self._active_media_entities: [UCMediaPlayerEntity] = []
+        self.activities = self.coordinator.api.activities
+        self._active_media_entities: list[UCMediaPlayerEntity] = []
         self._active_media_entity: UCMediaPlayerEntity | None = None
+        self._selected_media_entity: UCMediaPlayerEntity | None = None
         # self._attr_icon = "mdi:remote-tv"
         self._state = STATE_OFF
         self.update_state()
@@ -97,16 +96,26 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         return SUPPORT_MEDIA_PLAYER
 
     def update_state(self):
+        """Sets the active media entity choosing the best choice if multiple are active"""
         self._active_media_entities = []
         active_media_entity = self._active_media_entity
+        # Check if the user selected Media Entity is still 'active'. Is it on and still playing?
+        if self._selected_media_entity is not None and (
+            self._selected_media_entity.is_on is False
+            or (
+                self._selected_media_entity.state != "PLAYING"
+                and self._selected_media_entity.state != "BUFFERING"
+            )
+        ):
+            self._selected_media_entity = None
+
         if self._active_media_entity and not self._active_media_entity.is_on:
             _LOGGER.debug(
-                "Unfolded circle changed media player entity turned off for group %s : %s",
-                self.activity_group.name,
+                "Unfolded circle changed media player entity turned off: %s",
                 vars(self._active_media_entity),
             )
             self._active_media_entity = None
-        for activity in self.activity_group.activities:
+        for activity in self.activities:
             if activity.is_on():
                 self._current_activity = activity
 
@@ -127,7 +136,8 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
                         self._active_media_entity = entity
                         self._active_media_entities.append(entity)
                         continue
-                    # Take this new one only if it has image URL or defined duration and the state is equal or better
+                    # Take this new one only if it has image URL
+                    # or defined duration and the state is equal or better
                     if (entity.media_image_url or entity.media_duration > 0) and (
                         self._active_media_entity.state == entity.state
                         or entity.state == "PLAYING"
@@ -147,10 +157,12 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
             and active_media_entity != self._active_media_entity
         ):
             _LOGGER.debug(
-                "Unfolded circle changed active media player entity for group %s : %s",
-                self.activity_group.name,
+                "Unfolded circle changed active media player entity for group: %s :",
                 vars(self._active_media_entity),
             )
+
+        if self._selected_media_entity is not None:
+            self._active_media_entity = self._selected_media_entity
 
     @property
     def extra_state_attributes(self) -> Mapping[str, Any] | None:
@@ -167,20 +179,25 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
 
     @property
     def name(self) -> str | UndefinedType | None:
-        return self.activity_group.name + " media player"
+        return f"{self.coordinator.api.name} player"
 
     @property
     def source(self):
         """Return the current input source."""
         if self._active_media_entity:
-            return self._active_media_entity.current_source
+            return self._active_media_entity.name
         return None
 
     @property
     def source_list(self):
         """List of available input sources."""
+        source_list = []
         if self._active_media_entity:
-            return self._active_media_entity.source_list
+            for activity in self.activities:
+                for entity in activity.mediaplayer_entities:
+                    if entity.state == "PLAYING":
+                        source_list.append(entity.name)
+            return source_list
         return None
 
     @property
@@ -326,7 +343,14 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     async def async_select_source(self, source):
         """Set the input source."""
         if self._active_media_entity:
-            await self._active_media_entity.select_source(source)
+            for activity in self.activities:
+                for entity in activity.mediaplayer_entities:
+                    if entity.name == source:
+                        self._selected_media_entity = entity
+                        self.update_state()
+                        self.async_write_ha_state()
+                        return
+            # await self._active_media_entity.select_source(source)
 
     async def async_media_play_pause(self):
         """Simulate play pause media player."""

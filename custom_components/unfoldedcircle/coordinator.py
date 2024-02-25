@@ -16,7 +16,7 @@ from homeassistant.helpers.update_coordinator import (
 )
 
 from .const import DEVICE_SCAN_INTERVAL, DOMAIN
-from .pyUnfoldedCircleRemote.remote import Remote
+from .pyUnfoldedCircleRemote.remote import HTTPError, Remote
 from .pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
 
 _LOGGER = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     # List of events to subscribe to the websocket
     subscribe_events: dict[str, bool]
-    entities: [CoordinatorEntity]
+    entities: list[CoordinatorEntity]
 
     def __init__(self, hass: HomeAssistant, unfolded_circle_remote_device) -> None:
         """Initialize the Coordinator."""
@@ -76,6 +76,7 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
 
     async def reconnection_ws(self):
+        """Reconnect WS Connection if dropped"""
         _LOGGER.debug(
             "Unfolded Circle Remote coordinator refresh data after a period of disconnection"
         )
@@ -89,12 +90,13 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
 
     async def receive_data(self, message: any):
-        # _LOGGER.debug("Unfolded Circle Remote coordinator received data %s", message)
+        """update coordinator data upon receipt"""
         self.update(message)
         if logging.DEBUG:
             self.debug_structure()
 
     def debug_structure(self):
+        """Output debugbing information"""
         debug_info = []
         for activity_group in self.api.activity_groups:
             debug_info.append(
@@ -105,12 +107,12 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 + ") :"
             )
             active_media_entity = None
-            for entity in self.entities:
-                if (
-                    hasattr(entity, "_active_media_entity")
-                    and entity.activity_group == activity_group
-                ):
-                    active_media_entity = entity._active_media_entity
+            # for entity in self.entities:
+            #     if (
+            #         hasattr(entity, "_active_media_entity")
+            #         and entity.activity_group == activity_group
+            #     ):
+            #         active_media_entity = entity._active_media_entity
             if active_media_entity is None:
                 debug_info.append("  No active media entity for this group")
             for activity in activity_group.activities:
@@ -151,15 +153,6 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 + ") : "
                 + media_entity._state
             )
-        debug_info.append("Media player entities for HA :")
-        for entity in self.entities:
-            if hasattr(entity, "_active_media_entity"):
-                debug_info.append(
-                    " - Linked to activity group "
-                    + entity.activity_group.name
-                    + " : "
-                    + entity.state
-                )
         _LOGGER.debug("UC2 debug structure\n%s", "\n".join(debug_info))
 
     async def _async_update_data(self) -> dict[str, Any]:
@@ -171,7 +164,7 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.data = vars(self.api)
             return vars(self.api)
         except HTTPError as err:
-            if err.code == 401:
+            if err.status_code == 401:
                 raise ConfigEntryAuthFailed(err) from err
             raise UpdateFailed(
                 f"Error communicating with Unfolded Circle Remote API {err}"

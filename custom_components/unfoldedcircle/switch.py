@@ -36,24 +36,28 @@ class UnfoldedCircleSwitchEntityDescription(SwitchEntityDescription):
 def update_remote_display_settings(
     coordinator: UnfoldedCircleRemoteCoordinator, enable: bool
 ) -> None:
+    """Update remote display settings"""
     coordinator.api.patch_remote_display_settings(enable)
 
 
 def update_remote_button_settings(
     coordinator: UnfoldedCircleRemoteCoordinator, enable: bool
 ) -> None:
+    """Update remote button settings"""
     coordinator.api.patch_remote_button_settings(enable)
 
 
 def update_remote_sound_settings(
     coordinator: UnfoldedCircleRemoteCoordinator, enable: bool
 ) -> None:
+    """Update remote sound settings"""
     coordinator.api.patch_remote_sound_settings(enable)
 
 
 def update_remote_haptic_settings(
     coordinator: UnfoldedCircleRemoteCoordinator, enable: bool
 ) -> None:
+    """Update remote haptic settings"""
     coordinator.api.patch_remote_haptic_settings(enable)
 
 
