@@ -1,6 +1,5 @@
 """Remote sensor platform for Unfolded Circle."""
 
-import logging
 from collections.abc import Iterable
 from typing import Any, Mapping
 
@@ -12,8 +11,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 from .entity import UnfoldedCircleEntity
-
-_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -29,9 +26,6 @@ async def async_setup_entry(
 class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
     """Remote Sensor."""
 
-    # The class of this device. Note the value should come from the homeassistant.const
-    # module. More information on the available devices classes can be seen here:
-    # https://developers.home-assistant.io/docs/core/entity/sensor
     _attr_icon = "mdi:remote"
     entity_description: ToggleEntityDescription
     _attr_supported_features: RemoteEntityFeature = RemoteEntityFeature.ACTIVITY
@@ -57,27 +51,20 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
     def extra_state_attributes(self) -> Mapping[str, Any] | None:
         return self._extra_state_attributes
 
-    # def update_state(self) -> bool:
-    #     self._attr_is_on = False
-    #     self._attr_current_activity = None
-    #     for activity in self._remote.activities:
-    #         self._extra_state_attributes[activity.name] = activity._state
-    #         if activity.is_on():
-    #             self._attr_current_activity = activity.name
-    #             self._attr_is_on = True
-    #     for activity in self._remote.activities:
-    #         for entity in activity.mediaplayer_entities:
-    #             self._extra_state_attributes[entity._name] = entity.state
-    #             if len(entity.source_list) > 0:
-    #                 self._extra_state_attributes[
-    #                     "Media Player :" + entity._name + " sources"
-    #                 ] = ", ".join(entity.source_list)
-    #             if entity.current_source is not None:
-    #                 self._extra_state_attributes[
-    #                     "Media Player :" + entity._name + " current source"
-    #                 ] = entity.current_source
+    def update_state(self) -> bool:
+        """Update current activity and extra state attributes"""
+        self._attr_is_on = False
+        self._attr_current_activity = None
+        for activity in self.coordinator.api.activities:
+            self._extra_state_attributes[activity.name] = activity.state
+            if activity.is_on():
+                self._attr_current_activity = activity.name
+                self._attr_is_on = True
+        for activity in self.coordinator.api.activities:
+            for entity in activity.mediaplayer_entities:
+                self._extra_state_attributes[entity.name] = entity.state
 
-    #     return self._attr_is_on
+        return self._attr_is_on
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the entity on."""
@@ -87,9 +74,9 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the entity off."""
-        # for activity in self.coordinator.api.activities:
-        #     if activity.is_on():
-        #         await activity.turn_off()
+        for activity in self.coordinator.api.activities:
+            if activity.is_on():
+                await activity.turn_off()
         self._attr_is_on = False
 
     async def async_send_command(self, command: Iterable[str], **kwargs):
@@ -104,5 +91,5 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        # self.update_state()
+        self.update_state()
         self.async_write_ha_state()

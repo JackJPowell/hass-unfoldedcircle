@@ -1,8 +1,10 @@
+"""Unfolded Circle Remote Web Socket Module"""
+
 import asyncio
 import json
 import logging
-import re
 from typing import Callable, Coroutine
+from urllib.parse import urlparse
 
 import requests
 import websockets
@@ -15,7 +17,8 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class LoggerAdapter(logging.LoggerAdapter):
-    """Logger class for websocket for debugging. Add connection ID and client IP address to websockets logs."""
+    """Logger class for websocket for debugging.
+    Add connection ID and client IP address to websockets logs."""
 
     def process(self, msg, kwargs):
         try:
@@ -26,15 +29,9 @@ class LoggerAdapter(logging.LoggerAdapter):
         return f"{websocket.id} {msg}", kwargs
 
 
-def parse_hostname(uri):
-    """Validate passed in URL and attempts to correct websocket endpoint."""
-    parsed_url = re.sub("^http.*://", "", uri)
-    parsed_url = re.sub("/*api/*$", "", parsed_url)
-    parsed_url = re.sub("/$", "", parsed_url)
-    return parsed_url
-
-
 class RemoteWebsocket:
+    """Web Socket Class for Unfolded Circle Remote"""
+
     session: Session | None
     hostname: str
     endpoint: str
@@ -42,13 +39,19 @@ class RemoteWebsocket:
     api_key: str = None
     websocket: WebSocketClientProtocol | None = None
 
-    def __init__(self, hostname: str, api_key: str = None) -> None:
+    def __init__(self, api_url: str, api_key: str = None) -> None:
         self.session = None
-        self.hostname = parse_hostname(hostname)
+        self.hostname = urlparse(api_url).hostname
         self.api_key = api_key
         self.websocket = None
-        self.endpoint = "wss://" + self.hostname + "/ws"
-        self.api_endpoint = "http://" + self.hostname + "/api"
+
+        if urlparse(api_url).scheme == "https":
+            self.protocol = "wss"
+        else:
+            self.protocol = "ws"
+
+        self.endpoint = f"{self.protocol}://{self.hostname}/ws"
+        self.api_endpoint = api_url
         self.events_to_subscribe = [
             "software_updates",
         ]
@@ -63,8 +66,6 @@ class RemoteWebsocket:
         _LOGGER.debug(
             "UnfoldedCircleRemote websocket init connection to %s", self.endpoint
         )
-        # logger = logging.getLogger("websockets.client")
-        # logger.setLevel(logging.DEBUG)
 
         first = True
         async for websocket in websockets.connect(
@@ -82,9 +83,10 @@ class RemoteWebsocket:
                     first = False
                 else:
                     # Call reconnection callback after reconnection success:
-                    # useful to extract fresh information with APIs after a long period of disconnection (sleep)
+                    # useful to extract fresh information with APIs after a
+                    # long period of disconnection (sleep)
                     asyncio.ensure_future(reconnection_callback())
-                # Subscribe to events we are interesting in
+                # Subscribe to events we are interested in
                 asyncio.ensure_future(self.subscribe_events())
 
                 while True:
@@ -106,6 +108,7 @@ class RemoteWebsocket:
         _LOGGER.error("UnfoldedCircleRemote exiting init_websocket, this is not normal")
 
     async def close_websocket(self):
+        """Terminate web socket connection"""
         if self.websocket is not None:
             await self.websocket.close(1001, "Close connection")  # 1001 : going away
             self.websocket = None
@@ -113,9 +116,11 @@ class RemoteWebsocket:
     async def subscribe_events(self) -> None:
         """Subscribe to necessary events."""
         # Available channels :
-        # "all" "configuration" "entities" "entity_button" "entity_switch" "entity_climate" "entity_cover"
-        # "entity_light" "entity_media_player" "entity_sensor" "entity_activity" "entity_macro" "entity_remote" "activity_groups" "integrations"
-        # "profiles" "emitters" "docks" "software_update" "battery_status" "ambient_light"
+        # "all" "configuration" "entities" "entity_button" "entity_switch"
+        # "entity_climate" "entity_cover" "entity_light" "entity_media_player"
+        # "entity_sensor" "entity_activity" "entity_macro" "entity_remote"
+        # "activity_groups" "integrations" "profiles" "emitters" "docks"
+        # "software_update" "battery_status" "ambient_light"
         _LOGGER.debug(
             "UnfoldedCircleRemote subscribing to events %s", self.events_to_subscribe
         )
@@ -146,7 +151,7 @@ class RemoteWebsocket:
         )
         response.raise_for_status()
         data = response.json()
-        _LOGGER.info("API key : " + json.dumps(data) + "\n")
+        _LOGGER.info("API key : %s \n", json.dumps(data))
         self.api_key = data["api_key"]
 
     def delete_api_key(self):
@@ -166,10 +171,11 @@ class RemoteWebsocket:
         )
         response.raise_for_status()
         data = response.json()
-        _LOGGER.info("API key deleted: " + json.dumps(data) + "\n")
+        _LOGGER.info("API key deleted: %s \n", json.dumps(data))
 
     def login_api(self, username: str, password: str) -> Session:
-        """Login to the remote using rest API with basic authentication with the provided username/password."""
+        """Login to the remote using rest API with basic
+        authentication with the provided username/password."""
         self.session = requests.session()
         response = self.session.post(
             self.api_endpoint + "/pub/login",

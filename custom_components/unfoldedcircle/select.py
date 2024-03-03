@@ -45,7 +45,6 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
         self._attr_icon = "mdi:remote-tv"
         self._attr_native_value = "OFF"
         self._extra_state_attributes = {}
-        # _LOGGER.debug("Activity groups %s", self.activity_group.activities)
 
     async def async_added_to_hass(self):
         """Run when this Entity has been added to HA."""

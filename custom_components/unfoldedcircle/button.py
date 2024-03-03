@@ -1,7 +1,5 @@
 """Button for Unfolded Circle."""
 
-import logging
-
 from homeassistant.components.button import ButtonDeviceClass, ButtonEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
@@ -10,8 +8,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 from .entity import UnfoldedCircleEntity
-
-_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(

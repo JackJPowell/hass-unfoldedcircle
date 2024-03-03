@@ -159,7 +159,7 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Get the latest data from the Unfolded Circle Remote."""
         try:
             if self.polling_data:
-                self.api.update()
+                await self.api.polling_update()
 
             self.data = vars(self.api)
             return vars(self.api)

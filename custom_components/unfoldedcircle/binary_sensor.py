@@ -1,6 +1,5 @@
 """Binary sensor platform for Unfolded Circle."""
 
-import logging
 from typing import Any, Mapping
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
@@ -12,8 +11,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 from .coordinator import UnfoldedCircleRemoteCoordinator
 from .entity import UnfoldedCircleEntity
-
-_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -29,7 +26,7 @@ async def async_setup_entry(
 
 
 class PollingBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
-    """Class representing a binary sensor."""
+    """Sensor indicating if HTTP Polling is active"""
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -46,6 +43,9 @@ class PollingBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
         self._attr_native_value = self.coordinator.polling_data
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._extra_state_attributes = {}
+        self._attr_icon = "mdi:swap-horizontal"
+        self._attr_entity_registry_enabled_default = False
+        self._attr_entity_registry_visible_default = False
 
     @property
     def is_on(self):

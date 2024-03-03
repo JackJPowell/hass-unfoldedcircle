@@ -72,16 +72,14 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     def __init__(self, coordinator) -> None:
         """Initialize a switch."""
         super().__init__(coordinator)
-        self._attr_name = f"{self.coordinator.api.name} player"
+        self._attr_name = f"{self.coordinator.api.name} Media Player"
         self._attr_unique_id = f"{self.coordinator.api.serial_number}_mediaplayer"
-        # self._state = activity_group.state
         self._extra_state_attributes = {}
         self._current_activity = None
         self.activities = self.coordinator.api.activities
         self._active_media_entities: list[UCMediaPlayerEntity] = []
         self._active_media_entity: UCMediaPlayerEntity | None = None
         self._selected_media_entity: UCMediaPlayerEntity | None = None
-        # self._attr_icon = "mdi:remote-tv"
         self._state = STATE_OFF
         self.update_state()
 

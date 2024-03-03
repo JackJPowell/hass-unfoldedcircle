@@ -1,4 +1,4 @@
-import logging
+"""Base entity for Unfolded Circle Remote Integration"""
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -7,10 +7,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from . import UnfoldedCircleRemoteCoordinator
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 
-_LOGGER: logging.Logger = logging.getLogger(__package__)
 
-
-async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entities):
+async def async_setup_entry(hass: HomeAssistant, config_entry):
     """Add sensors for passed config_entry in HA."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
 

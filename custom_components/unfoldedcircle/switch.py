@@ -1,9 +1,7 @@
 """Platform for Switch integration."""
 
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import cast
 
 from homeassistant.components.switch import (
     SwitchDeviceClass,
@@ -15,14 +13,11 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import StateType
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 from .coordinator import UnfoldedCircleRemoteCoordinator
 from .entity import UnfoldedCircleEntity
 from .pyUnfoldedCircleRemote.const import RemoteUpdateType
-
-_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -33,32 +28,32 @@ class UnfoldedCircleSwitchEntityDescription(SwitchEntityDescription):
     control_fn: Callable = None
 
 
-def update_remote_display_settings(
+async def update_remote_display_settings(
     coordinator: UnfoldedCircleRemoteCoordinator, enable: bool
 ) -> None:
     """Update remote display settings"""
-    coordinator.api.patch_remote_display_settings(enable)
+    await coordinator.api.patch_remote_display_settings(enable)
 
 
-def update_remote_button_settings(
+async def update_remote_button_settings(
     coordinator: UnfoldedCircleRemoteCoordinator, enable: bool
 ) -> None:
     """Update remote button settings"""
-    coordinator.api.patch_remote_button_settings(enable)
+    await coordinator.api.patch_remote_button_settings(enable)
 
 
-def update_remote_sound_settings(
+async def update_remote_sound_settings(
     coordinator: UnfoldedCircleRemoteCoordinator, enable: bool
 ) -> None:
     """Update remote sound settings"""
-    coordinator.api.patch_remote_sound_settings(enable)
+    await coordinator.api.patch_remote_sound_settings(enable)
 
 
-def update_remote_haptic_settings(
+async def update_remote_haptic_settings(
     coordinator: UnfoldedCircleRemoteCoordinator, enable: bool
 ) -> None:
     """Update remote haptic settings"""
-    coordinator.api.patch_remote_haptic_settings(enable)
+    await coordinator.api.patch_remote_haptic_settings(enable)
 
 
 UNFOLDED_CIRCLE_SWITCH: tuple[UnfoldedCircleSwitchEntityDescription, ...] = (
@@ -134,7 +129,7 @@ class UCRemoteSwitch(UnfoldedCircleEntity, SwitchEntity):
         super().__init__(coordinator)
         self.switch = switch
         self._attr_name = f"{self.coordinator.api.name} {switch.name}"
-        # self._attr_unique_id = switch._id
+        self._attr_unique_id = switch._id
         self._state = switch.state
         self._attr_icon = "mdi:remote-tv"
         self._attr_native_value = "OFF"
@@ -197,20 +192,39 @@ class UCRemoteConfigSwitch(UnfoldedCircleEntity, SwitchEntity):
         )
         self._attr_name = f"{self.coordinator.api.name} {description.name}"
         key = "_" + self._description.key
-        self._state = coordinator.data.get(key)
+        self._attr_native_value = coordinator.data.get(key)
+        if coordinator.data.get(key) is True:
+            self._state = "ON"
+        else:
+            self._state = "OFF"
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return true if switch is on."""
+        return self._state == "ON"
+
+    @property
+    def should_poll(self) -> bool:
+        return True
 
     async def async_turn_on(self, **kwargs) -> None:
         """Instruct the switch to turn on."""
-        self.entity_description.control_fn(True)
+        await self.entity_description.control_fn(self.coordinator, True)
+        await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs) -> None:
         """Instruct the switch to turn off."""
-        self.entity_description.control_fn(False)
+        await self.entity_description.control_fn(self.coordinator, False)
+        await self.coordinator.async_request_refresh()
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         key = "_" + self._description.key
         state = self.coordinator.data.get(key)
-        self._state = cast(StateType, state)
+        if state is True:
+            self._state = "ON"
+        else:
+            self._state = "OFF"
+        self._attr_native_value = state
         self.async_write_ha_state()

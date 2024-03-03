@@ -1,8 +1,6 @@
 """Platform for sensor integration."""
 
-import logging
 from dataclasses import dataclass
-from typing import cast
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -15,8 +13,6 @@ from homeassistant.helpers.typing import StateType
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 from .entity import UnfoldedCircleEntity
-
-_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -46,6 +42,16 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         entity_registry_enabled_default=False,
     ),
     UnfoldedCircleSensorEntityDescription(
+        key="power_mode",
+        device_class=None,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:power-plug-battery",
+        name="Power Mode",
+        has_entity_name=False,
+        unique_id="power_mode",
+        entity_registry_enabled_default=True,
+    ),
+    UnfoldedCircleSensorEntityDescription(
         key="memory_available",
         unit_of_measurement=UnitOfInformation.MEBIBYTES,
         device_class=UnitOfInformation.MEBIBYTES,
@@ -56,6 +62,7 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         suggested_display_precision=0,
         icon="mdi:memory",
         entity_registry_enabled_default=False,
+        entity_registry_visible_default=False,
     ),
     UnfoldedCircleSensorEntityDescription(
         key="storage_available",
@@ -68,6 +75,7 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         suggested_display_precision=0,
         icon="mdi:harddisk",
         entity_registry_enabled_default=False,
+        entity_registry_visible_default=False,
     ),
     UnfoldedCircleSensorEntityDescription(
         key="cpu_load_one",
@@ -79,6 +87,7 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         suggested_display_precision=2,
         icon="mdi:cpu-64-bit",
         entity_registry_enabled_default=False,
+        entity_registry_visible_default=False,
     ),
 )
 
@@ -122,6 +131,8 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
             self.coordinator.subscribe_events["ambient_light"] = True
         if self.entity_description.key == "battery_level":
             self.coordinator.subscribe_events["battery_status"] = True
+        if self.entity_description.key == "power_mode":
+            self.coordinator.subscribe_events["configuration"] = True
         # Enable polling if one of those entities is enabled
         if self.entity_description.key in [
             "memory_available",
@@ -134,9 +145,7 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
     def get_value(self) -> StateType:
         """return native value of entity"""
         if self.coordinator.data:
-            key = "_" + self.entity_description.key
-            state = self.coordinator.data.get(key)
-            self._state = cast(StateType, state)
+            self._state = getattr(self.coordinator.api, self.entity_description.key)
             self._attr_native_value = self._state
         return self._state
 

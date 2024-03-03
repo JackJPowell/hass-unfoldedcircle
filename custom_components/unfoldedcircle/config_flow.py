@@ -5,7 +5,7 @@ import re
 from typing import Any
 
 import voluptuous as vol
-from homeassistant import config_entries, data_entry_flow
+from homeassistant import config_entries
 from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_HOST, CONF_MAC, CONF_NAME, CONF_PORT
@@ -138,11 +138,13 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             "Unfolded circle remote found %s %s %s :", mac_address, host, discovery_info
         )
 
-        # Use mac address as unique id as this is the only common information between zeroconf and user conf
+        # Use mac address as unique id as this is the only common
+        # information between zeroconf and user conf
         if mac_address:
             await self._async_set_unique_id_and_abort_if_already_configured(mac_address)
 
-        # Retrieve device friendly name set by user after checking if unique ID was not already defined and registered
+        # Retrieve device friendly name set by user after
+        # checking if unique ID was not already defined and registered
         device_name = "Remote Two"
 
         try:
