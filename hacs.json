@@ -8,7 +8,8 @@
     "button",
     "remote",
     "select",
-    "number"
+    "number",
+    "media_player"
   ],
   "homeassistant": "2023.10.0",
   "iot_class": "Local Push",
