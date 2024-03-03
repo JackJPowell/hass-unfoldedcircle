@@ -4,7 +4,7 @@
   "codeowners": ["@jackjpowell"],
   "config_flow": true,
   "dependencies": ["network", "zeroconf"],
-  "version": "0.5.0",
+  "version": "0.6.0",
   "documentation": "https://github.com/JackJPowell/hass-unfoldedcircle",
   "homekit": {},
   "integration_type": "device",
