@@ -39,7 +39,6 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         name="Illuminance",
         has_entity_name=False,
         unique_id="illuminance",
-        entity_registry_enabled_default=False,
     ),
     UnfoldedCircleSensorEntityDescription(
         key="power_mode",
@@ -49,7 +48,6 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         name="Power Mode",
         has_entity_name=False,
         unique_id="power_mode",
-        entity_registry_enabled_default=True,
     ),
     UnfoldedCircleSensorEntityDescription(
         key="memory_available",
