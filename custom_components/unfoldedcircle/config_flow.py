@@ -11,10 +11,10 @@ from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_HOST, CONF_MAC, CONF_NAME, CONF_PORT
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
+from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME
+from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 from .const import CONF_SERIAL, DOMAIN
-from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME
-from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 _LOGGER = logging.getLogger(__name__)
 

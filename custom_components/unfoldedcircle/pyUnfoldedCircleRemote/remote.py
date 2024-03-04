@@ -2,6 +2,7 @@
 
 import asyncio
 import copy
+import datetime
 import json
 import logging
 import re
@@ -1365,7 +1366,7 @@ class UCMediaPlayerEntity:
             attributes_changed["media_title"] = self._media_title
         if attributes.get("media_position", None):
             self._media_position = attributes.get("media_position", 0)
-            self._media_position_updated_at = time.time
+            self._media_position_updated_at = datetime.datetime.utcnow()
             attributes_changed["media_position"] = self._media_position
         if attributes.get("muted", None):
             self._muted = attributes.get("muted", None)

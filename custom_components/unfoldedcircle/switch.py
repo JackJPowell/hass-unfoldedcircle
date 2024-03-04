@@ -11,13 +11,12 @@ from homeassistant.components.switch import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from pyUnfoldedCircleRemote.const import RemoteUpdateType
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 from .coordinator import UnfoldedCircleRemoteCoordinator
 from .entity import UnfoldedCircleEntity
-from .pyUnfoldedCircleRemote.const import RemoteUpdateType
 
 
 @dataclass
@@ -133,12 +132,6 @@ class UCRemoteSwitch(UnfoldedCircleEntity, SwitchEntity):
         self._state = switch.state
         self._attr_icon = "mdi:remote-tv"
         self._attr_native_value = "OFF"
-
-    async def async_added_to_hass(self):
-        """Run when this Entity has been added to HA."""
-        await super().async_added_to_hass()
-        self.coordinator.subscribe_events["entity_activity"] = True
-        self.coordinator.subscribe_events["activity_groups"] = True
 
     async def async_added_to_hass(self):
         """Run when this Entity has been added to HA."""

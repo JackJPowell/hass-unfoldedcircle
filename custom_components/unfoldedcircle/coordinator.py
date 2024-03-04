@@ -14,10 +14,10 @@ from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
 )
+from pyUnfoldedCircleRemote.remote import Remote
+from pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
 
 from .const import DEVICE_SCAN_INTERVAL, DOMAIN
-from .pyUnfoldedCircleRemote.remote import HTTPError, Remote
-from .pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -159,7 +159,7 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Get the latest data from the Unfolded Circle Remote."""
         try:
             if self.polling_data:
-                await self.api.polling_update()
+                await self.api.update()
 
             self.data = vars(self.api)
             return vars(self.api)

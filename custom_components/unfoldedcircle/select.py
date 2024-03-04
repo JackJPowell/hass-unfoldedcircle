@@ -1,16 +1,16 @@
 """Select platform for Unfolded Circle"""
 
 import logging
-from typing import Any, Mapping, cast
+from typing import Any, Mapping
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from pyUnfoldedCircleRemote.const import RemoteUpdateType
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 from .entity import UnfoldedCircleEntity
-from .pyUnfoldedCircleRemote.const import RemoteUpdateType
 
 _LOGGER = logging.getLogger(__name__)
 
