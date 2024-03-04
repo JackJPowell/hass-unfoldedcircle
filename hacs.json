@@ -1,9 +1,19 @@
 {
-    "name": "Unfolded Circle",
-    "domains": ["binary_sensor", "sensor", "switch", "update", "button", "remote"],
-    "homeassistant": "2023.10.0",
-    "iot_class": "Local Polling",
-    "render_readme": true,
-    "zip_release": true,
-    "filename": "unfoldedcircle.zip"
-  }
+  "name": "Unfolded Circle",
+  "domains": [
+    "binary_sensor",
+    "sensor",
+    "switch",
+    "update",
+    "button",
+    "remote",
+    "select",
+    "number",
+    "media_player"
+  ],
+  "homeassistant": "2023.10.0",
+  "iot_class": "Local Push",
+  "render_readme": true,
+  "zip_release": true,
+  "filename": "unfoldedcircle.zip"
+}

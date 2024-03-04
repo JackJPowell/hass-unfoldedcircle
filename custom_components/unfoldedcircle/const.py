@@ -1,4 +1,5 @@
 """Constants for the Unfolded Circle Remote integration."""
+
 from datetime import timedelta
 
 DOMAIN = "unfoldedcircle"

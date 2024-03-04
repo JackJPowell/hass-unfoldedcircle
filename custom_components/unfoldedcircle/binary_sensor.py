@@ -1,18 +1,15 @@
 """Binary sensor platform for Unfolded Circle."""
-import logging
+
+from typing import Any, Mapping
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_BATTERY_CHARGING
+from homeassistant.const import ATTR_BATTERY_CHARGING, EntityCategory
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
-from .coordinator import UnfoldedCircleRemoteCoordinator
-
-_LOGGER = logging.getLogger(__name__)
+from .entity import UnfoldedCircleEntity
 
 
 async def async_setup_entry(
@@ -22,64 +19,79 @@ async def async_setup_entry(
 ) -> None:
     """Use to setup entity."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
-
-    # Verify that passed in configuration works
-    if not await coordinator.api.can_connect():
-        _LOGGER.error("Could not connect to Remote")
-        return
-
-    # Get Basic Device Information
-    await coordinator.api.update()
-    await coordinator.async_config_entry_first_refresh()
-
-    new_devices = []
-    new_devices.append(BinarySensor(coordinator))
-    if new_devices:
-        async_add_entities(new_devices)
+    async_add_entities(
+        [BatteryBinarySensor(coordinator), PollingBinarySensor(coordinator)]
+    )
 
 
-class BinarySensor(
-    CoordinatorEntity[UnfoldedCircleRemoteCoordinator], BinarySensorEntity
-):
-    """Class representing a binary sensor."""
+class PollingBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
+    """Sensor indicating if HTTP Polling is active"""
 
-    # The class of this device. Note the value should come from the homeassistant.const
-    # module. More information on the available devices classes can be seen here:
-    # https://developers.home-assistant.io/docs/core/entity/sensor
-    device_class = ATTR_BATTERY_CHARGING
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return DeviceInfo(
-            identifiers={
-                # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, self.coordinator.api.serial_number)
-            },
-            name=self.coordinator.api.name,
-            manufacturer=self.coordinator.api.manufacturer,
-            model=self.coordinator.api.model_name,
-            sw_version=self.coordinator.api.sw_version,
-            hw_version=self.coordinator.api.hw_revision,
-            configuration_url=self.coordinator.api.configuration_url,
-        )
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
 
     def __init__(self, coordinator) -> None:
         """Initialize Binary Sensor."""
-        super().__init__(self, coordinator)
-        self.coordinator = coordinator
+        super().__init__(coordinator)
 
         # As per the sensor, this must be a unique value within this domain.
-        self._attr_unique_id = f"{self.coordinator.api.serial_number}_charging_status"
+        self._attr_unique_id = f"{self.coordinator.api.serial_number}_polling_status"
 
         # The name of the entity
+        self._attr_name = f"{self.coordinator.api.name} Polling Status"
+        self._attr_native_value = self.coordinator.polling_data
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
+        self._extra_state_attributes = {}
+        self._attr_icon = "mdi:swap-horizontal"
+        self._attr_entity_registry_enabled_default = False
+        self._attr_entity_registry_visible_default = False
+
+    @property
+    def is_on(self):
+        """Return the state of the binary sensor."""
+        self._attr_native_value = self.coordinator.polling_data
+        return self._attr_native_value
+
+    @property
+    def extra_state_attributes(self) -> Mapping[str, Any] | None:
+        return self._extra_state_attributes
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        self._attr_native_value = self.coordinator.polling_data
+        self._extra_state_attributes["Polling state"] = self.coordinator.polling_data
+        self._extra_state_attributes["Websocket state"] = (
+            self.coordinator.websocket_task is not None
+        )
+        self._extra_state_attributes["Websocket events"] = ", ".join(
+            self.coordinator.remote_websocket.events_to_subscribe
+        )
+        self.async_write_ha_state()
+
+
+class BatteryBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
+    """Class representing a binary sensor."""
+
+    device_class = ATTR_BATTERY_CHARGING
+
+    async def async_added_to_hass(self) -> None:
+        self.coordinator.subscribe_events["battery_status"] = True
+        await super().async_added_to_hass()
+
+    def __init__(self, coordinator) -> None:
+        """Initialize Binary Sensor."""
+        super().__init__(coordinator)
+
+        self._attr_unique_id = f"{self.coordinator.api.serial_number}_charging_status"
         self._attr_name = f"{self.coordinator.api.name} Charging Status"
         self._attr_native_value = False
 
     @property
     def is_on(self):
         """Return the state of the binary sensor."""
-        return self.coordinator.api.is_charging
+        self._attr_native_value = self.coordinator.api.is_charging
+        return self._attr_native_value
 
     @callback
     def _handle_coordinator_update(self) -> None:
