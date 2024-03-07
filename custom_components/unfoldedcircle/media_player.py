@@ -19,9 +19,9 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import UndefinedType
 from pyUnfoldedCircleRemote.const import RemoteUpdateType
-from pyUnfoldedCircleRemote.remote import UCMediaPlayerEntity
+from pyUnfoldedCircleRemote.remote import UCMediaPlayerEntity, ActivityGroup
 
-from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
+from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR, CONF_ACTIVITY_GROUP_MEDIA_ENTITIES, CONF_GLOBAL_MEDIA_ENTITY
 from .entity import UnfoldedCircleEntity
 
 _LOGGER = logging.getLogger(__name__)
@@ -61,7 +61,15 @@ async def async_setup_entry(
 ) -> None:
     """Use to setup entity."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
-    async_add_entities([MediaPlayerUCRemote(coordinator)])
+    media_players = []
+    # Enable the global media player entity for all activities if enabled by user
+    if config_entry.options.get(CONF_GLOBAL_MEDIA_ENTITY, True):
+        media_players.append(MediaPlayerUCRemote(coordinator))
+    # Add additional media players (one per activity group) if the user option is enabled
+    if config_entry.options.get(CONF_ACTIVITY_GROUP_MEDIA_ENTITIES, True):
+        for activity_group in coordinator.api.activity_groups:
+            media_players.append(MediaPlayerUCRemote(coordinator, activity_group))
+    async_add_entities(media_players)
 
 
 class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
@@ -69,14 +77,20 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
 
     _attr_supported_features = SUPPORT_MEDIA_PLAYER
 
-    def __init__(self, coordinator) -> None:
+    def __init__(self, coordinator, activity_group: ActivityGroup = None) -> None:
         """Initialize a switch."""
         super().__init__(coordinator)
-        self._attr_name = f"{self.coordinator.api.name} Media Player"
-        self._attr_unique_id = f"{self.coordinator.api.serial_number}_mediaplayer"
+        self.activity_group = activity_group
+        if activity_group is None:
+            self._attr_name = f"{self.coordinator.api.name} Media Player"
+            self._attr_unique_id = f"{self.coordinator.api.serial_number}_mediaplayer"
+            self.activities = self.coordinator.api.activities
+        else:
+            self._attr_name = f"{self.coordinator.api.name} {activity_group.name} Media Player"
+            self._attr_unique_id = f"{self.coordinator.api.serial_number}_{activity_group._id}_mediaplayer"
+            self.activities = self.activity_group.activities
         self._extra_state_attributes = {}
         self._current_activity = None
-        self.activities = self.coordinator.api.activities
         self._active_media_entities: list[UCMediaPlayerEntity] = []
         self._active_media_entity: UCMediaPlayerEntity | None = None
         self._selected_media_entity: UCMediaPlayerEntity | None = None
@@ -113,6 +127,8 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
                 vars(self._active_media_entity),
             )
             self._active_media_entity = None
+
+
         for activity in self.activities:
             if activity.is_on():
                 self._current_activity = activity
@@ -177,7 +193,9 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
 
     @property
     def name(self) -> str | UndefinedType | None:
-        return f"{self.coordinator.api.name} player"
+        if self.activity_group is None:
+            return f"{self.coordinator.api.name} player"
+        return f"{self.activity_group.name} player"
 
     @property
     def source(self):
