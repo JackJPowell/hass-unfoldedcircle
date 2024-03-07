@@ -1,5 +1,5 @@
 # Home Assistant
-homeassistant>=2023.12
+homeassistant>=2024.3
 home-assistant-frontend
 
 # Integration
