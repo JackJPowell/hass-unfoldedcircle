@@ -5,16 +5,18 @@ import re
 from typing import Any
 
 import voluptuous as vol
+import homeassistant.helpers.config_validation as cv
 from homeassistant import config_entries
 from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_HOST, CONF_MAC, CONF_NAME, CONF_PORT
+from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME
 from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
-from .const import CONF_SERIAL, DOMAIN
+from .const import CONF_SERIAL, DOMAIN, CONF_ACTIVITY_GROUP_MEDIA_ENTITIES, CONF_GLOBAL_MEDIA_ENTITY
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,7 +25,6 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 )
 
 STEP_ZEROCONF_DATA_SCHEMA = vol.Schema({vol.Required("pin"): str})
-
 
 async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]:
     """Validate the user input allows us to connect.
@@ -98,11 +99,11 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self.api_keyname: str = None
         self.discovery_info: dict[str, Any] = {}
 
-    # @staticmethod
-    # @callback
-    # def async_get_options_flow(config_entry: ConfigEntry) -> UnfoldedCircleRemoteOptionsFlowHandler:
-    #     """Get the options flow for this handler."""
-    #     return UnfoldedCircleRemoteOptionsFlowHandler(config_entry)
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry):
+        """Get the options flow for this handler."""
+        return UnfoldedCircleRemoteOptionsFlowHandler(config_entry)
 
     async def async_step_zeroconf(self, discovery_info: ZeroconfServiceInfo):
         """Handle zeroconf discovery."""
@@ -307,23 +308,48 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
 
-class UnfoldedCircleRemoteOptionsFlowHandler(OptionsFlow):
+class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle Unfolded Circle Remote options."""
 
-    def __init__(self, config_entry: ConfigEntry) -> None:
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
         self.config_entry = config_entry
+        self.options = dict(config_entry.options)
 
-    async def async_step_init(
-        self, user_input: dict[str, int] | None = None
-    ) -> FlowResult:
-        """Manage Unfolded Circle options."""
+    async def async_step_init(self, user_input=None):  # pylint: disable=unused-argument
+        """Manage the options."""
+        return await self.async_step_user()
+
+    async def async_step_user(self, user_input=None):
+        """Handle a flow initialized by the user."""
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            self.options.update(user_input)
+            return await self._update_options()
 
         return self.async_show_form(
-            step_id="init",
-            data_schema=STEP_USER_DATA_SCHEMA,
+            step_id="user",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_GLOBAL_MEDIA_ENTITY,
+                        default=self.config_entry.options.get(
+                            CONF_GLOBAL_MEDIA_ENTITY, True
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
+                        default=self.config_entry.options.get(
+                            CONF_ACTIVITY_GROUP_MEDIA_ENTITIES, True
+                        ),
+                    ): bool,
+                }
+            ),
+        )
+
+    async def _update_options(self):
+        """Update config entry options."""
+        return self.async_create_entry(
+            title="", data=self.options
         )
 
 

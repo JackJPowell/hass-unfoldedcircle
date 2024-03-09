@@ -36,6 +36,13 @@
           "pin": "[%key:common::config_flow::data::pin%]",
           "host": "[%key:common::config_flow::data::host%]"
         }
+      },
+      "user": {
+        "title": "[%key:common::config_flow::title%]",
+        "data": {
+          "global_media_entity": "[%key:common::config_flow::data::global_media_entity%]",
+          "activity_group_media_entities": "[%key:common::config_flow::data::activity_group_media_entities%]"
+        }
       }
     }
   }

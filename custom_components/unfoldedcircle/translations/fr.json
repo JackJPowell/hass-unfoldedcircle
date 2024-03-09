@@ -36,6 +36,13 @@
           "host": "Hôte",
           "pin": "Code PIN"
         }
+      },
+      "user": {
+        "title": "Options pour l'intégration Unfolded Circle",
+        "data": {
+          "global_media_entity": "Active un lecteur multimédia pour toutes les activités",
+          "activity_group_media_entities": "Active des lecteurs multimédia pour chaque groupe d'activité"
+        }
       }
     }
   },

@@ -11,7 +11,7 @@ from homeassistant.components.media_player import (
     MediaPlayerEntity,
     MediaPlayerEntityFeature,
     MediaPlayerState,
-    MediaType,
+    MediaType, BrowseMedia,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_OFF
@@ -19,9 +19,9 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import UndefinedType
 from pyUnfoldedCircleRemote.const import RemoteUpdateType
-from pyUnfoldedCircleRemote.remote import UCMediaPlayerEntity
+from pyUnfoldedCircleRemote.remote import UCMediaPlayerEntity, ActivityGroup
 
-from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
+from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR, CONF_ACTIVITY_GROUP_MEDIA_ENTITIES, CONF_GLOBAL_MEDIA_ENTITY
 from .entity import UnfoldedCircleEntity
 
 _LOGGER = logging.getLogger(__name__)
@@ -38,6 +38,7 @@ SUPPORT_MEDIA_PLAYER = (
     | MediaPlayerEntityFeature.TURN_ON
     | MediaPlayerEntityFeature.TURN_OFF
     | MediaPlayerEntityFeature.SELECT_SOURCE
+    | MediaPlayerEntityFeature.SELECT_SOUND_MODE
     # | MediaPlayerEntityFeature.BROWSE_MEDIA
     | MediaPlayerEntityFeature.SEEK  # TODO
 )
@@ -52,7 +53,7 @@ STATES_MAP = {
 }
 
 # SUPPORT_CLEAR_PLAYLIST # SUPPORT_SELECT_SOUND_MODE # SUPPORT_SHUFFLE_SET # SUPPORT_VOLUME_SET
-
+AUTOMATIC_ENTITY_SELECTION_LABEL = "Automatic selection"
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -61,7 +62,15 @@ async def async_setup_entry(
 ) -> None:
     """Use to setup entity."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
-    async_add_entities([MediaPlayerUCRemote(coordinator)])
+    media_players = []
+    # Enable the global media player entity for all activities if enabled by user
+    if config_entry.options.get(CONF_GLOBAL_MEDIA_ENTITY, True):
+        media_players.append(MediaPlayerUCRemote(coordinator))
+    # Add additional media players (one per activity group) if the user option is enabled
+    if config_entry.options.get(CONF_ACTIVITY_GROUP_MEDIA_ENTITIES, True):
+        for activity_group in coordinator.api.activity_groups:
+            media_players.append(MediaPlayerUCRemote(coordinator, activity_group))
+    async_add_entities(media_players)
 
 
 class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
@@ -69,14 +78,20 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
 
     _attr_supported_features = SUPPORT_MEDIA_PLAYER
 
-    def __init__(self, coordinator) -> None:
+    def __init__(self, coordinator, activity_group: ActivityGroup = None) -> None:
         """Initialize a switch."""
         super().__init__(coordinator)
-        self._attr_name = f"{self.coordinator.api.name} Media Player"
-        self._attr_unique_id = f"{self.coordinator.api.serial_number}_mediaplayer"
+        self.activity_group = activity_group
+        if activity_group is None:
+            self._attr_name = f"{self.coordinator.api.name} Media Player"
+            self._attr_unique_id = f"{self.coordinator.api.serial_number}_mediaplayer"
+            self.activities = self.coordinator.api.activities
+        else:
+            self._attr_name = f"{self.coordinator.api.name} {activity_group.name} Media Player"
+            self._attr_unique_id = f"{self.coordinator.api.serial_number}_{activity_group._id}_mediaplayer"
+            self.activities = self.activity_group.activities
         self._extra_state_attributes = {}
         self._current_activity = None
-        self.activities = self.coordinator.api.activities
         self._active_media_entities: list[UCMediaPlayerEntity] = []
         self._active_media_entity: UCMediaPlayerEntity | None = None
         self._selected_media_entity: UCMediaPlayerEntity | None = None
@@ -95,17 +110,19 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
 
     def update_state(self):
         """Sets the active media entity choosing the best choice if multiple are active"""
+        # If the user has selected a given media player entity, stick to this one and do not determine the right media player entity automatically
         self._active_media_entities = []
         active_media_entity = self._active_media_entity
         # Check if the user selected Media Entity is still 'active'. Is it on and still playing?
-        if self._selected_media_entity is not None and (
-            self._selected_media_entity.is_on is False
-            or (
-                self._selected_media_entity.state
-                not in ["PLAYING", "BUFFERING", "PAUSED"]
-            )
-        ):
-            self._selected_media_entity = None
+        # TODO @albaintor proposition : why not letting the user keeps the entity he selected. If it is turned off, he could turned it back on
+        # if self._selected_media_entity is not None and (
+        #     self._selected_media_entity.is_on is False
+        #     or (
+        #         self._selected_media_entity.state
+        #         not in ["PLAYING", "BUFFERING", "PAUSED"]
+        #     )
+        # ):
+        #     self._selected_media_entity = None
 
         if self._active_media_entity and not self._active_media_entity.is_on:
             _LOGGER.debug(
@@ -113,6 +130,8 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
                 vars(self._active_media_entity),
             )
             self._active_media_entity = None
+
+
         for activity in self.activities:
             if activity.is_on():
                 self._current_activity = activity
@@ -177,27 +196,60 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
 
     @property
     def name(self) -> str | UndefinedType | None:
-        return f"{self.coordinator.api.name} player"
+        if self.activity_group is None:
+            return f"{self.coordinator.api.name} player"
+        return f"{self.activity_group.name} player"
 
     @property
     def source(self):
         """Return the current input source."""
         if self._active_media_entity:
-            return self._active_media_entity.name
+            return self._active_media_entity.current_source
         return None
 
     @property
     def source_list(self):
         """List of available input sources."""
-        source_list = []
         if self._active_media_entity:
+            return self._active_media_entity.source_list
+
+    async def async_select_source(self, source):
+        """Set the input source."""
+        if self._active_media_entity:
+            await self._active_media_entity.select_source(source)
+
+    @property
+    def sound_mode_list(self) -> list[str] | None:
+        """Use sound mode to select alternate media player entities"""
+        if self._active_media_entity:
+            sources: dict[str, any] = { AUTOMATIC_ENTITY_SELECTION_LABEL: True }
             for activity in self.activities:
                 for entity in activity.mediaplayer_entities:
-                    if entity.state in ["PLAYING", "BUFFERING", "PAUSED"]:
-                        source_list.append(entity.name)
-            return source_list
+                    # if entity.state in ["PLAYING", "BUFFERING", "PAUSED"]:
+                    sources[entity.name] = entity
+            return list(sources.keys())
         return None
+    @property
+    def sound_mode(self) -> str | None:
+        if self._selected_media_entity:
+            return self._selected_media_entity.name
+        return AUTOMATIC_ENTITY_SELECTION_LABEL
 
+    def async_select_sound_mode(self, sound_mode):
+        """Switch the sound mode of the entity."""
+        if sound_mode == AUTOMATIC_ENTITY_SELECTION_LABEL:
+            self._selected_media_entity = None
+            self.update_state()
+            self.async_write_ha_state()
+            return
+        # if self._active_media_entity:
+        for activity in self.activities:
+            for entity in activity.mediaplayer_entities:
+                if entity.name == sound_mode:
+                    self._selected_media_entity = entity
+                    self.update_state()
+                    self.async_write_ha_state()
+                    return
     @property
     def media_image_hash(self) -> str | None:
         if self._active_media_entity and self._active_media_entity.media_image_url:
@@ -337,18 +389,6 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         """Send mute command."""
         if self._active_media_entity:
             await self._active_media_entity.mute()
-
-    async def async_select_source(self, source):
-        """Set the input source."""
-        if self._active_media_entity:
-            for activity in self.activities:
-                for entity in activity.mediaplayer_entities:
-                    if entity.name == source:
-                        self._selected_media_entity = entity
-                        self.update_state()
-                        self.async_write_ha_state()
-                        return
-            # await self._active_media_entity.select_source(source)
 
     async def async_media_play_pause(self):
         """Simulate play pause media player."""
