@@ -37,12 +37,21 @@
           "host": "[%key:common::config_flow::data::host%]"
         }
       },
-      "user": {
+      "media_player": {
         "title": "[%key:common::config_flow::title%]",
         "data": {
           "global_media_entity": "[%key:common::config_flow::data::global_media_entity%]",
           "activity_group_media_entities": "[%key:common::config_flow::data::activity_group_media_entities%]"
-        }
+        },
+        "description": "[%key:common::config_flow::media_player::description%]"
+      },
+      "activities": {
+        "title": "[%key:common::config_flow::title%]",
+        "data": {
+          "activities_as_switches": "[%key:common::config_flow::data::activities_as_switches%]",
+          "suppress_activity_groups": "[%key:common::config_flow::data::suppress_activity_groups%]"
+        },
+        "description": "[%key:common::config_flow::activities::description%]"
       }
     }
   }
