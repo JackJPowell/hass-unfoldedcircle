@@ -111,7 +111,8 @@ target:
 
 ## Zeroconf
 
-Your Remote Two will now be automatically discovered on the network. If you have already configured the remote two integration, you can ignore this discovery.
+Your Remote Two will now be automatically discovered on the network.
+**Due to insufficient data in the zeroconf broadcast, home assistant is not able to determine if a newly discovered remote has already been configured. This will present itself as another prompt to configure your Remote Two. If you have already configured your remote, you can ignore this discovery.**
 
 ## Future Ideas
 
