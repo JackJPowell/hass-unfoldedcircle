@@ -14,7 +14,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from pyUnfoldedCircleRemote.const import RemoteUpdateType
 
-from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
+from .const import CONF_ACTIVITIES_AS_SWITCHES, DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 from .coordinator import UnfoldedCircleRemoteCoordinator
 from .entity import UnfoldedCircleEntity
 
@@ -105,8 +105,13 @@ async def async_setup_entry(
     coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
 
     activities = []
-    for activity_group in coordinator.api.activity_groups:
-        activities.extend(activity_group.activities)
+    # Skip populating the array of activities in groups if the user requested that all
+    # activities are created as switches
+    # IF it is true, the activities array will be empty and all activities will be
+    # added as switches (since non are in activity groups)
+    if config_entry.options.get(CONF_ACTIVITIES_AS_SWITCHES, False) is False:
+        for activity_group in coordinator.api.activity_groups:
+            activities.extend(activity_group.activities)
 
     # Create switch for each activity only for activities not defined in any activity group
     async_add_entities(

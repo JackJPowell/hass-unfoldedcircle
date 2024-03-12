@@ -77,15 +77,18 @@ After the device is configured, the integration will expose 22 entities plus the
     - The ability to install Remote Two firmware from within home assistant is implemented but currently disabled.
 - Switches
   - A switch is created for every activity defined that is not apart of an activity group.
+    - An option exists to create a switch for each activity regardless of activity group.
 - Select
   - A select is created for every activity group defined.
+    - An option exists to suppress the creation of activity groups
 - Button
   - A button is available to restart the remote.
 - Remote
   - A remote is available to send pre-configured IR commands from the dock (See Below). It also provides a select to activate an activity and extra state about the status of activities and media player entities
 - Media player
   - A media player entity is created providing controls and information about currently playing media. If multiple media player entities are active, the integration attempts to select the most appropriate based on activity and recency.
-    - You can override this behavior by selecting a different media source from the sources menu in the Media Player control
+    - You can override this behavior by selecting a different media source from the sound mode menu in the Media Player control
+    - Options exist to create a media player per activity group or per activity.
   - A reminder: The controls are acting solely on the entity that is being displayed and not the activity that is running. For instance, if the media player doesn't control your volume, e.g. your receiver does, adjusting the volume via the media player controls will not have the desired effect.
 - Number
 
@@ -109,9 +112,22 @@ target:
 
 > [!TIP] > **device:** will match the case-sensitive name of your remote defined in the web configurator on the remote page. **command** will match the case-senstitive name of the pre-defined (custom or codeset) command defined for that remote. **num_repeats** is optional.
 
+## Options
+
+Additional options have been added to the intergration for further customization:
+
+- Activity Options:
+  - Create all activities as switches
+  - Suppress the creation of activity groups as selects (best combined with the previous option)
+- Media Player Options:
+  - Create a global media player
+  - Create a media player for each activity group on your remote
+  - Create a media player for each activity on your remote
+
 ## Zeroconf
 
-Your Remote Two will now be automatically discovered on the network. If you have already configured the remote two integration, you can ignore this discovery.
+Your Remote Two will now be automatically discovered on the network.
+**Due to insufficient data in the zeroconf broadcast, home assistant is not able to determine if a newly discovered remote has already been configured. This will present itself as another prompt to configure your Remote Two. If you have already configured your remote, you can ignore this discovery.**
 
 ## Future Ideas
 

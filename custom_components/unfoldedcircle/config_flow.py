@@ -7,14 +7,23 @@ from typing import Any
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.components.zeroconf import ZeroconfServiceInfo
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
+from homeassistant.config_entries import ConfigEntry, ConfigFlow
 from homeassistant.const import CONF_HOST, CONF_MAC, CONF_NAME, CONF_PORT
+from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME
 from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
-from .const import CONF_SERIAL, DOMAIN
+from .const import (
+    CONF_ACTIVITIES_AS_SWITCHES,
+    CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
+    CONF_ACTIVITY_MEDIA_ENTITIES,
+    CONF_GLOBAL_MEDIA_ENTITY,
+    CONF_SERIAL,
+    CONF_SUPPRESS_ACTIVITIY_GROUPS,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -66,11 +75,6 @@ async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]
     if remote.mac_address:
         mac_address = remote.mac_address.replace(":", "").lower()
 
-    # If you cannot connect:
-    # throw CannotConnect
-    # If the authentication is wrong:
-    # InvalidAuth
-
     # Return info that you want to store in the config entry.
     return {
         "title": remote.name,
@@ -98,11 +102,13 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self.api_keyname: str = None
         self.discovery_info: dict[str, Any] = {}
 
-    # @staticmethod
-    # @callback
-    # def async_get_options_flow(config_entry: ConfigEntry) -> UnfoldedCircleRemoteOptionsFlowHandler:
-    #     """Get the options flow for this handler."""
-    #     return UnfoldedCircleRemoteOptionsFlowHandler(config_entry)
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: ConfigEntry,
+    ):
+        """Get the options flow for this handler."""
+        return UnfoldedCircleRemoteOptionsFlowHandler(config_entry)
 
     async def async_step_zeroconf(self, discovery_info: ZeroconfServiceInfo):
         """Handle zeroconf discovery."""
@@ -198,10 +204,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 title=info.get("title"),
                 data=info,
             )
-
-        # self.context["title_placeholders"] = {
-        #     "name": f"{self.discovery.product_name} ({self.discovery.serial})"
-        # }
 
         return self.async_show_form(
             step_id="zeroconf_confirm",
@@ -307,24 +309,81 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
 
-class UnfoldedCircleRemoteOptionsFlowHandler(OptionsFlow):
+class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle Unfolded Circle Remote options."""
 
-    def __init__(self, config_entry: ConfigEntry) -> None:
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
         self.config_entry = config_entry
+        self.options = dict(config_entry.options)
 
-    async def async_step_init(
-        self, user_input: dict[str, int] | None = None
-    ) -> FlowResult:
-        """Manage Unfolded Circle options."""
+    async def async_step_init(self, user_input=None):  # pylint: disable=unused-argument
+        """Manage the options."""
+        return await self.async_step_activities()
+
+    async def async_step_media_player(self, user_input=None):
+        """Handle a flow initialized by the user."""
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            self.options.update(user_input)
+            return await self._update_options()
 
         return self.async_show_form(
-            step_id="init",
-            data_schema=STEP_USER_DATA_SCHEMA,
+            step_id="media_player",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_GLOBAL_MEDIA_ENTITY,
+                        default=self.config_entry.options.get(
+                            CONF_GLOBAL_MEDIA_ENTITY, True
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
+                        default=self.config_entry.options.get(
+                            CONF_ACTIVITY_GROUP_MEDIA_ENTITIES, False
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_ACTIVITY_MEDIA_ENTITIES,
+                        default=self.config_entry.options.get(
+                            CONF_ACTIVITY_MEDIA_ENTITIES, False
+                        ),
+                    ): bool,
+                }
+            ),
+            last_step=True,
         )
+
+    async def async_step_activities(self, user_input=None):
+        """Handle options step two flow initialized by the user."""
+        if user_input is not None:
+            self.options.update(user_input)
+            return await self.async_step_media_player()
+
+        return self.async_show_form(
+            step_id="activities",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_ACTIVITIES_AS_SWITCHES,
+                        default=self.config_entry.options.get(
+                            CONF_ACTIVITIES_AS_SWITCHES, False
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_SUPPRESS_ACTIVITIY_GROUPS,
+                        default=self.config_entry.options.get(
+                            CONF_SUPPRESS_ACTIVITIY_GROUPS, False
+                        ),
+                    ): bool,
+                }
+            ),
+            last_step=False,
+        )
+
+    async def _update_options(self):
+        """Update config entry options."""
+        return self.async_create_entry(title="", data=self.options)
 
 
 class CannotConnect(HomeAssistantError):
