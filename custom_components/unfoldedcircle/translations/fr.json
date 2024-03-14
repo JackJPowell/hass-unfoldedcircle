@@ -1,7 +1,8 @@
 {
   "config": {
     "abort": {
-      "already_configured": "L'appareil est déjà configuré"
+      "already_configured": "L'appareil est déjà configuré",
+      "no_mac": "This device is not recognized as a valid Unfolded Circle Remote (No MAC Address)"
     },
     "error": {
       "cannot_connect": "Echec de la connexion",

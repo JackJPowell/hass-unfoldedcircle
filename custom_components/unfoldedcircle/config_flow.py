@@ -124,12 +124,15 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
 
         mac_address = None
         try:
-            mac_address = re.match("^[^-]+-([^-]+)-", hostname).group(1).lower()
+            mac_address = re.match(r"RemoteTwo-(.*?)\.", hostname).group(1).lower()
         except Exception:
             try:
-                mac_address = re.match("^[^-]+-([^-]+)-", name).group(1).lower()
+                mac_address = re.match(r"RemoteTwo-(.*?)\.", name).group(1).lower()
             except Exception:
-                pass
+                _LOGGER.debug("Simulator Path %s", discovery_info)
+                if discovery_info.properties.get("model") != "UCR2-simulator":
+                    _LOGGER.debug("Simulator Path: We should not see this message")
+                    return self.async_abort(reason="no_mac")
 
         self.discovery_info.update(
             {
