@@ -26,7 +26,7 @@ jobs:
         shell: bash
         run: |
           cd "${{ github.workspace }}/custom_components/unfoldedcircle"
-          zip unfoldedcircle.zip -r ./ -x "./__pycache__/*" -x "./pyFunfoldedCircleRemote/*"
+          zip unfoldedcircle.zip -r ./ -x "./pyunfoldedCircleRemote/*"
 
       - name: Upload ZIP file to release
         uses: softprops/action-gh-release@v0.1.15
