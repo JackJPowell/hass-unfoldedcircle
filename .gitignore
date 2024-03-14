@@ -2,3 +2,4 @@
 *.zip
 config/*
 *.pyc
+__pycache__
