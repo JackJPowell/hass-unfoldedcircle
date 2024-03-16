@@ -12,8 +12,6 @@ from homeassistant.const import CONF_HOST, CONF_MAC, CONF_NAME, CONF_PORT
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
-from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME
-from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 from .const import (
     CONF_ACTIVITIES_AS_SWITCHES,
@@ -24,6 +22,8 @@ from .const import (
     CONF_SUPPRESS_ACTIVITIY_GROUPS,
     DOMAIN,
 )
+from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME
+from .pyUnfoldedCircleRemote.remote import AuthenticationError, HTTPError, Remote
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -48,11 +48,8 @@ async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]
     try:
         await remote.can_connect()
     except AuthenticationError as err:
-        _LOGGER.exception(err)
         raise InvalidAuth from err
-    except Exception as ex:  # pylint: disable=broad-except
-        _LOGGER.exception(ex)
-        errors["base"] = "unknown"
+    except CannotConnect as ex:  # pylint: disable=broad-except
         raise CannotConnect from ex
 
     for key in await remote.get_api_keys():
@@ -62,14 +59,10 @@ async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]
     key = await remote.create_api_key()
     await remote.get_remote_information()
     await remote.get_remote_configuration()
+    await remote.get_remote_wifi_info()
 
     if not key:
         raise InvalidAuth("Unable to login: failed to create API key")
-
-    # api_key = await UnfoldedCircleRemoteConfigFlow.async_login()
-    await remote.get_remote_information()
-    await remote.get_remote_configuration()
-    await remote.get_remote_wifi_info()
 
     mac_address = None
     if remote.mac_address:
@@ -114,25 +107,23 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle zeroconf discovery."""
         host = discovery_info.ip_address.compressed
         port = discovery_info.port
-        hostname = (
-            discovery_info.hostname
-        )  # RemoteTwo-AABBCCDDEEFF-2.local. where AABBCCDDEEFF = mac address
-        name = (
-            discovery_info.name
-        )  # RemoteTwo-AABBCCDDEEFF-2.local. where AABBCCDDEEFF = mac address
+        hostname = discovery_info.hostname
+        name = discovery_info.name
         endpoint = f"http://{host}:{port}/api/"
 
         mac_address = None
+        is_simulator = False
         try:
             mac_address = re.match(r"RemoteTwo-(.*?)\.", hostname).group(1).lower()
         except Exception:
             try:
                 mac_address = re.match(r"RemoteTwo-(.*?)\.", name).group(1).lower()
             except Exception:
-                _LOGGER.debug("Simulator Path %s", discovery_info)
                 if discovery_info.properties.get("model") != "UCR2-simulator":
-                    _LOGGER.debug("Simulator Path: We should not see this message")
                     return self.async_abort(reason="no_mac")
+                _LOGGER.debug("Zeroconf from the Simulator %s", discovery_info)
+                is_simulator = True
+                mac_address = "AABBCCDDEEFF"
 
         self.discovery_info.update(
             {
@@ -152,10 +143,8 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         if mac_address:
             await self._async_set_unique_id_and_abort_if_already_configured(mac_address)
 
-        # Retrieve device friendly name set by user after
-        # checking if unique ID was not already defined and registered
+        # Retrieve device friendly name set by the user
         device_name = "Remote Two"
-
         try:
             response = await Remote.get_version_information(endpoint)
             device_name = response.get("device_name", None)
@@ -163,6 +152,9 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 device_name = "Remote Two"
         except Exception:
             pass
+
+        if is_simulator:
+            device_name = f"{device_name} Simulator"
 
         self.context.update(
             {
@@ -175,7 +167,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
         _LOGGER.debug(
-            "Unfolded circle remote found %s next step for registering", mac_address
+            "Unfolded Circle Zeroconf Creating: %s %s", mac_address, discovery_info
         )
         return await self.async_step_zeroconf_confirm()
 
@@ -191,17 +183,18 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors={},
             )
         try:
-            info = await validate_input(user_input, self.discovery_info[CONF_HOST])
+            host = f"{self.discovery_info[CONF_HOST]}:{self.discovery_info[CONF_PORT]}"
+            info = await validate_input(user_input, host)
             self.discovery_info.update({CONF_MAC: info[CONF_MAC]})
             # Check unique ID here based on serial number
             await self._async_set_unique_id_and_abort_if_already_configured(
                 info[CONF_MAC]
             )
 
-        except CannotConnect as ex:
-            _LOGGER.error(ex)
-        except InvalidAuth as ex:
-            _LOGGER.error(ex)
+        except CannotConnect:
+            errors["base"] = "cannot_connect"
+        except InvalidAuth:
+            errors["base"] = "invalid_auth"
         else:
             return self.async_create_entry(
                 title=info.get("title"),
@@ -249,7 +242,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self, unique_id: str
     ) -> None:
         """Set the unique ID and abort if already configured."""
-        await self.async_set_unique_id(unique_id)
+        await self.async_set_unique_id(unique_id, raise_on_progress=False)
         self._abort_if_unique_id_configured(
             updates={CONF_MAC: self.discovery_info[CONF_MAC]},
         )
@@ -282,7 +275,9 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             )
 
         try:
-            existing_entry = await self.async_set_unique_id(self.reauth_entry.unique_id)
+            existing_entry = await self.async_set_unique_id(
+                self.reauth_entry.unique_id, raise_on_progress=False
+            )
             _LOGGER.debug("RC2 existing_entry %s", existing_entry)
             info = await validate_input(user_input, self.reauth_entry.data[CONF_HOST])
         except CannotConnect:
@@ -295,7 +290,9 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.exception(ex)
             errors["base"] = "unknown"
         else:
-            existing_entry = await self.async_set_unique_id(self.reauth_entry.unique_id)
+            existing_entry = await self.async_set_unique_id(
+                self.reauth_entry.unique_id, raise_on_progress=False
+            )
             if existing_entry:
                 self.hass.config_entries.async_update_entry(existing_entry, data=info)
                 await self.hass.config_entries.async_reload(existing_entry.entry_id)

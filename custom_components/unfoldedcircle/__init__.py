@@ -9,10 +9,10 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_API, UNFOLDED_CIRCLE_COORDINATOR
 from .coordinator import UnfoldedCircleRemoteCoordinator
+from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 PLATFORMS: list[Platform] = [
     Platform.SWITCH,
@@ -35,6 +35,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         remote_api = Remote(entry.data["host"], entry.data["pin"], entry.data["apiKey"])
         await remote_api.can_connect()
+        await remote_api.get_remote_information()
 
     except AuthenticationError as err:
         raise ConfigEntryAuthFailed(err) from err

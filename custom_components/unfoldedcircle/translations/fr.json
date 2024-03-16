@@ -2,7 +2,8 @@
   "config": {
     "abort": {
       "already_configured": "L'appareil est déjà configuré",
-      "no_mac": "This device is not recognized as a valid Unfolded Circle Remote (No MAC Address)"
+      "already_in_progress": "L'appareil est en attente de configuration",
+      "no_mac": "Cet appareil n'est pas reconnu comme une télécommande Unfolded Circle valide (pas d'adresse MAC)"
     },
     "error": {
       "cannot_connect": "Echec de la connexion",
@@ -40,19 +41,19 @@
       },
       "media_player": {
         "title": "Options pour l'intégration Unfolded Circle",
-        "description": "Configure Media Players",
+        "description": "Configurer les lecteurs multimédias",
         "data": {
           "global_media_entity": "Active un lecteur multimédia pour toutes les activités",
           "activity_group_media_entities": "Active des lecteurs multimédia pour chaque groupe d'activité",
-          "activity_media_entities": "Enable additional media player entities for each activity"
+          "activity_media_entities": "Activer des entités de lecteur multimédia supplémentaires pour chaque activité"
         }
       },
       "activities": {
         "title": "Unfolded Circle Options",
-        "description": "Configure Activities",
+        "description": "Configurer les activités",
         "data": {
           "activities_as_switches": "Create all activities as switches",
-          "suppress_activity_groups": "Suppress creation of activity group entities"
+          "suppress_activity_groups": "Supprimer la création d'entités de groupe d'activités"
         }
       }
     }
