@@ -175,7 +175,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Confirm discovery."""
-        errors: dict[str, str] | None = None
+        errors: dict[str, str] = {}
         if user_input is None or user_input == {}:
             return self.async_show_form(
                 step_id="zeroconf_confirm",
