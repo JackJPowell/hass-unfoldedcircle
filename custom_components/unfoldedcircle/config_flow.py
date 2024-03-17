@@ -13,7 +13,7 @@ from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME
-from pyUnfoldedCircleRemote.remote import AuthenticationError, HTTPError, Remote
+from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 from .const import (
     CONF_ACTIVITIES_AS_SWITCHES,
