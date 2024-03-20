@@ -35,6 +35,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         remote_api = Remote(entry.data["host"], entry.data["pin"], entry.data["apiKey"])
         await remote_api.can_connect()
+        await remote_api.get_remote_information()
 
     except AuthenticationError as err:
         raise ConfigEntryAuthFailed(err) from err

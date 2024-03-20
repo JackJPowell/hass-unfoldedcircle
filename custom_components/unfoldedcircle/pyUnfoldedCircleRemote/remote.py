@@ -16,6 +16,7 @@ import zeroconf
 from .const import (
     AUTH_APIKEY_NAME,
     AUTH_USERNAME,
+    SIMULATOR_MAC_ADDRESS,
     SYSTEM_COMMANDS,
     ZEROCONF_SERVICE_TYPE,
     ZEROCONF_TIMEOUT,
@@ -144,6 +145,7 @@ class Remote:
         self._ir_custom = []
         self._ir_codesets = []
         self._last_update_type = RemoteUpdateType.NONE
+        self._is_simulator = None
 
     @property
     def name(self):
@@ -334,6 +336,11 @@ class Remote:
         return self._ip_address
 
     @property
+    def is_simulator(self):
+        """Is the device a simulated remote"""
+        return self._is_simulator
+
+    @property
     def last_update_type(self) -> RemoteUpdateType:
         """Last update type from received message."""
         return self._last_update_type
@@ -473,6 +480,9 @@ class Remote:
 
     async def get_remote_wifi_info(self) -> str:
         """Get System wifi information from remote. address."""
+        if self._is_simulator:
+            self._mac_address = SIMULATOR_MAC_ADDRESS
+            return
         async with (
             self.client() as session,
             session.get(self.url("system/wifi")) as response,
@@ -496,6 +506,9 @@ class Remote:
             self._model_number = information.get("model_number")
             self._serial_number = information.get("serial_number")
             self._hw_revision = information.get("hw_revision")
+
+            if self._model_name == "Remote Two Simulator":
+                self._is_simulator = True
             return information
 
     async def get_remote_configuration(self) -> str:
@@ -776,6 +789,8 @@ class Remote:
 
     async def get_remote_update_information(self) -> bool:
         """Get remote update information."""
+        if self._is_simulator:
+            return
         async with (
             self.client() as session,
             session.get(self.url("system/update")) as response,
