@@ -18,3 +18,4 @@ aiohttp~=3.9.3
 zeroconf~=0.131.0
 websockets~=12.0
 pyUnfoldedCircleRemote~=0.6.1
+ha-ffmpeg
