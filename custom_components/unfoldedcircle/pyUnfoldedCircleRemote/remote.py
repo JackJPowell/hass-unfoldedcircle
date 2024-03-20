@@ -16,6 +16,7 @@ import zeroconf
 from .const import (
     AUTH_APIKEY_NAME,
     AUTH_USERNAME,
+    SIMULATOR_MAC_ADDRESS,
     SYSTEM_COMMANDS,
     ZEROCONF_SERVICE_TYPE,
     ZEROCONF_TIMEOUT,
@@ -480,6 +481,7 @@ class Remote:
     async def get_remote_wifi_info(self) -> str:
         """Get System wifi information from remote. address."""
         if self._is_simulator:
+            self._mac_address = SIMULATOR_MAC_ADDRESS
             return
         async with (
             self.client() as session,

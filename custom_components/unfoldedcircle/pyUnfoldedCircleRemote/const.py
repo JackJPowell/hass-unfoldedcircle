@@ -7,6 +7,7 @@ AUTH_USERNAME = "web-configurator"
 WS_RECONNECTION_DELAY = 30  # seconds
 ZEROCONF_TIMEOUT = 3
 ZEROCONF_SERVICE_TYPE = "_uc-remote._tcp.local."
+SIMULATOR_MAC_ADDRESS = "aa:bb:cc:dd:ee:ff"
 
 SYSTEM_COMMANDS = [
     "STANDBY",

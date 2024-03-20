@@ -12,7 +12,7 @@ from homeassistant.const import CONF_HOST, CONF_MAC, CONF_NAME, CONF_PORT
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
-from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME
+from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
 from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 from .const import (
@@ -39,7 +39,6 @@ async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]
 
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
     """
-    errors = {}
     if host != "":
         remote = Remote(host, data["pin"])
     else:
@@ -123,7 +122,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                     return self.async_abort(reason="no_mac")
                 _LOGGER.debug("Zeroconf from the Simulator %s", discovery_info)
                 is_simulator = True
-                mac_address = "AABBCCDDEEFF"
+                mac_address = SIMULATOR_MAC_ADDRESS.replace(":", "").lower()
 
         self.discovery_info.update(
             {
