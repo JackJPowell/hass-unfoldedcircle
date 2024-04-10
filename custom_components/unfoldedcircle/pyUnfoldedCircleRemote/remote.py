@@ -798,7 +798,7 @@ class Remote:
             await self.raise_on_error(response)
             information = await response.json()
             self._update_in_progress = information["update_in_progress"]
-            self._next_update_check_date = information["next_check_date"]
+            # self._next_update_check_date = information["next_check_date"]
             self._sw_version = information["installed_version"]
             self._automatic_updates = information["update_check_enabled"]
             if "available" in information:
@@ -826,7 +826,7 @@ class Remote:
             await self.raise_on_error(response)
             information = await response.json()
             self._update_in_progress = information["update_in_progress"]
-            self._next_update_check_date = information["next_check_date"]
+            # self._next_update_check_date = information["next_check_date"]
             self._sw_version = information["installed_version"]
             self._automatic_updates = information["update_check_enabled"]
             if "available" in information:
