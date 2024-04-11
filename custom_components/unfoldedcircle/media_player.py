@@ -5,6 +5,7 @@ import base64
 import hashlib
 import logging
 import re
+from datetime import datetime
 from typing import Any, Mapping
 
 from homeassistant.components.media_player import (
@@ -18,6 +19,7 @@ from homeassistant.const import STATE_OFF
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import UndefinedType
+from homeassistant.util import utcnow
 from pyUnfoldedCircleRemote.const import RemoteUpdateType
 from pyUnfoldedCircleRemote.remote import Activity, ActivityGroup, UCMediaPlayerEntity
 
@@ -369,8 +371,8 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     @property
     def media_position_updated_at(self):
         """Last time status was updated."""
-        if self._active_media_entity:
-            return self._active_media_entity.media_position_updated_at
+        if self._active_media_entity and self._active_media_entity.media_position_updated_at:
+            return self._active_media_entity.media_position_updated_at.replace(tzinfo=utcnow().tzinfo)
         return None
 
     @property
