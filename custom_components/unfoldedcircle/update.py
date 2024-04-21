@@ -3,7 +3,11 @@
 import logging
 from typing import Any
 
-from homeassistant.components.update import UpdateEntity, UpdateEntityFeature
+from homeassistant.components.update import (
+    UpdateDeviceClass,
+    UpdateEntity,
+    UpdateEntityFeature,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
@@ -34,44 +38,33 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._attr_unique_id = f"{self.coordinator.api.name}_update_status"
-
-        # The name of the entity
         self._attr_name = f"{self.coordinator.api.name} Firmware"
+        self._attr_device_class = UpdateDeviceClass.FIRMWARE
         self._attr_auto_update = self.coordinator.api.automatic_updates
         self._attr_installed_version = self.coordinator.api.sw_version
-        self._attr_device_class = "firmware"
-        self._attr_in_progress = self.coordinator.api.update_in_progress
-
         self._attr_latest_version = self.coordinator.api.latest_sw_version
-        self._attr_release_url = self.coordinator.api.release_notes_url
+        self._attr_release_notes = self.coordinator.api.release_notes
         self._attr_entity_category = EntityCategory.CONFIG
 
-        # self._attr_state: None = None
-        # _attr_release_summary =
         self._attr_supported_features = UpdateEntityFeature(
-            0
-        )  # UpdateEntityFeature.INSTALL
+            UpdateEntityFeature.INSTALL
+            | UpdateEntityFeature.PROGRESS
+            | UpdateEntityFeature.RELEASE_NOTES
+        )
         self._attr_title = f"{self.coordinator.api.name} Firmware"
 
     async def async_install(
         self, version: str | None, backup: bool, **kwargs: Any
     ) -> None:
-        """Install an update.
+        """Install an update."""
+        if self.coordinator.api.update_in_progress is True:
+            return
+        await self.coordinator.api.update_remote()
+        self._attr_in_progress = "0"  # Starts progress bar unlike when True
+        self.async_write_ha_state()
 
-        Version can be specified to install a specific version. When `None`, the
-        latest version needs to be installed.
-
-        The backup parameter indicates a backup should be taken before
-        installing the update.
-        """
-        # if self._remote.update_in_progress == True:
-        #     return
-        # self._attr_in_progress = True
-        # while self._remote.update_in_progress == True:
-        #     info = await self._remote.get_update_status()
-        #     self._attr_info.get("current_percent")
-        # self._attr_installed_version = "1.4.6"
-        # self._attr_in_progress = False
+    async def async_release_notes(self) -> str:
+        return self.coordinator.api.release_notes
 
     async def async_update(self) -> None:
         """Update update information."""
@@ -82,7 +75,14 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        # Update only if activity changed
-        self._attr_latest_version = self.coordinator.api.latest_sw_version
-        self._attr_installed_version = self.coordinator.api.sw_version
+        if self.coordinator.api.update_in_progress is True:
+            # 0 is interpreted as false. "0" display progress bar
+            if self.coordinator.api.update_percent == 0:
+                self._attr_in_progress = "0"
+            else:
+                self._attr_in_progress = self.coordinator.api.update_percent
+        else:
+            self._attr_in_progress = False
+            self._attr_installed_version = self.coordinator.api.sw_version
+            self._attr_latest_version = self.coordinator.api.latest_sw_version
         self.async_write_ha_state()
