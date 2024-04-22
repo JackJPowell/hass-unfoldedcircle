@@ -73,8 +73,8 @@ After the device is configured, the integration will expose 22 entities plus the
 - Binary Sensor
   - Battery Charging Status: Charging state of device: Helpful in automations to tell if the device is charging (online and available)
 - Update
-  - Verion info: Reports current version and latest version
-    - The ability to install Remote Two firmware from within home assistant is implemented but currently disabled.
+  - Verion info: Reports the current and latest version of the remote firware
+  - The ability to install Remote Two firmware from within home assistant including progress and release notes
 - Switches
   - A switch is created for every activity defined that is not apart of an activity group.
     - An option exists to create a switch for each activity regardless of activity group.
