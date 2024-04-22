@@ -126,12 +126,14 @@ class Remote:
         self._wakeup_sensitivity = 0
         self._sleep_timeout = 0
         self._update_in_progress = False
+        self._update_percent = 0
         self._next_update_check_date = ""
         self._sw_version = ""
         self._automatic_updates = False
         self._available_update = []
         self._latest_sw_version = ""
         self._release_notes_url = ""
+        self._release_notes = ""
         self._online = True
         self._memory_total = 0
         self._memory_available = 0
@@ -291,6 +293,11 @@ class Remote:
         return self._update_in_progress
 
     @property
+    def update_percent(self):
+        """Remote Update percentage."""
+        return self._update_percent
+
+    @property
     def next_update_check_date(self):
         """Remote Next Update Check Date."""
         return self._next_update_check_date
@@ -314,6 +321,11 @@ class Remote:
     def release_notes_url(self):
         """Release notes url."""
         return self._release_notes_url
+
+    @property
+    def release_notes(self):
+        """Release notes."""
+        return self._release_notes
 
     @property
     def cpu_load(self):
@@ -811,6 +823,7 @@ class Remote:
                         ):
                             self._release_notes_url = update.get("release_notes_url")
                             self._latest_sw_version = update.get("version")
+                            self._release_notes = update.get("description").get("en")
                     else:
                         self._latest_sw_version = self._sw_version
             else:
@@ -841,6 +854,7 @@ class Remote:
             session.post(self.url("system/update/latest")) as response,
         ):
             await self.raise_on_error(response)
+            self._update_in_progress = True
             information = await response.json()
             return information
 
@@ -1031,6 +1045,48 @@ class Remote:
                 self._battery_level = data["msg_data"]["capacity"]
                 self._is_charging = data["msg_data"]["power_supply"]
                 self._last_update_type = RemoteUpdateType.BATTERY
+                return
+            if data["msg"] == "software_update":
+                _LOGGER.debug("Unfoldded circle remote software update")
+                total_steps = 0
+                update_state = "INITIAL"
+                current_step = 0
+                if data.get("msg_data").get("event_type") == "START":
+                    self._update_in_progress = True
+                if data.get("msg_data").get("event_type") == "PROGRESS":
+                    # progress dict
+                    progress = data.get("msg_data").get("progress")
+                    update_state = progress.get("state")
+                    current_step = progress.get("current_step")
+                    total_steps = progress.get("total_steps")
+                    if total_steps:
+                        # Amount to add to total percent for multiple steps
+                        offset = round(100 / total_steps)
+                        # The offset as a percent to adjust step percentage by
+                        percentage_offset = offset / 100
+                    match update_state:
+                        case "START":
+                            self._update_percent = 0
+                        case "RUN":
+                            current_step = progress.get("current_step")
+                            self._update_percent = 0
+                        case "PROGRESS":
+                            step_offset = offset * (current_step - 1)
+                            self._update_percent = (
+                                percentage_offset * progress.get("current_percent")
+                            ) + step_offset
+                        case "SUCCESS":
+                            self._update_percent = 100
+                            self._sw_version = self.latest_sw_version
+                        case "DONE":
+                            self._update_in_progress = False
+                            self._update_percent = 0
+                            self._sw_version = self.latest_sw_version
+                        case _:
+                            self._update_in_progress = False
+                            self._update_percent = 0
+
+                self._last_update_type = RemoteUpdateType.SOFTWARE
                 return
             if data["msg"] == "configuration_change":
                 _LOGGER.debug("Unfoldded circle configuration change")

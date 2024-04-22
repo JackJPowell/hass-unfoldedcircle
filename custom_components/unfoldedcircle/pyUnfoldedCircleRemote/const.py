@@ -27,6 +27,7 @@ class RemoteUpdateType(Enum):
     AMBIENT_LIGHT = 2
     CONFIGURATION = 3
     MEDIA_PLAYER = 4
+    SOFTWARE = 5
     OTHER = 10
     NONE = 99
 
