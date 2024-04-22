@@ -1069,6 +1069,7 @@ class Remote:
                             self._update_percent = 0
                         case "RUN":
                             current_step = progress.get("current_step")
+                            self._update_percent = 0
                         case "PROGRESS":
                             step_offset = offset * (current_step - 1)
                             self._update_percent = (
