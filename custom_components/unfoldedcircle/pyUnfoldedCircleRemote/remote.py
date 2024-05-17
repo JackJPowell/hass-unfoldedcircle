@@ -129,6 +129,7 @@ class Remote:
         self._update_percent = 0
         self._next_update_check_date = ""
         self._sw_version = ""
+        self._check_for_updates = False
         self._automatic_updates = False
         self._available_update = []
         self._latest_sw_version = ""
@@ -306,6 +307,11 @@ class Remote:
     def automatic_updates(self):
         """Does remote have automatic updates turned on."""
         return self._automatic_updates
+
+    @property
+    def check_for_updates(self):
+        """Does remote automatically check for updates."""
+        return self._check_for_updates
 
     @property
     def available_update(self):
@@ -799,6 +805,18 @@ class Remote:
             response = await response.json()
             return True
 
+    async def get_remote_update_settings(self) -> str:
+        """Get remote update settings"""
+        async with (
+            self.client() as session,
+            session.get(self.url("cfg/software_update")) as response,
+        ):
+            await self.raise_on_error(response)
+            settings = await response.json()
+            self._check_for_updates = settings.get("check_for_updates")
+            self._automatic_updates = settings.get("auto_update")
+            return settings
+
     async def get_remote_update_information(self) -> bool:
         """Get remote update information."""
         if self._is_simulator:
@@ -811,7 +829,6 @@ class Remote:
             information = await response.json()
             self._update_in_progress = information["update_in_progress"]
             self._sw_version = information["installed_version"]
-            self._automatic_updates = information["update_check_enabled"]
             download_status = ""
             if "available" in information:
                 self._available_update = information["available"]
@@ -849,7 +866,6 @@ class Remote:
             information = await response.json()
             self._update_in_progress = information["update_in_progress"]
             self._sw_version = information["installed_version"]
-            self._automatic_updates = information["update_check_enabled"]
             download_status = ""
             if "available" in information:
                 self._available_update = information["available"]
@@ -1141,6 +1157,13 @@ class Remote:
                     self._sound_effects_volume = state.get("sound").get("volume")
                 if state.get("haptic") is not None:
                     self._haptic_feedback = state.get("haptic").get("enabled")
+                if state.get("software_update") is not None:
+                    self._check_for_updates = state.get("software_update").get(
+                        "check_for_updates"
+                    )
+                    self._automatic_updates = state.get("software_update").get(
+                        "auto_update"
+                    )
                 if state.get("power_saving") is not None:
                     self._display_timeout = state.get("power_saving").get(
                         "display_off_sec"
@@ -1298,6 +1321,7 @@ class Remote:
             self.get_remote_sound_settings(),
             self.get_remote_haptic_settings(),
             self.get_remote_power_saving_settings(),
+            self.get_remote_update_settings(),
             self.get_activities(),
             self.get_remote_codesets(),
             self.get_docks(),
@@ -1326,6 +1350,7 @@ class Remote:
             self.get_remote_sound_settings(),
             self.get_remote_haptic_settings(),
             self.get_remote_power_saving_settings(),
+            self.get_remote_update_settings(),
             self.get_activities_state(),
         )
         await group
