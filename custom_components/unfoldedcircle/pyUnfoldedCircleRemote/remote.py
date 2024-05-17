@@ -810,9 +810,9 @@ class Remote:
             await self.raise_on_error(response)
             information = await response.json()
             self._update_in_progress = information["update_in_progress"]
-            # self._next_update_check_date = information["next_check_date"]
             self._sw_version = information["installed_version"]
             self._automatic_updates = information["update_check_enabled"]
+            download_status = ""
             if "available" in information:
                 self._available_update = information["available"]
                 for update in self._available_update:
@@ -824,10 +824,19 @@ class Remote:
                             self._release_notes_url = update.get("release_notes_url")
                             self._latest_sw_version = update.get("version")
                             self._release_notes = update.get("description").get("en")
+                            download_status = update.get("download")
                     else:
                         self._latest_sw_version = self._sw_version
             else:
                 self._latest_sw_version = self._sw_version
+
+            if download_status in ("PENDING", "ERROR"):
+                try:
+                    # When download status is pending, the first request to system/update
+                    # will request the download of the latest firmware but will not install
+                    response = await self.update_remote()
+                except HTTPError:
+                    pass
             return information
 
     async def get_remote_force_update_information(self) -> bool:
@@ -839,11 +848,33 @@ class Remote:
             await self.raise_on_error(response)
             information = await response.json()
             self._update_in_progress = information["update_in_progress"]
-            # self._next_update_check_date = information["next_check_date"]
             self._sw_version = information["installed_version"]
             self._automatic_updates = information["update_check_enabled"]
+            download_status = ""
             if "available" in information:
                 self._available_update = information["available"]
+                for update in self._available_update:
+                    if update.get("channel") in ["STABLE", "TESTING"]:
+                        if (
+                            self._latest_sw_version == ""
+                            or self._latest_sw_version < update.get("version")
+                        ):
+                            self._release_notes_url = update.get("release_notes_url")
+                            self._latest_sw_version = update.get("version")
+                            self._release_notes = update.get("description").get("en")
+                            download_status = update.get("download")
+                    else:
+                        self._latest_sw_version = self._sw_version
+            else:
+                self._latest_sw_version = self._sw_version
+
+            if download_status in ("PENDING", "ERROR"):
+                try:
+                    # When download status is pending, the first request to system/update
+                    # will request the download of the latest firmware but will not install
+                    response = await self.update_remote()
+                except HTTPError:
+                    pass
             return information
 
     async def update_remote(self) -> str:
@@ -854,8 +885,12 @@ class Remote:
             session.post(self.url("system/update/latest")) as response,
         ):
             await self.raise_on_error(response)
-            self._update_in_progress = True
             information = await response.json()
+            if information.get("state") == "DOWNLOAD":
+                self._update_in_progress = False
+
+            if information.get("state") == "START":
+                self._update_in_progress = True
             return information
 
     async def get_update_status(self) -> str:
@@ -1266,6 +1301,7 @@ class Remote:
             self.get_activities(),
             self.get_remote_codesets(),
             self.get_docks(),
+            self.get_remote_wifi_info(),
         )
         await group
 
