@@ -1,6 +1,7 @@
 """Update sensor."""
 
 import logging
+import time
 from typing import Any
 
 from homeassistant.components.update import (
@@ -12,6 +13,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from pyUnfoldedCircleRemote.remote import HTTPError
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 from .entity import UnfoldedCircleEntity
@@ -59,8 +61,35 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
         """Install an update."""
         if self.coordinator.api.update_in_progress is True:
             return
-        await self.coordinator.api.update_remote()
-        self._attr_in_progress = "0"  # Starts progress bar unlike when True
+
+        self._attr_in_progress = False
+        retry_count = 0
+        try:
+            update_information = await self.coordinator.api.update_remote()
+
+            # If the firmware hasn't been downloaded yet, the above request will
+            # download it rather than updating the firmware and return a DOWNLOAD
+            # status code. Wait 10 seconds for the download to complete and call
+            # the update routine again. If download has completed, the upgrade
+            # will begin. Try 3 times (30 seconds) before timing out.
+            while update_information.get("state") != "START" and retry_count < 3:
+                time.sleep(10)
+                retry_count = retry_count + 1
+                _LOGGER.debug(
+                    "Firmware download retry count: %s, update info: %s",
+                    retry_count,
+                    update_information,
+                )
+                update_information = await self.coordinator.api.update_remote()
+
+            if update_information.get("state") == "START":
+                self._attr_in_progress = "0"  # Starts progress bar unlike when True
+        except HTTPError as ex:
+            _LOGGER.error(
+                "Unfolded Circle Update Failed ** If 503, battery level < 50 ** Status: %s",
+                ex.status_code,
+            )
+
         self.async_write_ha_state()
 
     async def async_release_notes(self) -> str:

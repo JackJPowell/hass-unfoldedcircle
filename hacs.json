@@ -1,18 +1,9 @@
 {
   "name": "Unfolded Circle",
-  "domains": [
-    "binary_sensor",
-    "sensor",
-    "switch",
-    "update",
-    "button",
-    "remote",
-    "select",
-    "number",
-    "media_player"
-  ],
+  "domain": "unfoldedcircle",
   "homeassistant": "2023.10.0",
-  "iot_class": "Local Push",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/JackJPowell/hass-unfoldedcircle/issues",
   "render_readme": true,
   "zip_release": true,
   "filename": "unfoldedcircle.zip"

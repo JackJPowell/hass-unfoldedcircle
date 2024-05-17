@@ -56,5 +56,14 @@
         "description": "[%key:common::config_flow::activities::description%]"
       }
     }
+  },
+  "entity": {
+    "select": {
+      "activity_group": {
+        "options": {
+          "Power Off": ""
+        }
+      }
+    }
   }
 }

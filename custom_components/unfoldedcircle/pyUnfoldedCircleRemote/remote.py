@@ -129,6 +129,7 @@ class Remote:
         self._update_percent = 0
         self._next_update_check_date = ""
         self._sw_version = ""
+        self._check_for_updates = False
         self._automatic_updates = False
         self._available_update = []
         self._latest_sw_version = ""
@@ -306,6 +307,11 @@ class Remote:
     def automatic_updates(self):
         """Does remote have automatic updates turned on."""
         return self._automatic_updates
+
+    @property
+    def check_for_updates(self):
+        """Does remote automatically check for updates."""
+        return self._check_for_updates
 
     @property
     def available_update(self):
@@ -799,6 +805,18 @@ class Remote:
             response = await response.json()
             return True
 
+    async def get_remote_update_settings(self) -> str:
+        """Get remote update settings"""
+        async with (
+            self.client() as session,
+            session.get(self.url("cfg/software_update")) as response,
+        ):
+            await self.raise_on_error(response)
+            settings = await response.json()
+            self._check_for_updates = settings.get("check_for_updates")
+            self._automatic_updates = settings.get("auto_update")
+            return settings
+
     async def get_remote_update_information(self) -> bool:
         """Get remote update information."""
         if self._is_simulator:
@@ -810,9 +828,8 @@ class Remote:
             await self.raise_on_error(response)
             information = await response.json()
             self._update_in_progress = information["update_in_progress"]
-            # self._next_update_check_date = information["next_check_date"]
             self._sw_version = information["installed_version"]
-            self._automatic_updates = information["update_check_enabled"]
+            download_status = ""
             if "available" in information:
                 self._available_update = information["available"]
                 for update in self._available_update:
@@ -824,10 +841,19 @@ class Remote:
                             self._release_notes_url = update.get("release_notes_url")
                             self._latest_sw_version = update.get("version")
                             self._release_notes = update.get("description").get("en")
+                            download_status = update.get("download")
                     else:
                         self._latest_sw_version = self._sw_version
             else:
                 self._latest_sw_version = self._sw_version
+
+            if download_status in ("PENDING", "ERROR"):
+                try:
+                    # When download status is pending, the first request to system/update
+                    # will request the download of the latest firmware but will not install
+                    response = await self.update_remote()
+                except HTTPError:
+                    pass
             return information
 
     async def get_remote_force_update_information(self) -> bool:
@@ -839,11 +865,32 @@ class Remote:
             await self.raise_on_error(response)
             information = await response.json()
             self._update_in_progress = information["update_in_progress"]
-            # self._next_update_check_date = information["next_check_date"]
             self._sw_version = information["installed_version"]
-            self._automatic_updates = information["update_check_enabled"]
+            download_status = ""
             if "available" in information:
                 self._available_update = information["available"]
+                for update in self._available_update:
+                    if update.get("channel") in ["STABLE", "TESTING"]:
+                        if (
+                            self._latest_sw_version == ""
+                            or self._latest_sw_version < update.get("version")
+                        ):
+                            self._release_notes_url = update.get("release_notes_url")
+                            self._latest_sw_version = update.get("version")
+                            self._release_notes = update.get("description").get("en")
+                            download_status = update.get("download")
+                    else:
+                        self._latest_sw_version = self._sw_version
+            else:
+                self._latest_sw_version = self._sw_version
+
+            if download_status in ("PENDING", "ERROR"):
+                try:
+                    # When download status is pending, the first request to system/update
+                    # will request the download of the latest firmware but will not install
+                    response = await self.update_remote()
+                except HTTPError:
+                    pass
             return information
 
     async def update_remote(self) -> str:
@@ -854,8 +901,12 @@ class Remote:
             session.post(self.url("system/update/latest")) as response,
         ):
             await self.raise_on_error(response)
-            self._update_in_progress = True
             information = await response.json()
+            if information.get("state") == "DOWNLOAD":
+                self._update_in_progress = False
+
+            if information.get("state") == "START":
+                self._update_in_progress = True
             return information
 
     async def get_update_status(self) -> str:
@@ -1106,6 +1157,13 @@ class Remote:
                     self._sound_effects_volume = state.get("sound").get("volume")
                 if state.get("haptic") is not None:
                     self._haptic_feedback = state.get("haptic").get("enabled")
+                if state.get("software_update") is not None:
+                    self._check_for_updates = state.get("software_update").get(
+                        "check_for_updates"
+                    )
+                    self._automatic_updates = state.get("software_update").get(
+                        "auto_update"
+                    )
                 if state.get("power_saving") is not None:
                     self._display_timeout = state.get("power_saving").get(
                         "display_off_sec"
@@ -1263,9 +1321,11 @@ class Remote:
             self.get_remote_sound_settings(),
             self.get_remote_haptic_settings(),
             self.get_remote_power_saving_settings(),
+            self.get_remote_update_settings(),
             self.get_activities(),
             self.get_remote_codesets(),
             self.get_docks(),
+            self.get_remote_wifi_info(),
         )
         await group
 
@@ -1290,6 +1350,7 @@ class Remote:
             self.get_remote_sound_settings(),
             self.get_remote_haptic_settings(),
             self.get_remote_power_saving_settings(),
+            self.get_remote_update_settings(),
             self.get_activities_state(),
         )
         await group
