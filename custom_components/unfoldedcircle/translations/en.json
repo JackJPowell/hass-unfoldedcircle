@@ -62,7 +62,7 @@
     "select": {
       "activity_group": {
         "options": {
-          "Power Off": "Power off"
+          "power_off": "Power off"
         }
       }
     }
