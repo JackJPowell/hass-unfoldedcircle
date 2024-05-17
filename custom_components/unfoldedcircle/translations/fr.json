@@ -62,7 +62,7 @@
     "select": {
       "activity_group": {
         "options": {
-          "Power Off": "Eteindre"
+          "power_off": "Eteindre"
         }
       }
     }
