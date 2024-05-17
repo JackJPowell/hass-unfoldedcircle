@@ -75,7 +75,11 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
             while update_information.get("state") != "START" and retry_count < 3:
                 time.sleep(10)
                 retry_count = retry_count + 1
-                _LOGGER.debug("Firmware download retry count: %s", retry_count)
+                _LOGGER.debug(
+                    "Firmware download retry count: %s, update info: %s",
+                    retry_count,
+                    update_information,
+                )
                 update_information = await self.coordinator.api.update_remote()
 
             if update_information.get("state") == "START":
