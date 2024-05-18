@@ -851,7 +851,7 @@ class Remote:
                 try:
                     # When download status is pending, the first request to system/update
                     # will request the download of the latest firmware but will not install
-                    response = await self.update_remote()
+                    response = await self.update_remote(download_only=True)
                 except HTTPError:
                     pass
             return information
@@ -888,14 +888,21 @@ class Remote:
                 try:
                     # When download status is pending, the first request to system/update
                     # will request the download of the latest firmware but will not install
-                    response = await self.update_remote()
+                    response = await self.update_remote(download_only=True)
                 except HTTPError:
                     pass
             return information
 
-    async def update_remote(self) -> str:
+    async def update_remote(self, download_only: bool = False) -> str:
         """Update Remote."""
-        # WIP: Starts the latest firmware update."
+        # If we only want to download the firmware, check the status.
+        # If it's not pending or error, bail so we don't accidentally
+        # invoke an install
+        if download_only is True:
+            download_status = await self.get_update_status()
+            if download_status.get("state") not in ("PENDING", "ERROR"):
+                return
+
         async with (
             self.client() as session,
             session.post(self.url("system/update/latest")) as response,
