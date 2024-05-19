@@ -1,6 +1,7 @@
 """Update sensor."""
 
 import logging
+import math
 import time
 from typing import Any
 
@@ -47,6 +48,8 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
         self._attr_latest_version = self.coordinator.api.latest_sw_version
         self._attr_release_notes = self.coordinator.api.release_notes
         self._attr_entity_category = EntityCategory.CONFIG
+        self._download_progress = 0
+        self._is_downloading = False
 
         self._attr_supported_features = UpdateEntityFeature(
             UpdateEntityFeature.INSTALL
@@ -63,6 +66,8 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
             return
 
         self._attr_in_progress = False
+        self._download_progress = 0
+        previous_download_percentage = 0
         retry_count = 0
         try:
             update_information = await self.coordinator.api.update_remote()
@@ -71,26 +76,62 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
             # download it rather than updating the firmware and return a DOWNLOAD
             # status code. Wait 10 seconds for the download to complete and call
             # the update routine again. If download has completed, the upgrade
-            # will begin. Try 3 times (30 seconds) before timing out.
-            while update_information.get("state") != "START" and retry_count < 3:
-                time.sleep(10)
-                retry_count = retry_count + 1
+            # will begin. In between check on download status. If it is progressing
+            # keep trying. If not, give it 3 times (30 seconds) before timing out.
+            while update_information.get("state") != "START" and retry_count < 6:
+                self._is_downloading = True
+                time.sleep(5)
+                download_percentage = await self.update_download_status()
+                if download_percentage == previous_download_percentage:
+                    retry_count = retry_count + 1
+
                 _LOGGER.debug(
-                    "Firmware download retry count: %s, update info: %s",
+                    "Firmware download retry count: %s, update info: %s download percentage: %s",
                     retry_count,
                     update_information,
+                    download_percentage,
                 )
+
+                previous_download_percentage = download_percentage
                 update_information = await self.coordinator.api.update_remote()
 
             if update_information.get("state") == "START":
+                # We have started the actual udpate, so set in_progress to String "0"
+                # If we previously needed to download the firmware, preserve download
+                # percentage so we don't show negative progress.
+                self._is_downloading = False
                 self._attr_in_progress = "0"  # Starts progress bar unlike when True
+                if self._download_progress > 0:
+                    self._attr_in_progress = self._download_progress
+
+            # If 6 attempts were made with no progress, cancel install
+            if retry_count == 6:
+                self._attr_in_progress = False
+
         except HTTPError as ex:
             _LOGGER.error(
                 "Unfolded Circle Update Failed ** If 503, battery level < 50 ** Status: %s",
                 ex.status_code,
             )
+        except Exception:
+            pass
 
+        self._is_downloading = False
         self.async_write_ha_state()
+
+    async def update_download_status(self) -> int:
+        """Calls system/update/latest to retrieve current download / udpate status"""
+        status_information = await self.coordinator.api.get_update_status()
+        download_percentage = status_information.get("download_percent")
+
+        # Unsure if download percentage stays at 100 post download
+        if status_information.get("state") == "DOWNLOADED":
+            download_percentage = 100
+
+        self._download_progress = math.ceil(download_percentage / 10)
+        self._attr_in_progress = self._download_progress
+        self.async_write_ha_state()
+        return download_percentage
 
     async def async_release_notes(self) -> str:
         return self.coordinator.api.release_notes
@@ -104,12 +145,20 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        if self.coordinator.api.update_in_progress is True:
-            # 0 is interpreted as false. "0" display progress bar
-            if self.coordinator.api.update_percent == 0:
-                self._attr_in_progress = "0"
+        if (
+            self.coordinator.api.update_in_progress is True
+            or self._is_downloading is True
+        ):
+            # If a download was needed, continue to show that percent
+            # until the actual update percent exceeds it
+            if self._download_progress > self.coordinator.api.update_percent:
+                self._attr_in_progress = self._download_progress
             else:
-                self._attr_in_progress = self.coordinator.api.update_percent
+                if self.coordinator.api.update_percent == 0:
+                    # 0 is interpreted as false. "0" display progress bar
+                    self._attr_in_progress = "0"
+                else:
+                    self._attr_in_progress = self.coordinator.api.update_percent
         else:
             self._attr_in_progress = False
             self._attr_installed_version = self.coordinator.api.sw_version

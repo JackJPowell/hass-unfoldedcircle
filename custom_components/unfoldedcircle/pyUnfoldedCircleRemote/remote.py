@@ -127,6 +127,7 @@ class Remote:
         self._sleep_timeout = 0
         self._update_in_progress = False
         self._update_percent = 0
+        self._download_percent = 0
         self._next_update_check_date = ""
         self._sw_version = ""
         self._check_for_updates = False
@@ -297,6 +298,11 @@ class Remote:
     def update_percent(self):
         """Remote Update percentage."""
         return self._update_percent
+
+    @property
+    def download_percent(self):
+        """Remote download percentage."""
+        return self._download_percent
 
     @property
     def next_update_check_date(self):
@@ -851,10 +857,10 @@ class Remote:
                 try:
                     # When download status is pending, the first request to system/update
                     # will request the download of the latest firmware but will not install
-                    response = await self.update_remote()
+                    response = await self.update_remote(download_only=True)
                 except HTTPError:
                     pass
-            return information
+                return information
 
     async def get_remote_force_update_information(self) -> bool:
         """Force a remote firmware update check."""
@@ -888,14 +894,21 @@ class Remote:
                 try:
                     # When download status is pending, the first request to system/update
                     # will request the download of the latest firmware but will not install
-                    response = await self.update_remote()
+                    response = await self.update_remote(download_only=True)
                 except HTTPError:
                     pass
             return information
 
-    async def update_remote(self) -> str:
+    async def update_remote(self, download_only: bool = False) -> str:
         """Update Remote."""
-        # WIP: Starts the latest firmware update."
+        # If we only want to download the firmware, check the status.
+        # If it's not pending or error, bail so we don't accidentally
+        # invoke an install
+        if download_only is True:
+            download_status = await self.get_update_status()
+            if download_status.get("state") not in ("PENDING", "ERROR"):
+                return
+
         async with (
             self.client() as session,
             session.post(self.url("system/update/latest")) as response,
@@ -912,12 +925,14 @@ class Remote:
     async def get_update_status(self) -> str:
         """Update remote status."""
         # WIP: Gets Update Status -- Only supports latest."
+        self._download_percent = 0
         async with (
             self.client() as session,
             session.get(self.url("system/update/latest")) as response,
         ):
             await self.raise_on_error(response)
             information = await response.json()
+            self._download_percent = information.get("download_percent")
             return information
 
     async def get_activity_state(self, entity_id) -> str:
