@@ -5,7 +5,6 @@ import copy
 import datetime
 import json
 import logging
-import math
 import re
 import socket
 import time
@@ -14,9 +13,16 @@ from urllib.parse import urljoin, urlparse
 import aiohttp
 import zeroconf
 
-from .const import (AUTH_APIKEY_NAME, AUTH_USERNAME, SIMULATOR_MAC_ADDRESS,
-                    SYSTEM_COMMANDS, ZEROCONF_SERVICE_TYPE, ZEROCONF_TIMEOUT,
-                    RemotePowerModes, RemoteUpdateType)
+from .const import (
+    AUTH_APIKEY_NAME,
+    AUTH_USERNAME,
+    SIMULATOR_MAC_ADDRESS,
+    SYSTEM_COMMANDS,
+    ZEROCONF_SERVICE_TYPE,
+    ZEROCONF_TIMEOUT,
+    RemotePowerModes,
+    RemoteUpdateType,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -1135,28 +1141,16 @@ class Remote:
                             self._update_percent = (
                                 percentage_offset * progress.get("current_percent")
                             ) + step_offset
-
-                            # If we downloaded as part of the install, the progress bar
-                            # will be showing a small percentage representing download
-                            # progress. If this progrss (<=10) is greater than the current
-                            # update progress, continue to show the download progress
-                            # so we don't report negative progress
-                            download_progress = math.ceil(self._download_percent / 10)
-                            if self._update_percent < download_progress:
-                                self._update_percent = download_progress
                         case "SUCCESS":
                             self._update_percent = 100
                             self._sw_version = self.latest_sw_version
-                            self._download_percent = 0
                         case "DONE":
                             self._update_in_progress = False
                             self._update_percent = 0
                             self._sw_version = self.latest_sw_version
-                            self._download_percent = 0
                         case _:
                             self._update_in_progress = False
                             self._update_percent = 0
-                            self._download_percent = 0
 
                 self._last_update_type = RemoteUpdateType.SOFTWARE
                 return
