@@ -75,6 +75,7 @@ After the device is configured, the integration will expose 22 entities plus the
 - Update
   - Verion info: Reports the current and latest version of the remote firware
   - The ability to install Remote Two firmware from within home assistant including progress and release notes
+  - If the firmware has not been downloaded when the install is initiated, the first 10% of the progress bar will be used to show download progress. If no progress has been made in 30 seconds, the update will stop and not be applied
 - Switches
   - A switch is created for every activity defined that is not apart of an activity group.
     - An option exists to create a switch for each activity regardless of activity group.
