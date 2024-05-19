@@ -5,6 +5,7 @@ import copy
 import datetime
 import json
 import logging
+import math
 import re
 import socket
 import time
@@ -13,16 +14,9 @@ from urllib.parse import urljoin, urlparse
 import aiohttp
 import zeroconf
 
-from .const import (
-    AUTH_APIKEY_NAME,
-    AUTH_USERNAME,
-    SIMULATOR_MAC_ADDRESS,
-    SYSTEM_COMMANDS,
-    ZEROCONF_SERVICE_TYPE,
-    ZEROCONF_TIMEOUT,
-    RemotePowerModes,
-    RemoteUpdateType,
-)
+from .const import (AUTH_APIKEY_NAME, AUTH_USERNAME, SIMULATOR_MAC_ADDRESS,
+                    SYSTEM_COMMANDS, ZEROCONF_SERVICE_TYPE, ZEROCONF_TIMEOUT,
+                    RemotePowerModes, RemoteUpdateType)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -127,6 +121,7 @@ class Remote:
         self._sleep_timeout = 0
         self._update_in_progress = False
         self._update_percent = 0
+        self._download_percent = 0
         self._next_update_check_date = ""
         self._sw_version = ""
         self._check_for_updates = False
@@ -297,6 +292,11 @@ class Remote:
     def update_percent(self):
         """Remote Update percentage."""
         return self._update_percent
+
+    @property
+    def download_percent(self):
+        """Remote download percentage."""
+        return self._download_percent
 
     @property
     def next_update_check_date(self):
@@ -854,7 +854,7 @@ class Remote:
                     response = await self.update_remote(download_only=True)
                 except HTTPError:
                     pass
-            return information
+                return information
 
     async def get_remote_force_update_information(self) -> bool:
         """Force a remote firmware update check."""
@@ -919,12 +919,14 @@ class Remote:
     async def get_update_status(self) -> str:
         """Update remote status."""
         # WIP: Gets Update Status -- Only supports latest."
+        self._download_percent = 0
         async with (
             self.client() as session,
             session.get(self.url("system/update/latest")) as response,
         ):
             await self.raise_on_error(response)
             information = await response.json()
+            self._download_percent = information.get("download_percent")
             return information
 
     async def get_activity_state(self, entity_id) -> str:
@@ -1133,16 +1135,28 @@ class Remote:
                             self._update_percent = (
                                 percentage_offset * progress.get("current_percent")
                             ) + step_offset
+
+                            # If we downloaded as part of the install, the progress bar
+                            # will be showing a small percentage representing download
+                            # progress. If this progrss (<=10) is greater than the current
+                            # update progress, continue to show the download progress
+                            # so we don't report negative progress
+                            download_progress = math.ceil(self._download_percent / 10)
+                            if self._update_percent < download_progress:
+                                self._update_percent = download_progress
                         case "SUCCESS":
                             self._update_percent = 100
                             self._sw_version = self.latest_sw_version
+                            self._download_percent = 0
                         case "DONE":
                             self._update_in_progress = False
                             self._update_percent = 0
                             self._sw_version = self.latest_sw_version
+                            self._download_percent = 0
                         case _:
                             self._update_in_progress = False
                             self._update_percent = 0
+                            self._download_percent = 0
 
                 self._last_update_type = RemoteUpdateType.SOFTWARE
                 return
