@@ -43,9 +43,9 @@
         "title": "Unfolded Circle Options",
         "description": "Configure Media Players",
         "data": {
-          "global_media_entity": "Enable a global media player entity for all activities",
-          "activity_group_media_entities": "Enable additional media player entities for each activity group",
-          "activity_media_entities": "Enable additional media player entities for each activity"
+          "global_media_entity": "Create a global media player entity for all activities",
+          "activity_group_media_entities": "Create additional media player entities for each activity group",
+          "activity_media_entities": "Create additional media player entities for each activity"
         }
       },
       "activities": {
