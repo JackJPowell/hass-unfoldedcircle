@@ -19,6 +19,8 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import UndefinedType
 from homeassistant.util import utcnow
+from pyUnfoldedCircleRemote.const import RemoteUpdateType
+from pyUnfoldedCircleRemote.remote import Activity, ActivityGroup, UCMediaPlayerEntity
 
 from .const import (
     CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
@@ -28,8 +30,6 @@ from .const import (
     UNFOLDED_CIRCLE_COORDINATOR,
 )
 from .entity import UnfoldedCircleEntity
-from .pyUnfoldedCircleRemote.const import RemoteUpdateType
-from .pyUnfoldedCircleRemote.remote import Activity, ActivityGroup, UCMediaPlayerEntity
 
 _LOGGER = logging.getLogger(__name__)
 
