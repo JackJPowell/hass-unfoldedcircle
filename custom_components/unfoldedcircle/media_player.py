@@ -5,7 +5,6 @@ import base64
 import hashlib
 import logging
 import re
-from datetime import datetime
 from typing import Any, Mapping
 
 from homeassistant.components.media_player import (
@@ -15,13 +14,11 @@ from homeassistant.components.media_player import (
     MediaType,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import STATE_OFF
+from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import UndefinedType
 from homeassistant.util import utcnow
-from pyUnfoldedCircleRemote.const import RemoteUpdateType
-from pyUnfoldedCircleRemote.remote import Activity, ActivityGroup, UCMediaPlayerEntity
 
 from .const import (
     CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
@@ -31,6 +28,8 @@ from .const import (
     UNFOLDED_CIRCLE_COORDINATOR,
 )
 from .entity import UnfoldedCircleEntity
+from .pyUnfoldedCircleRemote.const import RemoteUpdateType
+from .pyUnfoldedCircleRemote.remote import Activity, ActivityGroup, UCMediaPlayerEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -120,7 +119,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
                 f"{self.coordinator.api.name} {activity_group.name} Media Player"
             )
             self._attr_unique_id = (
-                f"{self.coordinator.api.serial_number}_{activity_group._id}_mediaplayer"
+                f"{self.coordinator.api.serial_number}_{activity_group.id}_mediaplayer"
             )
             self.activities = self.activity_group.activities
         self._extra_state_attributes = {}
@@ -223,6 +222,8 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         """Return the state of the device."""
         if self._active_media_entity:
             self._state = STATES_MAP.get(self._active_media_entity.state, STATE_OFF)
+        elif self.activity.state == "ON":
+            self._state = STATE_ON
         else:
             self._state = STATE_OFF
         return self._state
@@ -260,7 +261,8 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
             sources: dict[str, any] = {AUTOMATIC_ENTITY_SELECTION_LABEL: True}
             for activity in self.activities:
                 for entity in activity.mediaplayer_entities:
-                    if entity.state in ["PLAYING", "BUFFERING", "PAUSED"]:
+                    # if entity.state in ["PLAYING", "BUFFERING", "PAUSED"]:
+                    if entity.activity.is_on() and entity.state not in ["UNAVAILABLE"]:
                         sources[entity.name] = entity
             return list(sources.keys())
         return None
@@ -371,8 +373,13 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     @property
     def media_position_updated_at(self):
         """Last time status was updated."""
-        if self._active_media_entity and self._active_media_entity.media_position_updated_at:
-            return self._active_media_entity.media_position_updated_at.replace(tzinfo=utcnow().tzinfo)
+        if (
+            self._active_media_entity
+            and self._active_media_entity.media_position_updated_at
+        ):
+            return self._active_media_entity.media_position_updated_at.replace(
+                tzinfo=utcnow().tzinfo
+            )
         return None
 
     @property
@@ -398,6 +405,13 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     @property
     def is_volume_muted(self) -> bool | None:
         """Boolean if volume is currently muted."""
+        if self._active_media_entity.activity.volume_mute_entity is not None:
+            for media_player in self._active_media_entities:
+                if (
+                    media_player.id
+                    == self._active_media_entity.activity.volume_mute_entity
+                ):
+                    return media_player.muted
         if self._active_media_entity:
             return self._active_media_entity.muted
         return False
