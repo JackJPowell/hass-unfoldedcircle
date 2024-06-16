@@ -147,17 +147,17 @@ class UCRemoteSwitch(UnfoldedCircleEntity, SwitchEntity):
     @property
     def is_on(self) -> bool | None:
         """Return true if switch is on."""
-        return self._state in ("ON", "RUNNING")
+        return self.switch._state in ("ON", "RUNNING")
 
     async def async_turn_on(self, **kwargs) -> None:
         """Instruct the switch to turn on."""
         await self.switch.turn_on()
-        await self.coordinator.async_request_refresh()
+        self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs) -> None:
         """Instruct the switch to turn off."""
         await self.switch.turn_off()
-        await self.coordinator.async_request_refresh()
+        self.async_write_ha_state()
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -173,7 +173,7 @@ class UCRemoteSwitch(UnfoldedCircleEntity, SwitchEntity):
 
 
 class UCRemoteConfigSwitch(UnfoldedCircleEntity, SwitchEntity):
-    """Class representing an unfolded circle activity."""
+    """Class representing an unfolded circle setting."""
 
     entity_description = UNFOLDED_CIRCLE_SWITCH
 
