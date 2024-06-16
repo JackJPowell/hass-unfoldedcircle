@@ -19,8 +19,8 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import UndefinedType
 from homeassistant.util import utcnow
-from pyUnfoldedCircleRemote.const import RemoteUpdateType
-from pyUnfoldedCircleRemote.remote import Activity, ActivityGroup, UCMediaPlayerEntity
+from .pyUnfoldedCircleRemote.const import RemoteUpdateType
+from .pyUnfoldedCircleRemote.remote import Activity, ActivityGroup, UCMediaPlayerEntity
 
 from .const import (
     CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
@@ -222,7 +222,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         """Return the state of the device."""
         if self._active_media_entity:
             self._state = STATES_MAP.get(self._active_media_entity.state, STATE_OFF)
-        elif self.activity.state == "ON":
+        elif self.activity is not None and self.activity.state == "ON":
             self._state = STATE_ON
         else:
             self._state = STATE_OFF
@@ -405,11 +405,14 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     @property
     def is_volume_muted(self) -> bool | None:
         """Boolean if volume is currently muted."""
-        if self._active_media_entity.activity.volume_mute_entity is not None:
+        if (self._active_media_entity is not None
+                and self._active_media_entity.activity is not None
+                and self._active_media_entity.activity.volume_mute_command is not None):
+            entity_id = self._active_media_entity.activity.volume_mute_command.get("entity_id")
             for media_player in self._active_media_entities:
                 if (
                     media_player.id
-                    == self._active_media_entity.activity.volume_mute_entity
+                    == entity_id
                 ):
                     return media_player.muted
         if self._active_media_entity:

@@ -568,22 +568,29 @@ class Remote:
 
                 for button in await button_mapping.json():
                     try:
-                        entity_id = button.get("short_press").get("entity_id")
+                        button.get("short_press").get("entity_id")
                     except Exception:
                         continue
-                    match button.get("short_press").get("cmd_id"):
-                        case "media_player.volume_up":
-                            new_activity._volume_up_entity = entity_id
-                        case "media_player.volume_down":
-                            new_activity._volume_down_entity = entity_id
-                        case "media_player.mute_toggle":
-                            new_activity._volume_mute_entity = entity_id
-                        case "media_player.previous":
-                            new_activity._prev_track_entity = entity_id
-                        case "media_player.next":
-                            new_activity._next_track_entity = entity_id
-                        case "media_player.play_pause":
-                            new_activity._play_pause_entity = entity_id
+
+                    match button.get("button"):
+                        # ucapi.ui.Buttons.VOLUME_UP
+                        case "VOLUME_UP":
+                            new_activity._volume_up_command = button.get("short_press")
+                        # ucapi.ui.Buttons.VOLUME_DOWN
+                        case "VOLUME_DOWN":
+                            new_activity._volume_down_command = button.get("short_press")
+                        # ucapi.ui.Buttons.MUTE
+                        case "MUTE":
+                            new_activity._volume_mute_command = button.get("short_press")
+                        # ucapi.ui.Buttons.PREV
+                        case "PREV":
+                            new_activity._prev_track_command = button.get("short_press")
+                        # ucapi.ui.Buttons.NEXT
+                        case "NEXT":
+                            new_activity._next_track_command = button.get("short_press")
+                        # ucapi.ui.Buttons.PLAY
+                        case "PLAY":
+                            new_activity._play_pause_command = button.get("short_press")
                         case _:
                             pass
             return await response.json()
@@ -1604,10 +1611,13 @@ class UCMediaPlayerEntity:
 
     async def volume_up(self) -> None:
         """Raise volume of the media player."""
-        entity_id = self.activity.volume_up_entity
-        if entity_id is None:
-            entity_id = self._id
-        body = {"entity_id": entity_id, "cmd_id": "media_player.volume_up"}
+        body = {"entity_id": self._id, "cmd_id": "media_player.volume_up"}
+        entity_id = self._id
+        if self.activity.volume_up_command:
+            body = self.activity.volume_up_command
+            entity_id = self.activity.volume_up_command.get("entity_id")
+
+
         async with (
             self._remote.client() as session,
             session.put(
@@ -1618,10 +1628,12 @@ class UCMediaPlayerEntity:
 
     async def volume_down(self) -> None:
         """Decrease the volume of the media player."""
-        entity_id = self.activity.volume_down_entity
-        if entity_id is None:
-            entity_id = self._id
-        body = {"entity_id": entity_id, "cmd_id": "media_player.volume_down"}
+        body = {"entity_id": self._id, "cmd_id": "media_player.volume_down"}
+        entity_id = self._id
+        if self.activity.volume_down_command:
+            body = self.activity.volume_down_command
+            entity_id = self.activity.volume_down_command.get("entity_id")
+
         async with (
             self._remote.client() as session,
             session.put(
@@ -1632,10 +1644,12 @@ class UCMediaPlayerEntity:
 
     async def mute(self) -> None:
         """Mute the volume of the media player."""
-        entity_id = self.activity.volume_mute_entity
-        if entity_id is None:
-            entity_id = self._id
-        body = {"entity_id": entity_id, "cmd_id": "media_player.mute_toggle"}
+        body = {"entity_id": self._id, "cmd_id": "media_player.mute_toggle"}
+        entity_id = self._id
+        if self.activity.volume_mute_command:
+            body = self.activity.volume_mute_command
+            entity_id = self.activity.volume_mute_command.get("entity_id")
+
         async with (
             self._remote.client() as session,
             session.put(
@@ -1646,10 +1660,12 @@ class UCMediaPlayerEntity:
 
     async def play_pause(self) -> None:
         """Play pause the media player."""
-        entity_id = self.activity.play_pause_entity
-        if entity_id is None:
-            entity_id = self._id
-        body = {"entity_id": entity_id, "cmd_id": "media_player.play_pause"}
+        body = {"entity_id": self._id, "cmd_id": "media_player.play_pause"}
+        entity_id = self._id
+        if self.activity.play_pause_command:
+            body = self.activity.play_pause_command
+            entity_id = self.activity.play_pause_command.get("entity_id")
+
         async with (
             self._remote.client() as session,
             session.put(
@@ -1674,11 +1690,12 @@ class UCMediaPlayerEntity:
 
     async def next(self) -> None:
         """Next track/chapter of the media player."""
-        entity_id = self.activity.next_track_entity
-        if entity_id is None:
-            entity_id = self._id
+        body = {"entity_id": self._id, "cmd_id": "media_player.next"}
+        entity_id = self._id
+        if self.activity.next_track_command:
+            body = self.activity.next_track_command
+            entity_id = self.activity.next_track_command.get("entity_id")
 
-        body = {"entity_id": entity_id, "cmd_id": "media_player.next"}
         async with (
             self._remote.client() as session,
             session.put(
@@ -1689,11 +1706,12 @@ class UCMediaPlayerEntity:
 
     async def previous(self) -> None:
         """Previous track/chapter of the media player."""
-        entity_id = self.activity.prev_track_entity
-        if entity_id is None:
-            entity_id = self._id
+        body = {"entity_id": self._id, "cmd_id": "media_player.previous"}
+        entity_id = self._id
+        if self.activity.prev_track_command:
+            body = self.activity.prev_track_command
+            entity_id = self.activity.prev_track_command.get("entity_id")
 
-        body = {"entity_id": entity_id, "cmd_id": "media_player.previous"}
         async with (
             self._remote.client() as session,
             session.put(
@@ -1776,12 +1794,12 @@ class Activity:
         self._remote = remote
         self._state = activity.get("attributes").get("state")
         self._mediaplayer_entities: list[UCMediaPlayerEntity] = []
-        self._next_track_entity = None
-        self._prev_track_entity = None
-        self._volume_up_entity = None
-        self._volume_down_entity = None
-        self._volume_mute_entity = None
-        self._play_pause_entity = None
+        self._next_track_command = None
+        self._prev_track_command = None
+        self._volume_up_command = None
+        self._volume_down_command = None
+        self._volume_mute_command = None
+        self._play_pause_command = None
         self._seek_entity = None
         self._stop_entity = None
 
@@ -1806,34 +1824,34 @@ class Activity:
         return self._remote
 
     @property
-    def next_track_entity(self):
-        """Next Track Entity."""
-        return self._next_track_entity
+    def next_track_command(self):
+        """Next Track Command."""
+        return self._next_track_command
 
     @property
-    def prev_track_entity(self):
-        """prev Track Entity."""
-        return self._prev_track_entity
+    def prev_track_command(self):
+        """prev Track Command."""
+        return self._prev_track_command
 
     @property
-    def volume_up_entity(self):
-        """Volume Up Entity."""
-        return self._volume_up_entity
+    def volume_up_command(self):
+        """Volume Up Command."""
+        return self._volume_up_command
 
     @property
-    def volume_down_entity(self):
-        """Volume Down Entity."""
-        return self._volume_down_entity
+    def volume_down_command(self):
+        """Volume Down Command."""
+        return self._volume_down_command
 
     @property
-    def volume_mute_entity(self):
-        """Volume Mute Entity."""
-        return self._volume_mute_entity
+    def volume_mute_command(self):
+        """Volume Mute Command."""
+        return self._volume_mute_command
 
     @property
-    def play_pause_entity(self):
-        """Play Pause Entity."""
-        return self._play_pause_entity
+    def play_pause_command(self):
+        """Play Pause Command."""
+        return self._play_pause_command
 
     @property
     def seek_entity(self):

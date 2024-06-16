@@ -14,8 +14,8 @@ from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
 )
-from pyUnfoldedCircleRemote.remote import Remote
-from pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
+from .pyUnfoldedCircleRemote.remote import Remote
+from .pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
 
 from .const import DEVICE_SCAN_INTERVAL, DOMAIN
 
@@ -122,7 +122,7 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     + " ("
                     + activity._id
                     + ") : "
-                    + activity.state
+                    + str(activity.state)
                 )
                 for media_entity in activity.mediaplayer_entities:
                     if active_media_entity and active_media_entity == media_entity:
@@ -132,7 +132,7 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             + " ("
                             + media_entity._id
                             + ") : "
-                            + media_entity._state
+                            + str(media_entity._state)
                         )
                     else:
                         debug_info.append(
@@ -141,7 +141,7 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             + " ("
                             + media_entity._id
                             + ") : "
-                            + media_entity._state
+                            + str(media_entity._state)
                         )
         debug_info.append("Media player entities from remote :")
         for media_entity in self.api._entities:
@@ -151,7 +151,7 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 + " ("
                 + media_entity._id
                 + ") : "
-                + media_entity._state
+                + str(media_entity._state)
             )
         _LOGGER.debug("UC2 debug structure\n%s", "\n".join(debug_info))
 
