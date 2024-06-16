@@ -83,7 +83,10 @@ async def async_setup_entry(
     # Add additional media players (one per activity) if the user option is enabled
     if config_entry.options.get(CONF_ACTIVITY_MEDIA_ENTITIES, False):
         for activity in coordinator.api.activities:
-            media_players.append(MediaPlayerUCRemote(coordinator, activity=activity))
+            if activity.has_media_player_entities is True:
+                media_players.append(
+                    MediaPlayerUCRemote(coordinator, activity=activity)
+                )
     async_add_entities(media_players)
 
 
@@ -220,9 +223,25 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     @property
     def state(self):
         """Return the state of the device."""
-        if self._active_media_entity:
+        an_activity_is_on = False
+        for activity in self.coordinator.api.activities:
+            if activity.state == "ON" and activity.has_media_player_entities is True:
+                an_activity_is_on = True
+                break
+
+        if an_activity_is_on is False:
+            self._state = STATE_OFF
+        elif self.activity is not None and self.activity.state == "OFF":
+            self._state = STATE_OFF
+        elif self._active_media_entity:
             self._state = STATES_MAP.get(self._active_media_entity.state, STATE_OFF)
-        elif self.activity.state == "ON":
+        elif self.activity is not None and self.activity.state == "ON":
+            self._state = STATE_ON
+        elif (
+            self.activity is None
+            and self._active_media_entity is None
+            and an_activity_is_on is True
+        ):
             self._state = STATE_ON
         else:
             self._state = STATE_OFF
@@ -257,15 +276,18 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     @property
     def sound_mode_list(self) -> list[str] | None:
         """Use sound mode to select alternate media player entities"""
-        if self._active_media_entity:
-            sources: dict[str, any] = {AUTOMATIC_ENTITY_SELECTION_LABEL: True}
-            for activity in self.activities:
-                for entity in activity.mediaplayer_entities:
-                    # if entity.state in ["PLAYING", "BUFFERING", "PAUSED"]:
-                    if entity.activity.is_on() and entity.state not in ["UNAVAILABLE"]:
-                        sources[entity.name] = entity
-            return list(sources.keys())
-        return None
+        # if self._active_media_entity:
+        sources: dict[str, any] = {AUTOMATIC_ENTITY_SELECTION_LABEL: True}
+        for activity in self.activities:
+            for entity in activity.mediaplayer_entities:
+                # if entity.state in ["PLAYING", "BUFFERING", "PAUSED"]:
+                if entity.activity.is_on() and entity.state not in [
+                    "UNAVAILABLE",
+                    "OFF",
+                ]:
+                    sources[entity.name] = entity
+        return list(sources.keys())
+        # return None
 
     @property
     def sound_mode(self) -> str | None:
@@ -405,12 +427,16 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     @property
     def is_volume_muted(self) -> bool | None:
         """Boolean if volume is currently muted."""
-        if self._active_media_entity.activity.volume_mute_entity is not None:
+        if (
+            self._active_media_entity is not None
+            and self._active_media_entity.activity is not None
+            and self._active_media_entity.activity.volume_mute_command is not None
+        ):
+            entity_id = self._active_media_entity.activity.volume_mute_command.get(
+                "entity_id"
+            )
             for media_player in self._active_media_entities:
-                if (
-                    media_player.id
-                    == self._active_media_entity.activity.volume_mute_entity
-                ):
+                if media_player.id == entity_id:
                     return media_player.muted
         if self._active_media_entity:
             return self._active_media_entity.muted
