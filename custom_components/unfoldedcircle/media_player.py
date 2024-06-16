@@ -21,7 +21,6 @@ from homeassistant.helpers.typing import UndefinedType
 from homeassistant.util import utcnow
 from .pyUnfoldedCircleRemote.const import RemoteUpdateType
 from .pyUnfoldedCircleRemote.remote import Activity, ActivityGroup, UCMediaPlayerEntity
-
 from .const import (
     CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
     CONF_ACTIVITY_MEDIA_ENTITIES,

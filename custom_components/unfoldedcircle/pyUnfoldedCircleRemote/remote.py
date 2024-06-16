@@ -1617,7 +1617,6 @@ class UCMediaPlayerEntity:
             body = self.activity.volume_up_command
             entity_id = self.activity.volume_up_command.get("entity_id")
 
-
         async with (
             self._remote.client() as session,
             session.put(
