@@ -584,6 +584,8 @@ class Remote:
                             new_activity._next_track_command = short_press
                         case "PLAY":
                             new_activity._play_pause_command = short_press
+                        case "POWER":
+                            new_activity._power_command = short_press
                         case _:
                             pass
             return await response.json()
@@ -1564,11 +1566,15 @@ class UCMediaPlayerEntity:
 
     async def turn_on(self) -> None:
         """Turn on the media player."""
-        body = {"entity_id": self._id, "cmd_id": "media_player.on"}
+        entity_id = self.id
+        body = {"entity_id": entity_id, "cmd_id": "media_player.on"}
+        if self.activity.power_command:
+            body = self.activity.power_command
+            entity_id = self.activity.power_command.get("entity_id")
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"), json=body
             ) as response,
         ):
             await self._remote.raise_on_error(response)
@@ -1576,11 +1582,15 @@ class UCMediaPlayerEntity:
 
     async def turn_off(self) -> None:
         """Turn off the media player."""
+        entity_id = self.id
         body = {"entity_id": self._id, "cmd_id": "media_player.off"}
+        if self.activity.power_command:
+            body = self.activity.power_command
+            entity_id = self.activity.power_command.get("entity_id")
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"), json=body
             ) as response,
         ):
             await self._remote.raise_on_error(response)
@@ -1662,21 +1672,6 @@ class UCMediaPlayerEntity:
         ):
             await self._remote.raise_on_error(response)
 
-    # async def stop(self) -> None:
-    #     """Stop the media player."""
-    #     entity_id = self.id
-    #     body = {"entity_id": entity_id, "cmd_id": "media_player.stop"}
-    #     if self.activity.stop_command:
-    #         body = self.activity.stop_command
-    #         entity_id = self.activity.stop_command.get("entity_id")
-    #     async with (
-    #         self._remote.client() as session,
-    #         session.put(
-    #             self._remote.url("entities/" + entity_id + "/command"), json=body
-    #         ) as response,
-    #     ):
-    #         await self._remote.raise_on_error(response)
-
     async def next(self) -> None:
         """Next track/chapter of the media player."""
         entity_id = self.id
@@ -1707,24 +1702,39 @@ class UCMediaPlayerEntity:
         ):
             await self._remote.raise_on_error(response)
 
-    async def seek(self, position: float) -> None:
-        """Next track/chapter of the media player."""
-        entity_id = self.id
-        body = {
-            "entity_id": entity_id,
-            "cmd_id": "media_player.seek",
-            "params": {"media_position": position},
-        }
-        if self.activity.seek_command:
-            body = self.activity.seek_command
-            entity_id = self.activity.seek_command.get("entity_id")
-        async with (
-            self._remote.client() as session,
-            session.put(
-                self._remote.url("entities/" + entity_id + "/command"), json=body
-            ) as response,
-        ):
-            await self._remote.raise_on_error(response)
+    # async def stop(self) -> None:
+    #     """Stop the media player."""
+    #     entity_id = self.id
+    #     body = {"entity_id": entity_id, "cmd_id": "media_player.stop"}
+    #     if self.activity.stop_command:
+    #         body = self.activity.stop_command
+    #         entity_id = self.activity.stop_command.get("entity_id")
+    #     async with (
+    #         self._remote.client() as session,
+    #         session.put(
+    #             self._remote.url("entities/" + entity_id + "/command"), json=body
+    #         ) as response,
+    #     ):
+    #         await self._remote.raise_on_error(response)
+
+    # async def seek(self, position: float) -> None:
+    #     """Next track/chapter of the media player."""
+    #     entity_id = self.id
+    #     body = {
+    #         "entity_id": entity_id,
+    #         "cmd_id": "media_player.seek",
+    #         "params": {"media_position": position},
+    #     }
+    #     if self.activity.seek_command:
+    #         body = self.activity.seek_command
+    #         entity_id = self.activity.seek_command.get("entity_id")
+    #     async with (
+    #         self._remote.client() as session,
+    #         session.put(
+    #             self._remote.url("entities/" + entity_id + "/command"), json=body
+    #         ) as response,
+    #     ):
+    #         await self._remote.raise_on_error(response)
 
 
 class ActivityGroup:
@@ -1787,6 +1797,7 @@ class Activity:
         self._volume_down_command = None
         self._volume_mute_command = None
         self._play_pause_command = None
+        self._power_command = None
         self._seek_command = None
         self._stop_command = None
 
@@ -1839,6 +1850,11 @@ class Activity:
     def play_pause_command(self):
         """Play Pause Command"""
         return self._play_pause_command
+
+    @property
+    def power_command(self):
+        """Power Command"""
+        return self._power_command
 
     @property
     def seek_command(self):
