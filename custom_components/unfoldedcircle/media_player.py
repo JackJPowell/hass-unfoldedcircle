@@ -19,8 +19,8 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import UndefinedType
 from homeassistant.util import utcnow
-from pyUnfoldedCircleRemote.const import RemoteUpdateType
-from pyUnfoldedCircleRemote.remote import Activity, ActivityGroup, UCMediaPlayerEntity
+from .pyUnfoldedCircleRemote.const import RemoteUpdateType
+from .pyUnfoldedCircleRemote.remote import Activity, ActivityGroup, UCMediaPlayerEntity
 
 from .const import (
     CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
@@ -42,12 +42,13 @@ SUPPORT_MEDIA_PLAYER = (
     | MediaPlayerEntityFeature.PLAY_MEDIA
     | MediaPlayerEntityFeature.VOLUME_STEP
     | MediaPlayerEntityFeature.VOLUME_MUTE
+    | MediaPlayerEntityFeature.VOLUME_SET
     | MediaPlayerEntityFeature.TURN_ON
     | MediaPlayerEntityFeature.TURN_OFF
     | MediaPlayerEntityFeature.SELECT_SOURCE
     | MediaPlayerEntityFeature.SELECT_SOUND_MODE
     # | MediaPlayerEntityFeature.BROWSE_MEDIA
-    | MediaPlayerEntityFeature.SEEK  # TODO
+    | MediaPlayerEntityFeature.SEEK
 )
 
 STATES_MAP = {
@@ -131,6 +132,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         self._active_media_entity: UCMediaPlayerEntity | None = None
         self._selected_media_entity: UCMediaPlayerEntity | None = None
         self._state = STATE_OFF
+        self._volume_level = 0
         self.update_state()
 
     async def async_added_to_hass(self):
@@ -141,7 +143,8 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     @property
     def supported_features(self):
         """Flag media player features that are supported."""
-        return SUPPORT_MEDIA_PLAYER
+        #TODO handle available features based on media player capabilities + mapped buttons
+        return self._attr_supported_features
 
     def update_state(self):
         """Sets the active media entity choosing the best choice if multiple are active"""
@@ -442,6 +445,23 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
             return self._active_media_entity.muted
         return False
 
+    @property
+    def volume_level(self) -> float | None:
+        if (
+            self._active_media_entity is not None
+            and self._active_media_entity.activity is not None
+            and self._active_media_entity.activity.volume_up_command is not None
+        ):
+            entity_id = self._active_media_entity.activity.volume_mute_command.get(
+                "entity_id"
+            )
+            for media_player in self._active_media_entities:
+                if media_player.id == entity_id:
+                    return media_player.volume/100
+        if self._active_media_entity:
+            return self._active_media_entity.volume/100
+        return 0
+
     async def async_turn_on(self):
         """Turn the media player on."""
         if self._active_media_entity:
@@ -466,6 +486,11 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         """Send mute command."""
         if self._active_media_entity:
             await self._active_media_entity.mute()
+
+    async def async_set_volume_level(self, volume: float) -> None:
+        """Set volume command."""
+        if self._active_media_entity:
+            await self._active_media_entity.volume_set(volume*100)
 
     async def async_media_play_pause(self):
         """Simulate play pause media player."""
