@@ -1543,12 +1543,6 @@ class UCMediaPlayerEntity:
         if attributes.get("media_duration", None):
             self._media_duration = attributes.get("media_duration", 0)
             attributes_changed["media_duration"] = self._media_duration
-            # When media changes, media_duration is sent but not media_position
-            # we assume new position to 0
-            # if attributes.get("media_position", None) is None:
-            #     self._media_position = 0
-            #     self._media_position_updated_at = utcnow()
-            #     attributes_changed["media_position"] = self._media_position
         if attributes.get("media_artist", None):
             self._media_artist = attributes.get("media_artist", None)
             attributes_changed["media_artist"] = self._media_artist
@@ -1560,7 +1554,7 @@ class UCMediaPlayerEntity:
             attributes_changed["media_title"] = self._media_title
         if attributes.get("media_position", None):
             self._media_position = attributes.get("media_position", 0)
-            self._media_position_updated_at = datetime.datetime.utcnow()
+            self._media_position_updated_at = datetime.datetime.now(datetime.UTC)
             attributes_changed["media_position"] = self._media_position
         if attributes.get("muted", None) or attributes.get("muted", None) is False:
             self._muted = attributes.get("muted")
@@ -1666,16 +1660,23 @@ class UCMediaPlayerEntity:
         ):
             await self._remote.raise_on_error(response)
 
-    async def volume_set(self, volume: float) -> None:
+    async def volume_set(self, volume: int) -> None:
         """Raise volume of the media player."""
+        int_volume = int(volume)
         entity_id = self.id
-        body = {"entity_id": entity_id, "cmd_id": "media_player.volume",
-                "params": {"volume": volume}}
-        if self.activity.volume_up_command:
-            entity_id = self.activity.volume_up_command.get("entity_id")
+        body = {
+            "entity_id": entity_id,
+            "cmd_id": "media_player.volume",
+            "params": {"volume": int_volume},
+        }
+        if self.activity.volume_mute_command:
+            entity_id = self.activity.volume_mute_command.get("entity_id")
             if "media_player." in entity_id:
-                body = {"entity_id": entity_id, "cmd_id": "media_player.volume",
-                        "params": {"volume": volume}}
+                body = {
+                    "entity_id": entity_id,
+                    "cmd_id": "media_player.volume",
+                    "params": {"volume": int_volume},
+                }
         async with (
             self._remote.client() as session,
             session.put(

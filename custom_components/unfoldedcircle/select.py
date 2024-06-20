@@ -7,7 +7,7 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from .pyUnfoldedCircleRemote.const import RemoteUpdateType
+from pyUnfoldedCircleRemote.const import RemoteUpdateType
 
 from .const import CONF_SUPPRESS_ACTIVITIY_GROUPS, DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 from .entity import UnfoldedCircleEntity
