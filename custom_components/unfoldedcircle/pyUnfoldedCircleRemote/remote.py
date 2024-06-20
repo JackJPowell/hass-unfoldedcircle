@@ -1936,13 +1936,36 @@ class Activity:
             await self._remote.raise_on_error(response)
             self._state = "OFF"
 
+    async def prevent_sleep(self, option) -> None:
+        match option:
+            case "ON":
+                options = {"options": {"prevent_sleep": "true"}}
+                self.update_activity(options)
+
+            case "OFF":
+                pass
+
+            case "TOGGLE":
+                activity_info = await self._remote.get_activity(self._id)
+                pass
+
     def is_on(self) -> bool:
         """Is Activity Running."""
         return self._state == "ON"
 
+    async def update_activity(self, options) -> None:
+        async with (
+            self._remote.client() as session,
+            session.put(
+                self._remote.url("activities/" + self.id), json=options
+            ) as response,
+        ):
+            await self._remote.raise_on_error(response)
+            return await response.json()
+
     async def update(self) -> None:
         """Update activity state information."""
-        activity_info = await self._remote.get_activity(self._id)
+        activity_info = await self._remote.get_activity(self.id)
         self._state = activity_info["attributes"]["state"]
         try:
             included_entities = activity_info["options"]["included_entities"]
