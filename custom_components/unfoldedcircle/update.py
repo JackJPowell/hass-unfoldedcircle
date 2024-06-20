@@ -14,7 +14,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from .pyUnfoldedCircleRemote.remote import HTTPError
+from pyUnfoldedCircleRemote.remote import HTTPError
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 from .entity import UnfoldedCircleEntity
