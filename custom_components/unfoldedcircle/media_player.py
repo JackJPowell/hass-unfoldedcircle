@@ -19,8 +19,8 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import UndefinedType
 from homeassistant.util import utcnow
-from .pyUnfoldedCircleRemote.const import RemoteUpdateType
-from .pyUnfoldedCircleRemote.remote import Activity, ActivityGroup, UCMediaPlayerEntity
+from pyUnfoldedCircleRemote.const import RemoteUpdateType
+from pyUnfoldedCircleRemote.remote import Activity, ActivityGroup, UCMediaPlayerEntity
 
 from .const import (
     CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
@@ -143,7 +143,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     @property
     def supported_features(self):
         """Flag media player features that are supported."""
-        #TODO handle available features based on media player capabilities + mapped buttons
+        # TODO handle available features based on media player capabilities + mapped buttons
         return self._attr_supported_features
 
     def update_state(self):
@@ -457,9 +457,9 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
             )
             for media_player in self._active_media_entities:
                 if media_player.id == entity_id:
-                    return media_player.volume/100
+                    return media_player.volume / 100
         if self._active_media_entity:
-            return self._active_media_entity.volume/100
+            return self._active_media_entity.volume / 100
         return 0
 
     async def async_turn_on(self):
@@ -490,7 +490,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     async def async_set_volume_level(self, volume: float) -> None:
         """Set volume command."""
         if self._active_media_entity:
-            await self._active_media_entity.volume_set(volume*100)
+            await self._active_media_entity.volume_set(volume * 100)
 
     async def async_media_play_pause(self):
         """Simulate play pause media player."""
