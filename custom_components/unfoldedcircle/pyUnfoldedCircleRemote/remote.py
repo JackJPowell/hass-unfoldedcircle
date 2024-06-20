@@ -1660,13 +1660,14 @@ class UCMediaPlayerEntity:
         ):
             await self._remote.raise_on_error(response)
 
-    async def volume_set(self, volume: float) -> None:
+    async def volume_set(self, volume: int) -> None:
         """Raise volume of the media player."""
+        int_volume = int(volume)
         entity_id = self.id
         body = {
             "entity_id": entity_id,
             "cmd_id": "media_player.volume",
-            "params": {"volume": volume},
+            "params": {"volume": int_volume},
         }
         if self.activity.volume_mute_command:
             entity_id = self.activity.volume_mute_command.get("entity_id")
@@ -1674,7 +1675,7 @@ class UCMediaPlayerEntity:
                 body = {
                     "entity_id": entity_id,
                     "cmd_id": "media_player.volume",
-                    "params": {"volume": volume},
+                    "params": {"volume": int_volume},
                 }
         async with (
             self._remote.client() as session,
