@@ -282,13 +282,14 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         # if self._active_media_entity:
         sources: dict[str, any] = {AUTOMATIC_ENTITY_SELECTION_LABEL: True}
         for activity in self.activities:
-            for entity in activity.mediaplayer_entities:
-                # if entity.state in ["PLAYING", "BUFFERING", "PAUSED"]:
-                if entity.activity.is_on() and entity.state not in [
-                    "UNAVAILABLE",
-                    "OFF",
-                ]:
-                    sources[entity.name] = entity
+            if activity.is_on():
+                for entity in activity.mediaplayer_entities:
+                    # if entity.state in ["PLAYING", "BUFFERING", "PAUSED"]:
+                    if entity.state not in [
+                        "UNAVAILABLE",
+                        "OFF",
+                    ]:
+                        sources[entity.name] = entity
         return list(sources.keys())
         # return None
 
@@ -450,7 +451,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         if (
             self._active_media_entity is not None
             and self._active_media_entity.activity is not None
-            and self._active_media_entity.activity.volume_up_command is not None
+            and self._active_media_entity.activity.volume_mute_command is not None
         ):
             entity_id = self._active_media_entity.activity.volume_mute_command.get(
                 "entity_id"
