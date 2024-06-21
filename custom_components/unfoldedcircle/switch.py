@@ -15,6 +15,7 @@ from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_platform, service
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from pyUnfoldedCircleRemote.const import RemoteUpdateType
 
 from .const import (
     CONF_ACTIVITIES_AS_SWITCHES,
@@ -24,7 +25,6 @@ from .const import (
 )
 from .coordinator import UnfoldedCircleRemoteCoordinator
 from .entity import UnfoldedCircleEntity
-from .pyUnfoldedCircleRemote.const import RemoteUpdateType
 
 
 @dataclass
