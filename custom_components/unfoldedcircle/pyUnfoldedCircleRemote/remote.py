@@ -13,16 +13,9 @@ from urllib.parse import urljoin, urlparse
 import aiohttp
 import zeroconf
 
-from .const import (
-    AUTH_APIKEY_NAME,
-    AUTH_USERNAME,
-    SIMULATOR_MAC_ADDRESS,
-    SYSTEM_COMMANDS,
-    ZEROCONF_SERVICE_TYPE,
-    ZEROCONF_TIMEOUT,
-    RemotePowerModes,
-    RemoteUpdateType,
-)
+from .const import (AUTH_APIKEY_NAME, AUTH_USERNAME, SIMULATOR_MAC_ADDRESS,
+                    SYSTEM_COMMANDS, ZEROCONF_SERVICE_TYPE, ZEROCONF_TIMEOUT,
+                    RemotePowerModes, RemoteUpdateType)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -1349,6 +1342,11 @@ class Remote:
                 entity._entity_commands = included_entity["entity_commands"]
             activity.add_mediaplayer_entity(entity)
 
+    def get_activity_by_id(self, activity_id):
+        for activity in self.activities:
+            if activity_id == activity.id:
+                return activity
+
     async def init(self):
         """Retrieves all information about the remote."""
         _LOGGER.debug("Unfoldded circle remote init data")
@@ -1936,13 +1934,38 @@ class Activity:
             await self._remote.raise_on_error(response)
             self._state = "OFF"
 
+    async def edit(self, options) -> None:
+        for attribute, value in options.items():
+            match attribute:
+                case "prevent_sleep":
+                    match value:
+                        case True:
+                            options = {"options": {"prevent_sleep": True}}
+
+                        case False:
+                            options = {"options": {"prevent_sleep": False}}
+                case _:
+                    pass
+
+        await self.update_activity(options)
+
     def is_on(self) -> bool:
         """Is Activity Running."""
         return self._state == "ON"
 
+    async def update_activity(self, options) -> None:
+        async with (
+            self._remote.client() as session,
+            session.patch(
+                self._remote.url("activities/" + self.id), json=options
+            ) as response,
+        ):
+            await self._remote.raise_on_error(response)
+            return await response.json()
+
     async def update(self) -> None:
         """Update activity state information."""
-        activity_info = await self._remote.get_activity(self._id)
+        activity_info = await self._remote.get_activity(self.id)
         self._state = activity_info["attributes"]["state"]
         try:
             included_entities = activity_info["options"]["included_entities"]
