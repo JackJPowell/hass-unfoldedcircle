@@ -9,8 +9,8 @@
   "integration_type": "device",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/JackJPowell/hass-unfoldedcircle/issues",
-  "requirements": ["websockets==12.0", "pyUnfoldedCircleRemote==0.9.4"],
+  "requirements": ["websockets==12.0", "pyUnfoldedCircleRemote==0.10.0"],
   "ssdp": [],
-  "version": "0.9.0",
+  "version": "0.10.0",
   "zeroconf": ["_uc-remote._tcp.local."]
 }
