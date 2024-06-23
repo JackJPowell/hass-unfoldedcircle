@@ -21,6 +21,10 @@ There are two main ways to install this custom component within your Home Assist
 
 1. Using HACS (see https://hacs.xyz/ for installation instructions if you do not already have it installed):
 
+    [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=JackJPowell&repository=hass-unfoldedcircle&category=Integration)
+
+   Or
+   
    1. From within Home Assistant, click on the link to **HACS**
    2. Click on **Integrations**
    3. Click on the vertical ellipsis in the top right and select **Custom repositories**
@@ -28,9 +32,10 @@ There are two main ways to install this custom component within your Home Assist
    5. Click the **ADD** button
    6. Close the _Custom repositories_ window
    7. You should now be able to see the _Unfolde Circle_ card on the HACS Integrations page. Click on **INSTALL** and proceed with the installation instructions.
-   8. Restart your Home Assistant instance and then proceed to the _Configuration_ section below.
+ 
+   Restart your Home Assistant instance and then proceed to the _Configuration_ section below.
 
-2. Manual Installation:
+3. Manual Installation:
    1. Download or clone this repository
    2. Copy the contents of the folder **custom_components/unfoldedcircle** into the same file structure on your Home Assistant instance
    3. Restart your Home Assistant instance and then proceed to the _Configuration_ section below.
