@@ -1,8 +1,9 @@
 [![Discord](https://badgen.net/discord/online-members/zGVYf58)](https://discord.gg/zGVYf58)
 ![GitHub Release](https://img.shields.io/github/v/release/jackjpowell/hass-unfoldedcircle)
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/jackjpowell/hass-unfoldedcircle/total)
-[![Buy Me A Coffee/Beer](https://img.shields.io/badge/Buy_Me_A_☕/🍺-F16061?logo=ko-fi&logoColor=white&labelColor=grey)](https://ko-fi.com/jackjpowell)
 <a href="#"><img src="https://img.shields.io/maintenance/yes/2024.svg"></a>
+<!--[![Buy Me A Coffee/Beer](https://img.shields.io/badge/Buy_Me_A_☕/🍺-F16061?logo=ko-fi&logoColor=white&labelColor=grey)](https://ko-fi.com/jackjpowell)-->
+
 
 ## hass-unfoldedcircle
 
