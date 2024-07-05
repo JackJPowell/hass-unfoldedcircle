@@ -14,3 +14,4 @@ DEVICE_SCAN_INTERVAL = timedelta(seconds=30)
 UNFOLDED_CIRCLE_COORDINATOR = "unfolded_circle_coordinator"
 UNFOLDED_CIRCLE_API = "unfolded_circle_api"
 UPDATE_ACTIVITY_SERVICE = "update_activity"
+WS_SERVER = "ws_server"

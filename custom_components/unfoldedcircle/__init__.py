@@ -11,8 +11,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
-from .const import DOMAIN, UNFOLDED_CIRCLE_API, UNFOLDED_CIRCLE_COORDINATOR
+from .const import DOMAIN, UNFOLDED_CIRCLE_API, UNFOLDED_CIRCLE_COORDINATOR, WS_SERVER
 from .coordinator import UnfoldedCircleRemoteCoordinator
+from .helpers import UCRWebSocket
 
 PLATFORMS: list[Platform] = [
     Platform.SWITCH,
@@ -43,9 +44,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         raise ConfigEntryNotReady(ex) from ex
 
     coordinator = UnfoldedCircleRemoteCoordinator(hass, remote_api)
+    ws_server = UCRWebSocket(hass=hass, config_entry=entry)
+
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         UNFOLDED_CIRCLE_COORDINATOR: coordinator,
         UNFOLDED_CIRCLE_API: remote_api,
+        WS_SERVER: ws_server,
     }
 
     # Extract activities and activity groups

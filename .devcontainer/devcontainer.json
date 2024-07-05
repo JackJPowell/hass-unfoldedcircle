@@ -4,7 +4,7 @@
   "image": "mcr.microsoft.com/vscode/devcontainers/python:3.12-bullseye",
   "postCreateCommand": ".devcontainer/setup",
   "postAttachCommand": ".devcontainer/setup",
-  "forwardPorts": [8123],
+  "forwardPorts": [8123, 9001],
   "customizations": {
     "vscode": {
       "extensions": [
