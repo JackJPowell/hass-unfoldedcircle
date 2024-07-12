@@ -1,6 +1,9 @@
 [![Discord](https://badgen.net/discord/online-members/zGVYf58)](https://discord.gg/zGVYf58)
 ![GitHub Release](https://img.shields.io/github/v/release/jackjpowell/hass-unfoldedcircle)
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/jackjpowell/hass-unfoldedcircle/total)
+<a href="#"><img src="https://img.shields.io/maintenance/yes/2024.svg"></a>
+<!--[![Buy Me A Coffee/Beer](https://img.shields.io/badge/Buy_Me_A_☕/🍺-F16061?logo=ko-fi&logoColor=white&labelColor=grey)](https://ko-fi.com/jackjpowell)-->
+
 
 ## hass-unfoldedcircle
 
@@ -19,6 +22,10 @@ There are two main ways to install this custom component within your Home Assist
 
 1. Using HACS (see https://hacs.xyz/ for installation instructions if you do not already have it installed):
 
+    [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=JackJPowell&repository=hass-unfoldedcircle&category=Integration)
+
+   Or
+   
    1. From within Home Assistant, click on the link to **HACS**
    2. Click on **Integrations**
    3. Click on the vertical ellipsis in the top right and select **Custom repositories**
@@ -26,9 +33,10 @@ There are two main ways to install this custom component within your Home Assist
    5. Click the **ADD** button
    6. Close the _Custom repositories_ window
    7. You should now be able to see the _Unfolde Circle_ card on the HACS Integrations page. Click on **INSTALL** and proceed with the installation instructions.
-   8. Restart your Home Assistant instance and then proceed to the _Configuration_ section below.
+ 
+   Restart your Home Assistant instance and then proceed to the _Configuration_ section below.
 
-2. Manual Installation:
+3. Manual Installation:
    1. Download or clone this repository
    2. Copy the contents of the folder **custom_components/unfoldedcircle** into the same file structure on your Home Assistant instance
    3. Restart your Home Assistant instance and then proceed to the _Configuration_ section below.
@@ -73,8 +81,9 @@ After the device is configured, the integration will expose 22 entities plus the
 - Binary Sensor
   - Battery Charging Status: Charging state of device: Helpful in automations to tell if the device is charging (online and available)
 - Update
-  - Verion info: Reports current version and latest version
-    - The ability to install Remote Two firmware from within home assistant is implemented but currently disabled.
+  - Verion info: Reports the current and latest version of the remote firware
+  - The ability to install Remote Two firmware from within home assistant including progress and release notes
+  - If the firmware has not been downloaded when the install is initiated, the first 10% of the progress bar will be used to show download progress. If no progress has been made in 30 seconds, the update will stop and not be applied
 - Switches
   - A switch is created for every activity defined that is not apart of an activity group.
     - An option exists to create a switch for each activity regardless of activity group.
@@ -89,9 +98,8 @@ After the device is configured, the integration will expose 22 entities plus the
   - A media player entity is created providing controls and information about currently playing media. If multiple media player entities are active, the integration attempts to select the most appropriate based on activity and recency.
     - You can override this behavior by selecting a different media source from the sound mode menu in the Media Player control
     - Options exist to create a media player per activity group or per activity.
-  - A reminder: The controls are acting solely on the entity that is being displayed and not the activity that is running. For instance, if the media player doesn't control your volume, e.g. your receiver does, adjusting the volume via the media player controls will not have the desired effect.
+  - **Update** The media player controls are now mapped to the selected activity's button mapping on the remote. The default is still the active media player, but if you have defined custom volume, next, previous, or power button commands, those will be executed when interacting with the control within home assistant. 
 - Number
-
   - Configuration Controls: All numerical settings are now controllable via the integration.
 
   \*\* Disabled by default to avoid polling the remote every thirty seconds to read data. If one of these sensors is enabled, polling only for that specific data will also be enabled.
@@ -112,6 +120,18 @@ target:
 
 > [!TIP] > **device:** will match the case-sensitive name of your remote defined in the web configurator on the remote page. **command** will match the case-senstitive name of the pre-defined (custom or codeset) command defined for that remote. **num_repeats** is optional.
 
+## Additional Services
+There is now a service to update defined activities. This will be initially released with the option to enable/disable the 'prevent sleep' option within the selected activity. 
+```
+service: unfoldedcircle.update_activity
+target:
+  entity_id: switch.remote_two_control_projector
+data:
+  prevent_sleep: true
+```
+
+**Update Activity**
+
 ## Options
 
 Additional options have been added to the intergration for further customization:
@@ -131,19 +151,13 @@ Your Remote Two will now be automatically discovered on the network.
 
 ## Future Ideas
 
-- [x] Implement a remote entity to send IR commands (Easy)
-- [x] Implement a service entity to send power commands to the remote itself (Easy)
-- [x] Add support for zeroconf discovery
-- [x] Implement Home Assistant Coordinator Class to have some empathy for the machine
-- [x] Provide the ability to adjust settings on the remote from within home assistant (Useful?)
-- [x] Provide the ability to reconfigure the integration from the UI
 - [ ] Once WOL is added by the remote developers, implement it in the hass integration to wake the remote prior to sending commands
 
 ## Notes
 
 - The remote entity does not need to be "on" for it to send commands.
 - The Remote Two will go to sleep when unpowered. When this occurs, Home Assistant is unable to communicate with the remote and retrieve updates.
-- The remote can now generate its own diagnostic data to submit to aid in debugging via the overflow menu in the Device Info section
+- The remote can now generate its own diagnostic data to aid in debugging via the overflow menu in the Device Info section
 - The integration supports multiple Languages: English, French
 - The integration will now identify a repair and prompt for a new PIN if it can no longer authenticate to the remote
 

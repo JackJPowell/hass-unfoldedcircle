@@ -43,9 +43,9 @@
         "title": "Unfolded Circle Options",
         "description": "Configure Media Players",
         "data": {
-          "global_media_entity": "Enable a global media player entity for all activities",
-          "activity_group_media_entities": "Enable additional media player entities for each activity group",
-          "activity_media_entities": "Enable additional media player entities for each activity"
+          "global_media_entity": "Create a global media player entity for all activities",
+          "activity_group_media_entities": "Create additional media player entities for each activity group",
+          "activity_media_entities": "Create additional media player entities for each activity"
         }
       },
       "activities": {
@@ -54,15 +54,6 @@
         "data": {
           "activities_as_switches": "Create all activities as switch entities",
           "suppress_activity_groups": "Suppress creation of activity group entities"
-        }
-      }
-    }
-  },
-  "entity": {
-    "select": {
-      "activity_group": {
-        "options": {
-          "Power Off": "Power off"
         }
       }
     }

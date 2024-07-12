@@ -14,10 +14,11 @@ from homeassistant.components.media_player import (
     MediaType,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import STATE_OFF
+from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import UndefinedType
+from homeassistant.util import utcnow
 from pyUnfoldedCircleRemote.const import RemoteUpdateType
 from pyUnfoldedCircleRemote.remote import Activity, ActivityGroup, UCMediaPlayerEntity
 
@@ -41,12 +42,13 @@ SUPPORT_MEDIA_PLAYER = (
     | MediaPlayerEntityFeature.PLAY_MEDIA
     | MediaPlayerEntityFeature.VOLUME_STEP
     | MediaPlayerEntityFeature.VOLUME_MUTE
+    | MediaPlayerEntityFeature.VOLUME_SET
     | MediaPlayerEntityFeature.TURN_ON
     | MediaPlayerEntityFeature.TURN_OFF
     | MediaPlayerEntityFeature.SELECT_SOURCE
     | MediaPlayerEntityFeature.SELECT_SOUND_MODE
     # | MediaPlayerEntityFeature.BROWSE_MEDIA
-    | MediaPlayerEntityFeature.SEEK  # TODO
+    | MediaPlayerEntityFeature.SEEK
 )
 
 STATES_MAP = {
@@ -82,7 +84,10 @@ async def async_setup_entry(
     # Add additional media players (one per activity) if the user option is enabled
     if config_entry.options.get(CONF_ACTIVITY_MEDIA_ENTITIES, False):
         for activity in coordinator.api.activities:
-            media_players.append(MediaPlayerUCRemote(coordinator, activity=activity))
+            if activity.has_media_player_entities is True:
+                media_players.append(
+                    MediaPlayerUCRemote(coordinator, activity=activity)
+                )
     async_add_entities(media_players)
 
 
@@ -118,7 +123,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
                 f"{self.coordinator.api.name} {activity_group.name} Media Player"
             )
             self._attr_unique_id = (
-                f"{self.coordinator.api.serial_number}_{activity_group._id}_mediaplayer"
+                f"{self.coordinator.api.serial_number}_{activity_group.id}_mediaplayer"
             )
             self.activities = self.activity_group.activities
         self._extra_state_attributes = {}
@@ -127,6 +132,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         self._active_media_entity: UCMediaPlayerEntity | None = None
         self._selected_media_entity: UCMediaPlayerEntity | None = None
         self._state = STATE_OFF
+        self._volume_level = 0
         self.update_state()
 
     async def async_added_to_hass(self):
@@ -137,7 +143,8 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     @property
     def supported_features(self):
         """Flag media player features that are supported."""
-        return SUPPORT_MEDIA_PLAYER
+        # TODO handle available features based on media player capabilities + mapped buttons
+        return self._attr_supported_features
 
     def update_state(self):
         """Sets the active media entity choosing the best choice if multiple are active"""
@@ -219,8 +226,26 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     @property
     def state(self):
         """Return the state of the device."""
-        if self._active_media_entity:
+        an_activity_is_on = False
+        for activity in self.coordinator.api.activities:
+            if activity.state == "ON" and activity.has_media_player_entities is True:
+                an_activity_is_on = True
+                break
+
+        if an_activity_is_on is False:
+            self._state = STATE_OFF
+        elif self.activity is not None and self.activity.state == "OFF":
+            self._state = STATE_OFF
+        elif self._active_media_entity:
             self._state = STATES_MAP.get(self._active_media_entity.state, STATE_OFF)
+        elif self.activity is not None and self.activity.state == "ON":
+            self._state = STATE_ON
+        elif (
+            self.activity is None
+            and self._active_media_entity is None
+            and an_activity_is_on is True
+        ):
+            self._state = STATE_ON
         else:
             self._state = STATE_OFF
         return self._state
@@ -254,14 +279,19 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     @property
     def sound_mode_list(self) -> list[str] | None:
         """Use sound mode to select alternate media player entities"""
-        if self._active_media_entity:
-            sources: dict[str, any] = {AUTOMATIC_ENTITY_SELECTION_LABEL: True}
-            for activity in self.activities:
+        # if self._active_media_entity:
+        sources: dict[str, any] = {AUTOMATIC_ENTITY_SELECTION_LABEL: True}
+        for activity in self.activities:
+            if activity.is_on():
                 for entity in activity.mediaplayer_entities:
-                    if entity.state in ["PLAYING", "BUFFERING", "PAUSED"]:
+                    # if entity.state in ["PLAYING", "BUFFERING", "PAUSED"]:
+                    if entity.state not in [
+                        "UNAVAILABLE",
+                        "OFF",
+                    ]:
                         sources[entity.name] = entity
-            return list(sources.keys())
-        return None
+        return list(sources.keys())
+        # return None
 
     @property
     def sound_mode(self) -> str | None:
@@ -369,8 +399,13 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     @property
     def media_position_updated_at(self):
         """Last time status was updated."""
-        if self._active_media_entity:
-            return self._active_media_entity.media_position_updated_at
+        if (
+            self._active_media_entity
+            and self._active_media_entity.media_position_updated_at
+        ):
+            return self._active_media_entity.media_position_updated_at.replace(
+                tzinfo=utcnow().tzinfo
+            )
         return None
 
     @property
@@ -396,9 +431,37 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     @property
     def is_volume_muted(self) -> bool | None:
         """Boolean if volume is currently muted."""
+        if (
+            self._active_media_entity is not None
+            and self._active_media_entity.activity is not None
+            and self._active_media_entity.activity.volume_mute_command is not None
+        ):
+            entity_id = self._active_media_entity.activity.volume_mute_command.get(
+                "entity_id"
+            )
+            for media_player in self._active_media_entities:
+                if media_player.id == entity_id:
+                    return media_player.muted
         if self._active_media_entity:
             return self._active_media_entity.muted
         return False
+
+    @property
+    def volume_level(self) -> float | None:
+        if (
+            self._active_media_entity is not None
+            and self._active_media_entity.activity is not None
+            and self._active_media_entity.activity.volume_mute_command is not None
+        ):
+            entity_id = self._active_media_entity.activity.volume_mute_command.get(
+                "entity_id"
+            )
+            for media_player in self._active_media_entities:
+                if media_player.id == entity_id:
+                    return media_player.volume / 100
+        if self._active_media_entity:
+            return self._active_media_entity.volume / 100
+        return 0
 
     async def async_turn_on(self):
         """Turn the media player on."""
@@ -424,6 +487,11 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         """Send mute command."""
         if self._active_media_entity:
             await self._active_media_entity.mute()
+
+    async def async_set_volume_level(self, volume: float) -> None:
+        """Set volume command."""
+        if self._active_media_entity:
+            await self._active_media_entity.volume_set(volume * 100)
 
     async def async_media_play_pause(self):
         """Simulate play pause media player."""

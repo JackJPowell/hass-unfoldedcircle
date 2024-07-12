@@ -13,16 +13,9 @@ from urllib.parse import urljoin, urlparse
 import aiohttp
 import zeroconf
 
-from .const import (
-    AUTH_APIKEY_NAME,
-    AUTH_USERNAME,
-    SIMULATOR_MAC_ADDRESS,
-    SYSTEM_COMMANDS,
-    ZEROCONF_SERVICE_TYPE,
-    ZEROCONF_TIMEOUT,
-    RemotePowerModes,
-    RemoteUpdateType,
-)
+from .const import (AUTH_APIKEY_NAME, AUTH_USERNAME, SIMULATOR_MAC_ADDRESS,
+                    SYSTEM_COMMANDS, ZEROCONF_SERVICE_TYPE, ZEROCONF_TIMEOUT,
+                    RemotePowerModes, RemoteUpdateType)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -126,12 +119,16 @@ class Remote:
         self._wakeup_sensitivity = 0
         self._sleep_timeout = 0
         self._update_in_progress = False
+        self._update_percent = 0
+        self._download_percent = 0
         self._next_update_check_date = ""
         self._sw_version = ""
+        self._check_for_updates = False
         self._automatic_updates = False
         self._available_update = []
         self._latest_sw_version = ""
         self._release_notes_url = ""
+        self._release_notes = ""
         self._online = True
         self._memory_total = 0
         self._memory_available = 0
@@ -291,6 +288,16 @@ class Remote:
         return self._update_in_progress
 
     @property
+    def update_percent(self):
+        """Remote Update percentage."""
+        return self._update_percent
+
+    @property
+    def download_percent(self):
+        """Remote download percentage."""
+        return self._download_percent
+
+    @property
     def next_update_check_date(self):
         """Remote Next Update Check Date."""
         return self._next_update_check_date
@@ -299,6 +306,11 @@ class Remote:
     def automatic_updates(self):
         """Does remote have automatic updates turned on."""
         return self._automatic_updates
+
+    @property
+    def check_for_updates(self):
+        """Does remote automatically check for updates."""
+        return self._check_for_updates
 
     @property
     def available_update(self):
@@ -314,6 +326,11 @@ class Remote:
     def release_notes_url(self):
         """Release notes url."""
         return self._release_notes_url
+
+    @property
+    def release_notes(self):
+        """Release notes."""
+        return self._release_notes
 
     @property
     def cpu_load(self):
@@ -529,9 +546,7 @@ class Remote:
             for activity in await response.json():
                 new_activity = Activity(activity=activity, remote=self)
                 self.activities.append(new_activity)
-                response2 = await session.get(
-                    self.url("activities/" + new_activity._id)
-                )
+                response2 = await session.get(self.url("activities/" + new_activity.id))
                 data = await response2.json()
                 try:
                     self.update_activity_entities(
@@ -539,6 +554,35 @@ class Remote:
                     )
                 except (KeyError, IndexError):
                     pass
+
+                button_mapping = await session.get(
+                    self.url("activities/" + new_activity.id + "/buttons")
+                )
+
+                for button in await button_mapping.json():
+                    try:
+                        short_press = button.get("short_press")
+                    except Exception:
+                        continue
+                    match button.get("button"):
+                        case "VOLUME_UP":
+                            new_activity._volume_up_command = short_press
+                        case "VOLUME_DOWN":
+                            new_activity._volume_down_command = short_press
+                        case "MUTE":
+                            new_activity._volume_mute_command = short_press
+                        case "PREV":
+                            new_activity._prev_track_command = short_press
+                        case "NEXT":
+                            new_activity._next_track_command = short_press
+                        case "PLAY":
+                            new_activity._play_pause_command = short_press
+                        case "POWER":
+                            new_activity._power_command = short_press
+                        case "STOP":  # Remote 3
+                            new_activity._stop_command = short_press
+                        case _:
+                            pass
             return await response.json()
 
     async def get_activities_state(self):
@@ -787,6 +831,18 @@ class Remote:
             response = await response.json()
             return True
 
+    async def get_remote_update_settings(self) -> str:
+        """Get remote update settings"""
+        async with (
+            self.client() as session,
+            session.get(self.url("cfg/software_update")) as response,
+        ):
+            await self.raise_on_error(response)
+            settings = await response.json()
+            self._check_for_updates = settings.get("check_for_updates")
+            self._automatic_updates = settings.get("auto_update")
+            return settings
+
     async def get_remote_update_information(self) -> bool:
         """Get remote update information."""
         if self._is_simulator:
@@ -798,9 +854,8 @@ class Remote:
             await self.raise_on_error(response)
             information = await response.json()
             self._update_in_progress = information["update_in_progress"]
-            # self._next_update_check_date = information["next_check_date"]
             self._sw_version = information["installed_version"]
-            self._automatic_updates = information["update_check_enabled"]
+            download_status = ""
             if "available" in information:
                 self._available_update = information["available"]
                 for update in self._available_update:
@@ -811,11 +866,21 @@ class Remote:
                         ):
                             self._release_notes_url = update.get("release_notes_url")
                             self._latest_sw_version = update.get("version")
+                            self._release_notes = update.get("description").get("en")
+                            download_status = update.get("download")
                     else:
                         self._latest_sw_version = self._sw_version
             else:
                 self._latest_sw_version = self._sw_version
-            return information
+
+            if download_status in ("PENDING", "ERROR"):
+                try:
+                    # When download status is pending, the first request to system/update
+                    # will request the download of the latest firmware but will not install
+                    response = await self.update_remote(download_only=True)
+                except HTTPError:
+                    pass
+                return information
 
     async def get_remote_force_update_information(self) -> bool:
         """Force a remote firmware update check."""
@@ -826,33 +891,68 @@ class Remote:
             await self.raise_on_error(response)
             information = await response.json()
             self._update_in_progress = information["update_in_progress"]
-            # self._next_update_check_date = information["next_check_date"]
             self._sw_version = information["installed_version"]
-            self._automatic_updates = information["update_check_enabled"]
+            download_status = ""
             if "available" in information:
                 self._available_update = information["available"]
+                for update in self._available_update:
+                    if update.get("channel") in ["STABLE", "TESTING"]:
+                        if (
+                            self._latest_sw_version == ""
+                            or self._latest_sw_version < update.get("version")
+                        ):
+                            self._release_notes_url = update.get("release_notes_url")
+                            self._latest_sw_version = update.get("version")
+                            self._release_notes = update.get("description").get("en")
+                            download_status = update.get("download")
+                    else:
+                        self._latest_sw_version = self._sw_version
+            else:
+                self._latest_sw_version = self._sw_version
+
+            if download_status in ("PENDING", "ERROR"):
+                try:
+                    # When download status is pending, the first request to system/update
+                    # will request the download of the latest firmware but will not install
+                    response = await self.update_remote(download_only=True)
+                except HTTPError:
+                    pass
             return information
 
-    async def update_remote(self) -> str:
+    async def update_remote(self, download_only: bool = False) -> str:
         """Update Remote."""
-        # WIP: Starts the latest firmware update."
+        # If we only want to download the firmware, check the status.
+        # If it's not pending or error, bail so we don't accidentally
+        # invoke an install
+        if download_only is True:
+            download_status = await self.get_update_status()
+            if download_status.get("state") not in ("PENDING", "ERROR"):
+                return
+
         async with (
             self.client() as session,
             session.post(self.url("system/update/latest")) as response,
         ):
             await self.raise_on_error(response)
             information = await response.json()
+            if information.get("state") == "DOWNLOAD":
+                self._update_in_progress = False
+
+            if information.get("state") == "START":
+                self._update_in_progress = True
             return information
 
     async def get_update_status(self) -> str:
         """Update remote status."""
         # WIP: Gets Update Status -- Only supports latest."
+        self._download_percent = 0
         async with (
             self.client() as session,
             session.get(self.url("system/update/latest")) as response,
         ):
             await self.raise_on_error(response)
             information = await response.json()
+            self._download_percent = information.get("download_percent")
             return information
 
     async def get_activity_state(self, entity_id) -> str:
@@ -1032,6 +1132,48 @@ class Remote:
                 self._is_charging = data["msg_data"]["power_supply"]
                 self._last_update_type = RemoteUpdateType.BATTERY
                 return
+            if data["msg"] == "software_update":
+                _LOGGER.debug("Unfoldded circle remote software update")
+                total_steps = 0
+                update_state = "INITIAL"
+                current_step = 0
+                if data.get("msg_data").get("event_type") == "START":
+                    self._update_in_progress = True
+                if data.get("msg_data").get("event_type") == "PROGRESS":
+                    # progress dict
+                    progress = data.get("msg_data").get("progress")
+                    update_state = progress.get("state")
+                    current_step = progress.get("current_step")
+                    total_steps = progress.get("total_steps")
+                    if total_steps:
+                        # Amount to add to total percent for multiple steps
+                        offset = round(100 / total_steps)
+                        # The offset as a percent to adjust step percentage by
+                        percentage_offset = offset / 100
+                    match update_state:
+                        case "START":
+                            self._update_percent = 0
+                        case "RUN":
+                            current_step = progress.get("current_step")
+                            self._update_percent = 0
+                        case "PROGRESS":
+                            step_offset = offset * (current_step - 1)
+                            self._update_percent = (
+                                percentage_offset * progress.get("current_percent")
+                            ) + step_offset
+                        case "SUCCESS":
+                            self._update_percent = 100
+                            self._sw_version = self.latest_sw_version
+                        case "DONE":
+                            self._update_in_progress = False
+                            self._update_percent = 0
+                            self._sw_version = self.latest_sw_version
+                        case _:
+                            self._update_in_progress = False
+                            self._update_percent = 0
+
+                self._last_update_type = RemoteUpdateType.SOFTWARE
+                return
             if data["msg"] == "configuration_change":
                 _LOGGER.debug("Unfoldded circle configuration change")
                 state = data.get("msg_data").get("new_state")
@@ -1050,6 +1192,13 @@ class Remote:
                     self._sound_effects_volume = state.get("sound").get("volume")
                 if state.get("haptic") is not None:
                     self._haptic_feedback = state.get("haptic").get("enabled")
+                if state.get("software_update") is not None:
+                    self._check_for_updates = state.get("software_update").get(
+                        "check_for_updates"
+                    )
+                    self._automatic_updates = state.get("software_update").get(
+                        "auto_update"
+                    )
                 if state.get("power_saving") is not None:
                     self._display_timeout = state.get("power_saving").get(
                         "display_off_sec"
@@ -1186,11 +1335,17 @@ class Remote:
             if entity_type != "media_player":
                 continue
             entity: UCMediaPlayerEntity = self.get_entity(included_entity["entity_id"])
+            entity._activity = activity
             if included_entity.get("name", None) is not None:
                 entity._name = next(iter(included_entity["name"].values()))
             if included_entity.get("entity_commands", None) is not None:
                 entity._entity_commands = included_entity["entity_commands"]
             activity.add_mediaplayer_entity(entity)
+
+    def get_activity_by_id(self, activity_id):
+        for activity in self.activities:
+            if activity_id == activity.id:
+                return activity
 
     async def init(self):
         """Retrieves all information about the remote."""
@@ -1207,9 +1362,11 @@ class Remote:
             self.get_remote_sound_settings(),
             self.get_remote_haptic_settings(),
             self.get_remote_power_saving_settings(),
+            self.get_remote_update_settings(),
             self.get_activities(),
             self.get_remote_codesets(),
             self.get_docks(),
+            self.get_remote_wifi_info(),
         )
         await group
 
@@ -1234,6 +1391,7 @@ class Remote:
             self.get_remote_sound_settings(),
             self.get_remote_haptic_settings(),
             self.get_remote_power_saving_settings(),
+            self.get_remote_update_settings(),
             self.get_activities_state(),
         )
         await group
@@ -1254,6 +1412,7 @@ class UCMediaPlayerEntity:
 
     def __init__(self, entity_id: str, remote: Remote) -> None:
         self._id = entity_id
+        self._activity = Activity
         self._remote = remote
         self._state = "OFF"
         self._name = entity_id
@@ -1267,6 +1426,7 @@ class UCMediaPlayerEntity:
         self._media_duration = 0
         self._media_position = 0
         self._muted = False
+        self._volume = 0.0
         self._media_image_url = None
         self._entity_commands: list[str] = []
         self._media_position_updated_at = None
@@ -1290,8 +1450,16 @@ class UCMediaPlayerEntity:
         return self._entity_commands
 
     @property
+    def id(self) -> str:
+        return self._id
+
+    @property
     def name(self) -> str:
         return self._name
+
+    @property
+    def activity(self):
+        return self._activity
 
     @property
     def state(self) -> str:
@@ -1343,6 +1511,10 @@ class UCMediaPlayerEntity:
         return self._muted
 
     @property
+    def volume(self) -> float:
+        return self._volume
+
+    @property
     def is_on(self) -> bool:
         if self._state != "OFF":
             return True
@@ -1353,6 +1525,10 @@ class UCMediaPlayerEntity:
         if attributes.get("state", None):
             self._state = attributes.get("state", None)
             attributes_changed["state"] = self._state
+            if (
+                self._state is None or self._state == "OFF"
+            ) and self.activity.state == "ON":
+                self._state = "ON"
         if attributes.get("media_image_url", None):
             self._media_image_url = attributes.get("media_image_url", None)
             attributes_changed["media_image_url"] = True
@@ -1365,12 +1541,6 @@ class UCMediaPlayerEntity:
         if attributes.get("media_duration", None):
             self._media_duration = attributes.get("media_duration", 0)
             attributes_changed["media_duration"] = self._media_duration
-            # When media changes, media_duration is sent but not media_position
-            # we assume new position to 0
-            # if attributes.get("media_position", None) is None:
-            #     self._media_position = 0
-            #     self._media_position_updated_at = utcnow()
-            #     attributes_changed["media_position"] = self._media_position
         if attributes.get("media_artist", None):
             self._media_artist = attributes.get("media_artist", None)
             attributes_changed["media_artist"] = self._media_artist
@@ -1382,24 +1552,30 @@ class UCMediaPlayerEntity:
             attributes_changed["media_title"] = self._media_title
         if attributes.get("media_position", None):
             self._media_position = attributes.get("media_position", 0)
-            self._media_position_updated_at = datetime.datetime.utcnow()
+            self._media_position_updated_at = datetime.datetime.now(datetime.UTC)
             attributes_changed["media_position"] = self._media_position
-        if attributes.get("muted", None):
-            self._muted = attributes.get("muted", None)
+        if attributes.get("muted", None) or attributes.get("muted", None) is False:
+            self._muted = attributes.get("muted")
             attributes_changed["muted"] = self._muted
         if attributes.get("media_type", None):
             self._media_type = attributes.get("media_type", None)
             attributes_changed["media_type"] = self._media_type
+        if attributes.get("volume", None):
+            self._volume = float(attributes.get("volume", None))
         _LOGGER.debug("UC2 attributes changed %s", attributes_changed)
         return attributes_changed
 
     async def turn_on(self) -> None:
         """Turn on the media player."""
-        body = {"entity_id": self._id, "cmd_id": "media_player.on"}
+        entity_id = self.id
+        body = {"entity_id": entity_id, "cmd_id": "media_player.on"}
+        if self.activity.power_command:
+            body = self.activity.power_command
+            entity_id = self.activity.power_command.get("entity_id")
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"), json=body
             ) as response,
         ):
             await self._remote.raise_on_error(response)
@@ -1407,11 +1583,15 @@ class UCMediaPlayerEntity:
 
     async def turn_off(self) -> None:
         """Turn off the media player."""
+        entity_id = self.id
         body = {"entity_id": self._id, "cmd_id": "media_player.off"}
+        if self.activity.power_command:
+            body = self.activity.power_command
+            entity_id = self.activity.power_command.get("entity_id")
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"), json=body
             ) as response,
         ):
             await self._remote.raise_on_error(response)
@@ -1431,95 +1611,153 @@ class UCMediaPlayerEntity:
             ) as response,
         ):
             await self._remote.raise_on_error(response)
+        self._current_source = source
 
     async def volume_up(self) -> None:
         """Raise volume of the media player."""
-        body = {"entity_id": self._id, "cmd_id": "media_player.volume_up"}
+        entity_id = self.id
+        body = {"entity_id": entity_id, "cmd_id": "media_player.volume_up"}
+        if self.activity.volume_up_command:
+            body = self.activity.volume_up_command
+            entity_id = self.activity.volume_up_command.get("entity_id")
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"), json=body
             ) as response,
         ):
             await self._remote.raise_on_error(response)
 
     async def volume_down(self) -> None:
         """Decrease the volume of the media player."""
-        body = {"entity_id": self._id, "cmd_id": "media_player.volume_down"}
+        entity_id = self.id
+        body = {"entity_id": entity_id, "cmd_id": "media_player.volume_down"}
+        if self.activity.volume_down_command:
+            body = self.activity.volume_down_command
+            entity_id = self.activity.volume_down_command.get("entity_id")
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"), json=body
             ) as response,
         ):
             await self._remote.raise_on_error(response)
 
     async def mute(self) -> None:
         """Mute the volume of the media player."""
-        body = {"entity_id": self._id, "cmd_id": "media_player.mute"}
+        entity_id = self.id
+        body = {"entity_id": entity_id, "cmd_id": "media_player.mute_toggle"}
+        if self.activity.volume_mute_command:
+            body = self.activity.volume_mute_command
+            entity_id = self.activity.volume_mute_command.get("entity_id")
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"), json=body
+            ) as response,
+        ):
+            await self._remote.raise_on_error(response)
+
+    async def volume_set(self, volume: int) -> None:
+        """Raise volume of the media player."""
+        int_volume = int(volume)
+        entity_id = self.id
+        body = {
+            "entity_id": entity_id,
+            "cmd_id": "media_player.volume",
+            "params": {"volume": int_volume},
+        }
+        if self.activity.volume_mute_command:
+            entity_id = self.activity.volume_mute_command.get("entity_id")
+            if "media_player." in entity_id:
+                body = {
+                    "entity_id": entity_id,
+                    "cmd_id": "media_player.volume",
+                    "params": {"volume": int_volume},
+                }
+        async with (
+            self._remote.client() as session,
+            session.put(
+                self._remote.url("entities/" + entity_id + "/command"), json=body
             ) as response,
         ):
             await self._remote.raise_on_error(response)
 
     async def play_pause(self) -> None:
         """Play pause the media player."""
-        body = {"entity_id": self._id, "cmd_id": "media_player.play_pause"}
+        entity_id = self.id
+        body = {"entity_id": entity_id, "cmd_id": "media_player.play_pause"}
+        if self.activity.play_pause_command:
+            body = self.activity.play_pause_command
+            entity_id = self.activity.play_pause_command.get("entity_id")
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
-            ) as response,
-        ):
-            await self._remote.raise_on_error(response)
-
-    async def stop(self) -> None:
-        """Stop the media player."""
-        body = {"entity_id": self._id, "cmd_id": "media_player.stop"}
-        async with (
-            self._remote.client() as session,
-            session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"), json=body
             ) as response,
         ):
             await self._remote.raise_on_error(response)
 
     async def next(self) -> None:
         """Next track/chapter of the media player."""
-        body = {"entity_id": self._id, "cmd_id": "media_player.next"}
+        entity_id = self.id
+        body = {"entity_id": entity_id, "cmd_id": "media_player.next"}
+        if self.activity.next_track_command:
+            body = self.activity.next_track_command
+            entity_id = self.activity.next_track_command.get("entity_id")
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"), json=body
             ) as response,
         ):
             await self._remote.raise_on_error(response)
 
     async def previous(self) -> None:
         """Previous track/chapter of the media player."""
-        body = {"entity_id": self._id, "cmd_id": "media_player.previous"}
+        entity_id = self.id
+        body = {"entity_id": entity_id, "cmd_id": "media_player.previous"}
+        if self.activity.prev_track_command:
+            body = self.activity.prev_track_command
+            entity_id = self.activity.prev_track_command.get("entity_id")
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"), json=body
+            ) as response,
+        ):
+            await self._remote.raise_on_error(response)
+
+    async def stop(self) -> None:
+        """Stop the media player."""
+        entity_id = self.id
+        body = {"entity_id": entity_id, "cmd_id": "media_player.stop"}
+        if self.activity.stop_command:
+            body = self.activity.stop_command
+            entity_id = self.activity.stop_command.get("entity_id")
+        async with (
+            self._remote.client() as session,
+            session.put(
+                self._remote.url("entities/" + entity_id + "/command"), json=body
             ) as response,
         ):
             await self._remote.raise_on_error(response)
 
     async def seek(self, position: float) -> None:
-        """Next track/chapter of the media player."""
+        """Skip to given media position of the media player."""
+        entity_id = self.id
         body = {
-            "entity_id": self._id,
+            "entity_id": entity_id,
             "cmd_id": "media_player.seek",
             "params": {"media_position": position},
         }
+        if self.activity.seek_command:
+            body = self.activity.seek_command
+            entity_id = self.activity.seek_command.get("entity_id")
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + self._id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"), json=body
             ) as response,
         ):
             await self._remote.raise_on_error(response)
@@ -1536,14 +1774,14 @@ class ActivityGroup:
         self.activities: list[Activity] = []
 
     @property
+    def id(self):
+        """id of the Activity."""
+        return self._id
+
+    @property
     def name(self):
         """Name of the Activity."""
         return self._name
-
-    @property
-    def id(self):
-        """ID of the Activity group."""
-        return self._id
 
     @property
     def state(self):
@@ -1579,6 +1817,15 @@ class Activity:
         self._remote = remote
         self._state = activity.get("attributes").get("state")
         self._mediaplayer_entities: list[UCMediaPlayerEntity] = []
+        self._next_track_command = None
+        self._prev_track_command = None
+        self._volume_up_command = None
+        self._volume_down_command = None
+        self._volume_mute_command = None
+        self._play_pause_command = None
+        self._power_command = None
+        self._seek_command = None
+        self._stop_command = None
 
     @property
     def name(self):
@@ -1599,6 +1846,56 @@ class Activity:
     def remote(self):
         """Remote Object."""
         return self._remote
+
+    @property
+    def next_track_command(self):
+        """Next Track Command"""
+        return self._next_track_command
+
+    @property
+    def prev_track_command(self):
+        """prev Track Command"""
+        return self._prev_track_command
+
+    @property
+    def volume_up_command(self):
+        """Volume Up Command"""
+        return self._volume_up_command
+
+    @property
+    def volume_down_command(self):
+        """Volume Down Command"""
+        return self._volume_down_command
+
+    @property
+    def volume_mute_command(self):
+        """Volume Mute Command"""
+        return self._volume_mute_command
+
+    @property
+    def play_pause_command(self):
+        """Play Pause Command"""
+        return self._play_pause_command
+
+    @property
+    def power_command(self):
+        """Power Command"""
+        return self._power_command
+
+    @property
+    def seek_command(self):
+        """Seek Command"""
+        return self._seek_command
+
+    @property
+    def stop_command(self):
+        """Stop Command"""
+        return self._stop_command
+
+    @property
+    def has_media_player_entities(self):
+        """Returns true if activity has media players"""
+        return len(self._mediaplayer_entities) > 0
 
     @property
     def mediaplayer_entities(self) -> list[UCMediaPlayerEntity]:
@@ -1637,13 +1934,38 @@ class Activity:
             await self._remote.raise_on_error(response)
             self._state = "OFF"
 
+    async def edit(self, options) -> None:
+        for attribute, value in options.items():
+            match attribute:
+                case "prevent_sleep":
+                    match value:
+                        case True:
+                            options = {"options": {"prevent_sleep": True}}
+
+                        case False:
+                            options = {"options": {"prevent_sleep": False}}
+                case _:
+                    pass
+
+        await self.update_activity(options)
+
     def is_on(self) -> bool:
         """Is Activity Running."""
         return self._state == "ON"
 
+    async def update_activity(self, options) -> None:
+        async with (
+            self._remote.client() as session,
+            session.patch(
+                self._remote.url("activities/" + self.id), json=options
+            ) as response,
+        ):
+            await self._remote.raise_on_error(response)
+            return await response.json()
+
     async def update(self) -> None:
         """Update activity state information."""
-        activity_info = await self._remote.get_activity(self._id)
+        activity_info = await self._remote.get_activity(self.id)
         self._state = activity_info["attributes"]["state"]
         try:
             included_entities = activity_info["options"]["included_entities"]

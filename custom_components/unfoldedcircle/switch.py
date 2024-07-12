@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 
+import voluptuous as vol
 from homeassistant.components.switch import (
     SwitchDeviceClass,
     SwitchEntity,
@@ -10,11 +11,18 @@ from homeassistant.components.switch import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_platform, service
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from pyUnfoldedCircleRemote.const import RemoteUpdateType
 
-from .const import CONF_ACTIVITIES_AS_SWITCHES, DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
+from .const import (
+    CONF_ACTIVITIES_AS_SWITCHES,
+    DOMAIN,
+    UNFOLDED_CIRCLE_COORDINATOR,
+    UPDATE_ACTIVITY_SERVICE,
+)
 from .coordinator import UnfoldedCircleRemoteCoordinator
 from .entity import UnfoldedCircleEntity
 
@@ -94,6 +102,8 @@ UNFOLDED_CIRCLE_SWITCH: tuple[UnfoldedCircleSwitchEntityDescription, ...] = (
     ),
 )
 
+ATTR_PREVENT_SLEEP = "prevent_sleep"
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -103,6 +113,7 @@ async def async_setup_entry(
     """Set up the Switch platform."""
     # Setup connection with devices
     coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
+    platform = entity_platform.async_get_current_platform()
 
     activities = []
     # Skip populating the array of activities in groups if the user requested that all
@@ -122,6 +133,36 @@ async def async_setup_entry(
     async_add_entities(
         UCRemoteConfigSwitch(coordinator, configSwitch)
         for configSwitch in UNFOLDED_CIRCLE_SWITCH
+    )
+
+    @service.verify_domain_control(hass, DOMAIN)
+    async def async_service_handle(service_call: ServiceCall) -> None:
+        """Handle dispatched services."""
+
+        assert platform is not None
+        entities = await platform.async_extract_from_service(service_call)
+
+        if not entities:
+            return
+
+        for entity in entities:
+            assert isinstance(entity, UCRemoteSwitch)
+
+        if service_call.service == UPDATE_ACTIVITY_SERVICE:
+            coordinator = hass.data[DOMAIN][config_entry.entry_id][
+                UNFOLDED_CIRCLE_COORDINATOR
+            ]
+            await coordinator.api.get_activity_by_id(entity.unique_id).edit(
+                service_call.data
+            )
+            test = 1 + 1
+
+    prevent_sleep_schema = cv.make_entity_service_schema(
+        {vol.Optional(ATTR_PREVENT_SLEEP, default=False): cv.boolean}
+    )
+
+    hass.services.async_register(
+        DOMAIN, UPDATE_ACTIVITY_SERVICE, async_service_handle, prevent_sleep_schema
     )
 
 
@@ -147,17 +188,17 @@ class UCRemoteSwitch(UnfoldedCircleEntity, SwitchEntity):
     @property
     def is_on(self) -> bool | None:
         """Return true if switch is on."""
-        return self._state in ("ON", "RUNNING")
+        return self.switch._state in ("ON", "RUNNING")
 
     async def async_turn_on(self, **kwargs) -> None:
         """Instruct the switch to turn on."""
         await self.switch.turn_on()
-        await self.coordinator.async_request_refresh()
+        self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs) -> None:
         """Instruct the switch to turn off."""
         await self.switch.turn_off()
-        await self.coordinator.async_request_refresh()
+        self.async_write_ha_state()
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -173,7 +214,7 @@ class UCRemoteSwitch(UnfoldedCircleEntity, SwitchEntity):
 
 
 class UCRemoteConfigSwitch(UnfoldedCircleEntity, SwitchEntity):
-    """Class representing an unfolded circle activity."""
+    """Class representing an unfolded circle setting."""
 
     entity_description = UNFOLDED_CIRCLE_SWITCH
 

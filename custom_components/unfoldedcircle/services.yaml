@@ -1,0 +1,14 @@
+update_activity:
+  name: Update Activity Settings
+  description: Update the selected activity's settings
+  target:
+    entity:
+      - integration: unfoldedcircle
+        domain: switch
+  fields:
+    prevent_sleep:
+      name: Prevent Sleep
+      description: Toggle on to prevent the remote from sleeping when the activity is active.
+      required: false
+      selector:
+        boolean:

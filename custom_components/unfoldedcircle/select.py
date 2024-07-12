@@ -75,10 +75,14 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
             for activity in self.activity_group.activities:
                 if activity.is_on():
                     await activity.turn_off()
+            self._attr_current_option = option
+            self.async_write_ha_state()
             return
         for activity in self.activity_group.activities:
             if activity.name == option:
                 await activity.turn_on()
+                self._attr_current_option = option
+                self.async_write_ha_state()
 
     @property
     def options(self) -> list[str]:
