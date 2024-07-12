@@ -11,6 +11,12 @@ from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 
 _LOGGER = logging.getLogger(__name__)
 
+INFO_SCHEMA = {
+    vol.Required("type"): f"{DOMAIN}/info",
+    vol.Optional("message", description="Any String"): str,
+    vol.Optional("data", description="Any Dict"): dict[any, any],
+}
+
 
 class UCClientInterface:
     """Unfolded Circle interface to handle remote requests"""
@@ -26,12 +32,14 @@ class UCClientInterface:
 def async_register_websocket_commands(hass: HomeAssistant) -> None:
     """Register network websocket commands."""
     websocket_api.async_register_command(hass, ws_get_info)
-    websocket_api.async_register_command(hass, ws_subscribe_event)
+    websocket_api.async_register_command(
+        hass,
+        ws_subscribe_event,
+    )
     websocket_api.async_register_command(hass, ws_unsubscribe_event)
 
 
-@websocket_api.require_admin
-@websocket_api.websocket_command({vol.Required("type"): "uc/info"})
+@websocket_api.websocket_command(INFO_SCHEMA)
 @callback
 def ws_get_info(
     hass: HomeAssistant,
@@ -43,18 +51,19 @@ def ws_get_info(
     _LOGGER.debug("Unfolded Circle connect request %s", msg)
     connection.send_message(
         {
-            "id": msg["id"],
+            "id": msg.get("id"),
             "type": "result",
             "success": True,
             "result": {"state": "CONNECTED", "cat": "DEVICE", "version": "1.0.0"},
+            "message": msg.get("message"),
+            "data": msg.get("data"),
         }
     )
 
 
-@websocket_api.require_admin
 @websocket_api.websocket_command(
     {
-        vol.Required("type"): "uc/event/unsubscribe",
+        vol.Required("type"): f"{DOMAIN}/event/unsubscribe",
     }
 )
 @callback
@@ -83,10 +92,9 @@ def ws_unsubscribe_event(
     connection.send_result(msg["id"])
 
 
-@websocket_api.require_admin
 @websocket_api.websocket_command(
     {
-        vol.Required("type"): "uc/event/subscribed_entities",
+        vol.Required("type"): f"{DOMAIN}/event/subscribed_entities",
         vol.Optional("data"): dict[any, any],
     }
 )
