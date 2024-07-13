@@ -13,9 +13,16 @@ from urllib.parse import urljoin, urlparse
 import aiohttp
 import zeroconf
 
-from .const import (AUTH_APIKEY_NAME, AUTH_USERNAME, SIMULATOR_MAC_ADDRESS,
-                    SYSTEM_COMMANDS, ZEROCONF_SERVICE_TYPE, ZEROCONF_TIMEOUT,
-                    RemotePowerModes, RemoteUpdateType)
+from .const import (
+    AUTH_APIKEY_NAME,
+    AUTH_USERNAME,
+    SIMULATOR_MAC_ADDRESS,
+    SYSTEM_COMMANDS,
+    ZEROCONF_SERVICE_TYPE,
+    ZEROCONF_TIMEOUT,
+    RemotePowerModes,
+    RemoteUpdateType,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,6 +43,15 @@ class AuthenticationError(BaseException):
 
 class SystemCommandNotFound(BaseException):
     """Raised when an invalid system command is supplied."""
+
+    def __init__(self, message) -> None:
+        """Raise command no found error."""
+        self.message = message
+        super().__init__(self.message)
+
+
+class ExternalSystemNotRegistered(BaseException):
+    """Raised when an unregistered external system is supplied."""
 
     def __init__(self, message) -> None:
         """Raise command no found error."""
@@ -480,6 +496,136 @@ class Remote:
             session.delete(self.url("auth/api_keys/" + api_key_id)) as response,
         ):
             await self.raise_on_error(response)
+
+    async def get_registered_external_systems(self) -> str:
+        """Returns an array of dict[system,name] representing
+        the registered external systems on the remote"""
+        async with (
+            self.client() as session,
+            session.get(
+                self.url("auth/external"),
+            ) as response,
+        ):
+            await self.raise_on_error(response)
+            return await response.json()
+
+    async def get_tokens_for_external_system(
+        self,
+        system: str,
+    ) -> str:
+        """Lists available token information for the given system"""
+
+        if self.is_external_system_valid(system):
+            async with (
+                self.client() as session,
+                session.get(self.url(f"auth/external/{system}")) as response,
+            ):
+                await self.raise_on_error(response)
+                return await response.json()
+        raise ExternalSystemNotRegistered
+
+    async def set_token_for_external_system(
+        self,
+        system: str,
+        token_id: str,
+        token: str,
+        name: str = "Home Assistant Integration",
+        description: str = None,
+        url: str = None,
+        data: str = None,
+    ) -> str:
+        """This method allows the external system to automatically provide the access
+        token for the corresponding R2 integration instead of forcing the user to type it in.
+        If the token name already exists for the given system, error 422 is returned."""
+
+        if await self.is_external_system_valid(system):
+            body = {
+                "token_id": f"{token_id}",
+                "name": f"{name}",
+                "token": f"{token}",
+                "description": f"{description}",
+                "url": f"{url}",
+                "data": f"{data}",
+            }
+            async with (
+                self.client() as session,
+                session.post(
+                    self.url(f"auth/external/{system}"), json=body
+                ) as response,
+            ):
+                content = await response.json()
+                if response.status == 422:
+                    return await self.update_token_for_external_system(
+                        system=system,
+                        token_id=token_id,
+                        token=token,
+                        name=name,
+                        description=description,
+                        url=url,
+                        data=data,
+                    )
+                    return
+                if response.ok:
+                    return content
+        raise ExternalSystemNotRegistered
+
+    async def update_token_for_external_system(
+        self,
+        system: str,
+        token_id: str,
+        token: str,
+        name: str = "Home Assistant Integration",
+        description: str = None,
+        url: str = None,
+        data: str = None,
+    ) -> str:
+        """This methods allows an already provided token of an external system to be updated.
+        The token is identified by the system name and the token identification."""
+
+        if await self.is_external_system_valid(system):
+            body = {
+                "token_id": f"{token_id}",
+                "name": f"{name}",
+                "token": f"{token}",
+                "description": f"{description}",
+                "url": f"{url}",
+                "data": f"{data}",
+            }
+            async with (
+                self.client() as session,
+                session.put(
+                    self.url(f"auth/external/{system}/{token_id}"), json=body
+                ) as response,
+            ):
+                await self.raise_on_error(response)
+                return await response.json()
+        raise ExternalSystemNotRegistered
+
+    async def delete_token_for_external_system(
+        self,
+        system: str,
+        token_id: str,
+    ) -> str:
+        """Deletes supplied token for the given system"""
+
+        if await self.is_external_system_valid(system):
+            async with (
+                self.client() as session,
+                session.delete(
+                    self.url(f"auth/external/{system}/{token_id}")
+                ) as response,
+            ):
+                await self.raise_on_error(response)
+                return await response.json()
+        raise ExternalSystemNotRegistered
+
+    async def is_external_system_valid(self, system) -> bool:
+        """Checks against the registered external systems on the remote
+        to validate the supplied system name"""
+        registered_systems = await self.get_registered_external_systems()
+        for rs in registered_systems:
+            if system == rs.get("system"):
+                return True
 
     @staticmethod
     async def get_version_information(base_url) -> str:
