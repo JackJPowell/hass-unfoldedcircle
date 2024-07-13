@@ -2,16 +2,19 @@
 
 import logging
 import re
+from datetime import timedelta
 from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN
 from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.config_entries import ConfigEntry, ConfigFlow
 from homeassistant.const import CONF_HOST, CONF_MAC, CONF_NAME, CONF_PORT
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.network import get_url
 from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
 from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
@@ -34,7 +37,33 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 STEP_ZEROCONF_DATA_SCHEMA = vol.Schema({vol.Required("pin"): str})
 
 
-async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]:
+async def generateToken(hass: HomeAssistant, name):
+    """Generate a token for Unfolded Circle to use with HA API"""
+    user = await hass.auth.async_get_owner()
+    try:
+        token = await hass.auth.async_create_refresh_token(
+            user=user,
+            client_name=name,
+            client_icon="",
+            token_type=TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN,
+            access_token_expiration=timedelta(days=3652),
+        )
+    except ValueError:
+        _LOGGER.warning("There is already a long lived token with %s name", name)
+        return None
+
+    return hass.auth.async_create_access_token(token)
+
+
+async def removeToken(hass: HomeAssistant, token):
+    _LOGGER.debug("Removing refresh token")
+    refresh_token = await hass.auth.async_get_refresh_token_by_token(token)
+    await hass.auth.async_remove_refresh_token(refresh_token)
+
+
+async def validate_input(
+    hass: HomeAssistant, data: dict[str, Any], host: str = ""
+) -> dict[str, Any]:
     """Validate the user input allows us to connect.
 
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
@@ -55,10 +84,21 @@ async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]
         if key.get("name") == AUTH_APIKEY_NAME:
             await remote.revoke_api_key()
 
+    url = get_url(hass)
     key = await remote.create_api_key()
     await remote.get_remote_information()
     await remote.get_remote_configuration()
     await remote.get_remote_wifi_info()
+    token = await generateToken(hass, remote.name)
+    token_id = await remote.set_token_for_external_system(
+        "homeassistant",
+        f"{remote.name} id",
+        token,
+        "Home Assistant",
+        "Home Assistant Long Lived Access Token",
+        url,
+        "data",
+    )
 
     if not key:
         raise InvalidAuth("Unable to login: failed to create API key")
@@ -75,6 +115,8 @@ async def validate_input(data: dict[str, Any], host: str = "") -> dict[str, Any]
         "pin": data["pin"],
         "mac_address": remote.mac_address,
         "ip_address": remote.ip_address,
+        "token": token,
+        "token_id": token_id,
         CONF_SERIAL: remote.serial_number,
         CONF_MAC: mac_address,
     }
@@ -183,7 +225,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             )
         try:
             host = f"{self.discovery_info[CONF_HOST]}:{self.discovery_info[CONF_PORT]}"
-            info = await validate_input(user_input, host)
+            info = await validate_input(self.hass, user_input, host)
             self.discovery_info.update({CONF_MAC: info[CONF_MAC]})
             # Check unique ID here based on serial number
             await self._async_set_unique_id_and_abort_if_already_configured(
@@ -217,7 +259,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             )
 
         try:
-            info = await validate_input(user_input, "")
+            info = await validate_input(self.hass, user_input, "")
             self.discovery_info.update({CONF_MAC: info[CONF_MAC]})
             # Check unique ID here based on serial number
             await self._async_set_unique_id_and_abort_if_already_configured(
@@ -278,7 +320,9 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 self.reauth_entry.unique_id, raise_on_progress=False
             )
             _LOGGER.debug("RC2 existing_entry %s", existing_entry)
-            info = await validate_input(user_input, self.reauth_entry.data[CONF_HOST])
+            info = await validate_input(
+                self.hass, user_input, self.reauth_entry.data[CONF_HOST]
+            )
         except CannotConnect:
             _LOGGER.exception("Cannot Connect")
             errors["base"] = "Cannot Connect"
