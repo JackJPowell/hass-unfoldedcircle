@@ -111,6 +111,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(update_listener))
     await zeroconf.async_get_async_instance(hass)
     await coordinator.init_websocket()
+    # await auth_tests(hass, remote_api)
     return True
 
 
