@@ -36,7 +36,9 @@
       "init": {
         "data": {
           "host": "Host",
-          "pin": "PIN Code"
+          "pin": "PIN Code",
+          "add_entities": "Add entities",
+          "remove_entities": "Remove entities"
         }
       },
       "media_player": {

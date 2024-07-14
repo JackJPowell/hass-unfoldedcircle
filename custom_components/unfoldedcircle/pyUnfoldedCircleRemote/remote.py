@@ -21,7 +21,7 @@ from .const import (
     ZEROCONF_SERVICE_TYPE,
     ZEROCONF_TIMEOUT,
     RemotePowerModes,
-    RemoteUpdateType,
+    RemoteUpdateType, DEFAULT_INTEGRATION_ID,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -159,6 +159,7 @@ class Remote:
         self._ir_codesets = []
         self._last_update_type = RemoteUpdateType.NONE
         self._is_simulator = None
+        self._integration_id = DEFAULT_INTEGRATION_ID
 
     @property
     def name(self):
@@ -383,7 +384,7 @@ class Remote:
         """Validate passed in URL and attempts to correct api endpoint if path isn't supplied."""
         if re.search("^http.*", uri) is None:
             uri = (
-                "http://" + uri
+                    "http://" + uri
             )  # Normalize to absolute URLs so urlparse will parse the way we want
         parsed_url = urlparse(uri)
         # valdation = set(uri)
@@ -396,7 +397,7 @@ class Remote:
             uri = uri + "/api/"
             return uri
         if (
-            parsed_url.path[-1] != "/"
+                parsed_url.path[-1] != "/"
         ):  # User supplied an endpoint, make sure it has a trailing slash
             uri = uri + "/"
         return uri
@@ -510,8 +511,8 @@ class Remote:
             return await response.json()
 
     async def get_tokens_for_external_system(
-        self,
-        system: str,
+            self,
+            system: str,
     ) -> str:
         """Lists available token information for the given system"""
 
@@ -525,14 +526,14 @@ class Remote:
         raise ExternalSystemNotRegistered
 
     async def set_token_for_external_system(
-        self,
-        system: str,
-        token_id: str,
-        token: str,
-        name: str = "Home Assistant Integration",
-        description: str = None,
-        url: str = None,
-        data: str = None,
+            self,
+            system: str,
+            token_id: str,
+            token: str,
+            name: str = "Home Assistant Integration",
+            description: str = None,
+            url: str = None,
+            data: str = None,
     ) -> str:
         """This method allows the external system to automatically provide the access
         token for the corresponding R2 integration instead of forcing the user to type it in.
@@ -570,14 +571,14 @@ class Remote:
         raise ExternalSystemNotRegistered
 
     async def update_token_for_external_system(
-        self,
-        system: str,
-        token_id: str,
-        token: str,
-        name: str = "Home Assistant Integration",
-        description: str = None,
-        url: str = None,
-        data: str = None,
+            self,
+            system: str,
+            token_id: str,
+            token: str,
+            name: str = "Home Assistant Integration",
+            description: str = None,
+            url: str = None,
+            data: str = None,
     ) -> str:
         """This methods allows an already provided token of an external system to be updated.
         The token is identified by the system name and the token identification."""
@@ -602,9 +603,9 @@ class Remote:
         raise ExternalSystemNotRegistered
 
     async def delete_token_for_external_system(
-        self,
-        system: str,
-        token_id: str,
+            self,
+            system: str,
+            token_id: str,
     ) -> str:
         """Deletes supplied token for the given system"""
 
@@ -682,6 +683,28 @@ class Remote:
             self._name = information.get("device").get("name")
             return information
 
+    async def get_remote_subscribed_entities(self) -> list[dict[str, any]]:
+        #TODO this method aims internal HASS integration and won't work with external HASS integration
+        # is it a problem ?
+        async with self.client() as session, session.get(
+                self.url(f"entities?intg_ids={self._integration_id}")) as response:
+            await self.raise_on_error(response)
+            entities = await response.json()
+            return entities
+
+    async def add_remote_entities(self, entity_ids: list[str]) -> bool:
+        async with self.client() as session, session.post(
+                self.url(f"/intg/instances/{self._integration_id}/entities"), entity_ids) as response:
+            await self.raise_on_error(response)
+            return True
+
+    async def remove_remote_entities(self, entity_ids: list[str]) -> bool:
+        async with self.client() as session, session.request(method="DELETE",
+                                                             url=self.url("/entities"),
+                                                             content={"entity_ids": entity_ids}) as response:
+            await self.raise_on_error(response)
+            return True
+
     async def get_activities(self):
         """Return activities from Unfolded Circle Remote."""
         async with (
@@ -756,7 +779,7 @@ class Remote:
                 # _LOGGER.debug("get_activity_groups %s", json.dumps(activity_group_data, indent=2))
                 name = "DEFAULT"
                 if activity_group_data.get("name", None) and isinstance(
-                    activity_group_data.get("name", None), dict
+                        activity_group_data.get("name", None), dict
                 ):
                     name = next(iter(activity_group_data.get("name").values()))
                 activity_group = ActivityGroup(
@@ -801,15 +824,15 @@ class Remote:
             status = await response.json()
             self._memory_total = status.get("memory").get("total_memory") / 1048576
             self._memory_available = (
-                status.get("memory").get("available_memory") / 1048576
+                    status.get("memory").get("available_memory") / 1048576
             )
 
             self._storage_total = (
-                status.get("filesystem").get("user_data").get("used")
-                + status.get("filesystem").get("user_data").get("available") / 1048576
+                    status.get("filesystem").get("user_data").get("used")
+                    + status.get("filesystem").get("user_data").get("available") / 1048576
             )
             self._storage_available = (
-                status.get("filesystem").get("user_data").get("available") / 1048576
+                    status.get("filesystem").get("user_data").get("available") / 1048576
             )
 
             self._cpu_load = status.get("load_avg")
@@ -840,7 +863,7 @@ class Remote:
             return settings
 
     async def patch_remote_display_settings(
-        self, auto_brightness=None, brightness=None
+            self, auto_brightness=None, brightness=None
     ) -> bool:
         """Update remote display settings"""
         display_settings = await self.get_remote_display_settings()
@@ -870,7 +893,7 @@ class Remote:
             return settings
 
     async def patch_remote_button_settings(
-        self, auto_brightness=None, brightness=None
+            self, auto_brightness=None, brightness=None
     ) -> bool:
         """Update remote button settings"""
         button_settings = await self.get_remote_button_settings()
@@ -900,7 +923,7 @@ class Remote:
             return settings
 
     async def patch_remote_sound_settings(
-        self, sound_effects=None, sound_effects_volume=None
+            self, sound_effects=None, sound_effects_volume=None
     ) -> bool:
         """Update remote sound settings"""
         sound_settings = await self.get_remote_sound_settings()
@@ -956,7 +979,7 @@ class Remote:
             return settings
 
     async def patch_remote_power_saving_settings(
-        self, display_timeout=None, wakeup_sensitivity=None, sleep_timeout=None
+            self, display_timeout=None, wakeup_sensitivity=None, sleep_timeout=None
     ) -> bool:
         """Update remote power saving settings"""
         power_saving_settings = await self.get_remote_power_saving_settings()
@@ -1007,8 +1030,8 @@ class Remote:
                 for update in self._available_update:
                     if update.get("channel") in ["STABLE", "TESTING"]:
                         if (
-                            self._latest_sw_version == ""
-                            or self._latest_sw_version < update.get("version")
+                                self._latest_sw_version == ""
+                                or self._latest_sw_version < update.get("version")
                         ):
                             self._release_notes_url = update.get("release_notes_url")
                             self._latest_sw_version = update.get("version")
@@ -1044,8 +1067,8 @@ class Remote:
                 for update in self._available_update:
                     if update.get("channel") in ["STABLE", "TESTING"]:
                         if (
-                            self._latest_sw_version == ""
-                            or self._latest_sw_version < update.get("version")
+                                self._latest_sw_version == ""
+                                or self._latest_sw_version < update.get("version")
                         ):
                             self._release_notes_url = update.get("release_notes_url")
                             self._latest_sw_version = update.get("version")
@@ -1210,7 +1233,7 @@ class Remote:
             return self._docks
 
     async def send_remote_command(
-        self, device="", command="", repeat=0, **kwargs
+            self, device="", command="", repeat=0, **kwargs
     ) -> bool:
         """Send a remote command to the dock kwargs: code,format,dock,port."""
         body_port = {}
@@ -1305,8 +1328,8 @@ class Remote:
                         case "PROGRESS":
                             step_offset = offset * (current_step - 1)
                             self._update_percent = (
-                                percentage_offset * progress.get("current_percent")
-                            ) + step_offset
+                                                           percentage_offset * progress.get("current_percent")
+                                                   ) + step_offset
                         case "SUCCESS":
                             self._update_percent = 100
                             self._sw_version = self.latest_sw_version
@@ -1363,8 +1386,8 @@ class Remote:
         try:
             # Extract media player entities for future use
             if (
-                data["msg_data"]["entity_type"] == "media_player"
-                and data["msg_data"]["new_state"]["attributes"]
+                    data["msg_data"]["entity_type"] == "media_player"
+                    and data["msg_data"]["new_state"]["attributes"]
             ):
                 attributes = data["msg_data"]["new_state"]["attributes"]
                 entity_id = data["msg_data"]["entity_id"]
@@ -1385,16 +1408,16 @@ class Remote:
             # TODO : not sure this will happen like that all the time :
             #  ["msg_data"]["new_state"]["attributes"]["step"]["command"] = { "cmd_id": "media_player.on", "entity_id": "<media player entity id>"...}
             if (
-                data["msg_data"]["entity_type"] == "activity"
-                and data["msg_data"]["new_state"]["attributes"]["state"] == "RUNNING"
-                and data["msg_data"]["new_state"]["attributes"]["step"]["entity"][
-                    "type"
-                ]
-                == "media_player"
-                and data["msg_data"]["new_state"]["attributes"]["step"]["command"][
-                    "cmd_id"
-                ]
-                == "media_player.on"
+                    data["msg_data"]["entity_type"] == "activity"
+                    and data["msg_data"]["new_state"]["attributes"]["state"] == "RUNNING"
+                    and data["msg_data"]["new_state"]["attributes"]["step"]["entity"][
+                "type"
+            ]
+                    == "media_player"
+                    and data["msg_data"]["new_state"]["attributes"]["step"]["command"][
+                "cmd_id"
+            ]
+                    == "media_player.on"
             ):
                 _LOGGER.debug(
                     "Unfoldded circle remote update link between activity and entities"
@@ -1416,8 +1439,8 @@ class Remote:
         try:
             # Activity On or Off
             if data["msg_data"]["entity_type"] == "activity" and (
-                data["msg_data"]["new_state"]["attributes"]["state"] == "ON"
-                or data["msg_data"]["new_state"]["attributes"]["state"] == "OFF"
+                    data["msg_data"]["new_state"]["attributes"]["state"] == "ON"
+                    or data["msg_data"]["new_state"]["attributes"]["state"] == "OFF"
             ):
                 _LOGGER.debug("Unfoldded circle remote update activity")
                 new_state = data["msg_data"]["new_state"]["attributes"]["state"]
@@ -1440,8 +1463,8 @@ class Remote:
                         group_state = "OFF"
                         for activity in self.activities:
                             if (
-                                activity_group.is_activity_in_group(activity._id)
-                                and activity.is_on()
+                                    activity_group.is_activity_in_group(activity._id)
+                                    and activity.is_on()
                             ):
                                 group_state = "ON"
                                 break
@@ -1672,7 +1695,7 @@ class UCMediaPlayerEntity:
             self._state = attributes.get("state", None)
             attributes_changed["state"] = self._state
             if (
-                self._state is None or self._state == "OFF"
+                    self._state is None or self._state == "OFF"
             ) and self.activity.state == "ON":
                 self._state = "ON"
         if attributes.get("media_image_url", None):

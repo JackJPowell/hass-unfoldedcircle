@@ -16,8 +16,8 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.network import get_url
 from homeassistant.helpers.selector import selector
-from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
-from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
+from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
+from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 from .const import (
     CONF_ACTIVITIES_AS_SWITCHES,
@@ -275,31 +275,45 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.exception("Unexpected exception")
             errors["base"] = "unknown"
         else:
-            # 2 possibilities : open remote's page in configuration entities page of HA integration or handle it here
-            # Option 1 : remote's page
-            # await self.async_open_remote_page()
-            # return self.async_create_entry(title=info["title"], data=info)
-            # Option 2 : handle entities selection here
-            #TODO not sure this is a good idea to add a domain selection before (complex)
-            #TODO 2 Feed the default entities list with the subscribed entities
-            # through /api/intg/drivers/hass : HA integration should return the list of subscribed entities
-            # subscribed_entities = await remote.get_subscribed_entities()
-            # then put subscribed_entities in default field below
-
-            self._data = info
-            data_schema = vol.Schema({
-                "entities": selector({"entity": {
-                    "filter": [{
-                        "domain": self._filtered_domains
-                    }],
-                    "default": ["media_player.ampli_sony"],
-                    "multiple": True
-                }
+            # TODO 2 possibilities : open remote's page in configuration entities page of HA integration or handle it here
+            #  Option 1 : remote's page
+            #  await self.async_open_remote_page()
+            #  return self.async_create_entry(title=info["title"], data=info)
+            #  Option 2 : handle entities selection here like following code
+            try:
+                self._data = info
+                subscribed_entities = await self._remote.get_remote_subscribed_entities()
+                entity_ids = []
+                for entity in subscribed_entities:
+                    entity_ids.append(entity.get("entity_id", ""))
+                data_schema = vol.Schema({
+                    "add_entities": selector({"entity": {
+                        "exclude_entities": subscribed_entities,
+                        "filter": [{
+                            "domain": self._filtered_domains
+                        }],
+                        "multiple": True
+                    }
+                    })
                 })
-            })
-            return self.async_show_form(
-                step_id="select_entities", data_schema=data_schema, errors=errors
-            )
+                if len(subscribed_entities) > 0:
+                    data_schema["remove_entities"] = selector({"entity": {
+                        "include_entities": subscribed_entities,
+                        "filter": [{
+                            "domain": self._filtered_domains
+                        }],
+                        "multiple": True
+                    }
+                    })
+                _LOGGER.debug("Add/removal of entities %s", data_schema)
+                return self.async_show_form(
+                    step_id="select_entities", data_schema=data_schema, errors=errors
+                )
+            except Exception as ex: # pylint: disable=broad-except
+                # If extraction of subscribed entities fail (remote disconnection?), skip this step
+                # and register it anyway as everything else is fine
+                _LOGGER.exception("Unexpected exception while extracting subscribed entities %s", ex)
+                return self.async_create_entry(title=self._data["title"], data=self._data)
 
         return self.async_show_form(
             step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
@@ -385,8 +399,16 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the selected entities to subscribe to."""
-        # TODO : update subscribed entities from user_input (full list to replace)
-        return self.async_create_entry(title=self._data["title"], data=self._data)
+        if user_input is not None:
+            add_entities = user_input.get("add_entities", [])
+            remove_entities = user_input.get("remove_entities", [])
+            if len(add_entities) > 0:
+                await self._remote.add_remote_entities(add_entities)
+            if remove_entities is not None and len(remove_entities) > 0:
+                await self._remote.remove_remote_entities(remove_entities)
+            _LOGGER.debug("Selected entities to subscribe to : add %s, remove %s", add_entities, remove_entities)
+            # TODO : update subscribed entities from user_input (full list to replace)
+            return self.async_create_entry(title=self._data["title"], data=self._data)
 
 
 class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
