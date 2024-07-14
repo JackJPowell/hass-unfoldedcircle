@@ -15,6 +15,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.network import get_url
+from homeassistant.helpers.selector import selector
 from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
 from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
@@ -25,7 +26,7 @@ from .const import (
     CONF_GLOBAL_MEDIA_ENTITY,
     CONF_SERIAL,
     CONF_SUPPRESS_ACTIVITIY_GROUPS,
-    DOMAIN,
+    DOMAIN, HA_SUPPORTED_DOMAINS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -61,67 +62,6 @@ async def removeToken(hass: HomeAssistant, token):
     await hass.auth.async_remove_refresh_token(refresh_token)
 
 
-async def validate_input(
-    hass: HomeAssistant, data: dict[str, Any], host: str = ""
-) -> dict[str, Any]:
-    """Validate the user input allows us to connect.
-
-    Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
-    """
-    if host != "":
-        remote = Remote(host, data["pin"])
-    else:
-        remote = Remote(data["host"], data["pin"])
-
-    try:
-        await remote.can_connect()
-    except AuthenticationError as err:
-        raise InvalidAuth from err
-    except CannotConnect as ex:  # pylint: disable=broad-except
-        raise CannotConnect from ex
-
-    for key in await remote.get_api_keys():
-        if key.get("name") == AUTH_APIKEY_NAME:
-            await remote.revoke_api_key()
-
-    url = get_url(hass)
-    key = await remote.create_api_key()
-    await remote.get_remote_information()
-    await remote.get_remote_configuration()
-    await remote.get_remote_wifi_info()
-    token = await generateToken(hass, remote.name)
-    token_id = await remote.set_token_for_external_system(
-        "homeassistant",
-        f"{remote.name} id",
-        token,
-        "Home Assistant",
-        "Home Assistant Long Lived Access Token",
-        url,
-        "data",
-    )
-
-    if not key:
-        raise InvalidAuth("Unable to login: failed to create API key")
-
-    mac_address = None
-    if remote.mac_address:
-        mac_address = remote.mac_address.replace(":", "").lower()
-
-    # Return info that you want to store in the config entry.
-    return {
-        "title": remote.name,
-        "apiKey": key,
-        "host": remote.endpoint,
-        "pin": data["pin"],
-        "mac_address": remote.mac_address,
-        "ip_address": remote.ip_address,
-        "token": token,
-        "token_id": token_id,
-        CONF_SERIAL: remote.serial_number,
-        CONF_MAC: mac_address,
-    }
-
-
 class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Unfolded Circle Remote."""
 
@@ -132,14 +72,76 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
 
     def __init__(self) -> None:
         """Unfolded Circle Config Flow."""
-        self.api: Remote = None
-        self.api_keyname: str = None
+        self.api: Remote | None = None
+        self.api_keyname: str | None = None
         self.discovery_info: dict[str, Any] = {}
+        self._data = None
+        self._filtered_domains = HA_SUPPORTED_DOMAINS
+        self._remote: Remote | None = None
+
+    async def validate_input(self, data: dict[str, Any], host: str = "") -> dict[str, Any]:
+        """Validate the user input allows us to connect.
+
+        Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
+        """
+        if host != "":
+            self._remote = Remote(host, data["pin"])
+        else:
+            self._remote = Remote(data["host"], data["pin"])
+
+        try:
+            await self._remote.can_connect()
+        except AuthenticationError as err:
+            raise InvalidAuth from err
+        except CannotConnect as ex:  # pylint: disable=broad-except
+            raise CannotConnect from ex
+
+        for key in await self._remote.get_api_keys():
+            if key.get("name") == AUTH_APIKEY_NAME:
+                await self._remote.revoke_api_key()
+
+        url = get_url(self.hass)
+        key = await self._remote.create_api_key()
+        await self._remote.get_remote_information()
+        await self._remote.get_remote_configuration()
+        await self._remote.get_remote_wifi_info()
+
+        token = await generateToken(self.hass, self._remote.name)
+        token_id = await self._remote.set_token_for_external_system(
+            "homeassistant",
+            f"{self._remote.name} id",
+            token,
+            "Home Assistant",
+            "Home Assistant Long Lived Access Token",
+            url,
+            "data",
+        )
+
+        if not key:
+            raise InvalidAuth("Unable to login: failed to create API key")
+
+        mac_address = None
+        if self._remote.mac_address:
+            mac_address = self._remote.mac_address.replace(":", "").lower()
+
+        # Return info that you want to store in the config entry.
+        return {
+            "title": self._remote.name,
+            "apiKey": key,
+            "host": self._remote.endpoint,
+            "pin": data["pin"],
+            "mac_address": self._remote.mac_address,
+            "ip_address": self._remote.ip_address,
+            "token": token,
+            "token_id": token_id,
+            CONF_SERIAL: self._remote.serial_number,
+            CONF_MAC: mac_address,
+        }
 
     @staticmethod
     @callback
     def async_get_options_flow(
-        config_entry: ConfigEntry,
+            config_entry: ConfigEntry,
     ):
         """Get the options flow for this handler."""
         return UnfoldedCircleRemoteOptionsFlowHandler(config_entry)
@@ -213,7 +215,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         return await self.async_step_zeroconf_confirm()
 
     async def async_step_zeroconf_confirm(
-        self, user_input: dict[str, Any] | None = None
+            self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Confirm discovery."""
         errors: dict[str, str] = {}
@@ -225,7 +227,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             )
         try:
             host = f"{self.discovery_info[CONF_HOST]}:{self.discovery_info[CONF_PORT]}"
-            info = await validate_input(self.hass, user_input, host)
+            info = await self.validate_input(user_input, host)
             self.discovery_info.update({CONF_MAC: info[CONF_MAC]})
             # Check unique ID here based on serial number
             await self._async_set_unique_id_and_abort_if_already_configured(
@@ -249,7 +251,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
+            self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step."""
         errors: dict[str, str] = {}
@@ -259,7 +261,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             )
 
         try:
-            info = await validate_input(self.hass, user_input, "")
+            info = await self.validate_input(user_input, "")
             self.discovery_info.update({CONF_MAC: info[CONF_MAC]})
             # Check unique ID here based on serial number
             await self._async_set_unique_id_and_abort_if_already_configured(
@@ -273,14 +275,38 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.exception("Unexpected exception")
             errors["base"] = "unknown"
         else:
-            return self.async_create_entry(title=info["title"], data=info)
+            # 2 possibilities : open remote's page in configuration entities page of HA integration or handle it here
+            # Option 1 : remote's page
+            # await self.async_open_remote_page()
+            # return self.async_create_entry(title=info["title"], data=info)
+            # Option 2 : handle entities selection here
+            #TODO not sure this is a good idea to add a domain selection before (complex)
+            #TODO 2 Feed the default entities list with the subscribed entities
+            # through /api/intg/drivers/hass : HA integration should return the list of subscribed entities
+            # subscribed_entities = await remote.get_subscribed_entities()
+            # then put subscribed_entities in default field below
+
+            self._data = info
+            data_schema = vol.Schema({
+                "entities": selector({"entity": {
+                    "filter": [{
+                        "domain": self._filtered_domains
+                    }],
+                    "default": ["media_player.ampli_sony"],
+                    "multiple": True
+                }
+                })
+            })
+            return self.async_show_form(
+                step_id="select_entities", data_schema=data_schema, errors=errors
+            )
 
         return self.async_show_form(
             step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
         )
 
     async def _async_set_unique_id_and_abort_if_already_configured(
-        self, unique_id: str
+            self, unique_id: str
     ) -> None:
         """Set the unique ID and abort if already configured."""
         await self.async_set_unique_id(unique_id, raise_on_progress=False)
@@ -289,7 +315,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_reauth(
-        self, user_input: dict[str, Any] | None = None
+            self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Perform reauth upon an API authentication error."""
         user_input["pin"] = None
@@ -297,7 +323,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         return await self.async_step_reauth_confirm(user_input)
 
     async def async_step_reauth_confirm(
-        self, user_input: dict[str, Any] | None = None
+            self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Dialog that informs the user that reauth is required."""
         errors = {}
@@ -320,9 +346,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 self.reauth_entry.unique_id, raise_on_progress=False
             )
             _LOGGER.debug("RC2 existing_entry %s", existing_entry)
-            info = await validate_input(
-                self.hass, user_input, self.reauth_entry.data[CONF_HOST]
-            )
+            info = await self.validate_input(user_input, self.reauth_entry.data[CONF_HOST])
         except CannotConnect:
             _LOGGER.exception("Cannot Connect")
             errors["base"] = "Cannot Connect"
@@ -350,6 +374,19 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=STEP_ZEROCONF_DATA_SCHEMA,
             errors=errors,
         )
+
+    async def async_open_remote_page(self):
+        return self.async_external_step(
+            step_id="finish",
+            url=f"http://{self.api.derive_configuration_url}#/integrations-devices/hass.main",
+        )
+
+    async def async_step_select_entities(
+            self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle the selected entities to subscribe to."""
+        # TODO : update subscribed entities from user_input (full list to replace)
+        return self.async_create_entry(title=self._data["title"], data=self._data)
 
 
 class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
