@@ -4,17 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 from urllib.error import HTTPError
 
-from homeassistant.components import websocket_api
-from homeassistant.core import Event, HomeAssistant, callback
+
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers.event import (
-    EventStateChangedData,
-    async_track_state_change_event,
-)
+
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
@@ -24,24 +20,13 @@ from .pyUnfoldedCircleRemote.remote import Remote
 from .pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
 
 from .const import DEVICE_SCAN_INTERVAL, DOMAIN
-from .websocket import UCClientInterface, async_register_websocket_commands
+from .websocket import UCWebsocketClient
 
 _LOGGER = logging.getLogger(__name__)
 
 
-@dataclass
-class SubscriptionEvent:
-    """Subcription Event Data Class"""
-
-    client_id: str
-    subscription_id: int
-    cancel_subscription_callback: Callable
-    notification_callback: Callable[[dict[any, any]], None]
-    entity_ids: list[str]
-
-
 class UnfoldedCircleRemoteCoordinator(
-    DataUpdateCoordinator[dict[str, Any]], UCClientInterface
+    DataUpdateCoordinator[dict[str, Any]]
 ):
     """Data update coordinator for an Unfolded Circle Remote device."""
 
@@ -65,10 +50,7 @@ class UnfoldedCircleRemoteCoordinator(
         self.subscribe_events = {}
         self.polling_data = False
         self.entities = []
-        self._subscriptions: list[SubscriptionEvent] = []
-
-        async_register_websocket_commands(hass)
-        _LOGGER.debug("Unfolded Circle websocket APIs registered")
+        self.websocket_client = UCWebsocketClient(hass)
 
     async def init_websocket(self):
         """Initialize the Web Socket"""
@@ -192,7 +174,7 @@ class UnfoldedCircleRemoteCoordinator(
                 f"Error communicating with Unfolded Circle Remote API {ex}"
             ) from ex
 
-    async def close_websocket(self):
+    async def close(self):
         """Close websocket"""
         try:
             if self.websocket_task:
@@ -201,76 +183,3 @@ class UnfoldedCircleRemoteCoordinator(
                 await self.remote_websocket.close_websocket()
         except Exception as ex:
             _LOGGER.error("Unfolded Circle Remote while closing websocket: %s", ex)
-
-    def subscribe_entities_events(
-        self, connection: websocket_api.ActiveConnection, msg: dict
-    ):
-        """Adds and handles subscribed event"""
-        subscription: SubscriptionEvent | None = None
-        cancel_callback: Callable[[], None] | None = None
-
-        @callback
-        def forward_event(data: dict[any, any]) -> None:
-            """Forward message to websocket subscription."""
-            connection.send_event(
-                msg["id"],
-                data,
-            )
-
-        def entities_state_change_event(event: Event[EventStateChangedData]) -> Any:
-            """Method called by HA when one of the subscribed entities have changed state."""
-            # Note that this method has to be encapsulated in the subscribe_entities_events method
-            # in order to maintain a reference to the subscription variable
-            entity_id = event.data["entity_id"]
-            old_state = event.data["old_state"]
-            new_state = event.data["new_state"]
-            _LOGGER.debug("Received notification to send to UC remote %s", event)
-            subscription.notification_callback(
-                {
-                    "data": {
-                        "entity_id": entity_id,
-                        "new_state": new_state,
-                        "old_state": old_state,  # TODO : old state useful ?
-                    }
-                }
-            )
-
-        def remove_listener() -> None:
-            """Remove the listener."""
-            try:
-                _LOGGER.debug(
-                    "Unfolded Circle unregister event %s for remote %s",
-                    subscription_id,
-                    client_id,
-                )
-                cancel_callback()
-            except Exception:
-                pass
-            self._subscriptions.remove(subscription)
-
-        # Create the new events subscription
-        subscription_id = msg["id"]
-        data = msg["data"]
-        entities = data.get("entities", [])
-        client_id = data.get("client_id", "")
-
-        cancel_callback = async_track_state_change_event(
-            self.hass, entities, entities_state_change_event
-        )
-        subscription = SubscriptionEvent(
-            client_id=client_id,
-            cancel_subscription_callback=cancel_callback,
-            subscription_id=subscription_id,
-            notification_callback=forward_event,
-            entity_ids=entities,
-        )
-        self._subscriptions.append(subscription)
-        _LOGGER.debug(
-            "UC added subscription from remote %s for entity ids %s",
-            client_id,
-            entities,
-        )
-
-        connection.subscriptions[subscription_id] = remove_listener
-
-        return remove_listener

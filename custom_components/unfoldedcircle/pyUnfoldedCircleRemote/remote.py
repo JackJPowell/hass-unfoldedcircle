@@ -379,6 +379,10 @@ class Remote:
         """Last update type from received message."""
         return self._last_update_type
 
+    @property
+    def integration_id(self) -> str:
+        return self._integration_id
+
     ### URL Helpers ###
     def validate_url(self, uri):
         """Validate passed in URL and attempts to correct api endpoint if path isn't supplied."""
@@ -646,6 +650,7 @@ class Remote:
         """Get System wifi information from remote. address."""
         if self._is_simulator:
             self._mac_address = SIMULATOR_MAC_ADDRESS
+            self._ip_address = "192.168.1.26"
             return
         async with (
             self.client() as session,
@@ -683,25 +688,35 @@ class Remote:
             self._name = information.get("device").get("name")
             return information
 
+    async def get_remote_integrations(self) -> list[dict[str, any]]:
+        """List the integrations instances on the remote."""
+        async with self.client() as session, session.get(
+                self.url("intg/instances")) as response:
+            await self.raise_on_error(response)
+            return await response.json()
+
+    def set_remote_integration_id(self, integration_id: str):
+        """Set target integration ID (multiple HA integrations internal/external)."""
+        self._integration_id = integration_id
+
     async def get_remote_subscribed_entities(self) -> list[dict[str, any]]:
-        #TODO this method aims internal HASS integration and won't work with external HASS integration
-        # is it a problem ?
         async with self.client() as session, session.get(
                 self.url(f"entities?intg_ids={self._integration_id}")) as response:
             await self.raise_on_error(response)
-            entities = await response.json()
-            return entities
+            return await response.json()
 
     async def add_remote_entities(self, entity_ids: list[str]) -> bool:
+        _LOGGER.debug("Add entities to remote %s : %s", self._ip_address, entity_ids)
         async with self.client() as session, session.post(
-                self.url(f"/intg/instances/{self._integration_id}/entities"), entity_ids) as response:
+                self.url(f"/intg/instances/{self._integration_id}/entities"), json=entity_ids) as response:
             await self.raise_on_error(response)
             return True
 
     async def remove_remote_entities(self, entity_ids: list[str]) -> bool:
+        _LOGGER.debug("Remove entities to remote %s : %s", self._ip_address, entity_ids)
         async with self.client() as session, session.request(method="DELETE",
                                                              url=self.url("/entities"),
-                                                             content={"entity_ids": entity_ids}) as response:
+                                                             json={"entity_ids": entity_ids}) as response:
             await self.raise_on_error(response)
             return True
 
@@ -752,7 +767,6 @@ class Remote:
                             new_activity._stop_command = short_press
                         case _:
                             pass
-            return await response.json()
 
     async def get_activities_state(self):
         """Get activity state for all activities."""
@@ -1168,7 +1182,8 @@ class Remote:
             await self.raise_on_error(response)
             remotes = await response.json()
             for remote in remotes:
-                if remote.get("enabled") is True:
+                # integration_id == uc.main : bug with web configurator
+                if remote.get("enabled") is True and remote.get("integration_id").startswith("uc.main"):
                     remote_data = {
                         "name": remote.get("name").get("en"),
                         "entity_id": remote.get("entity_id"),
@@ -1290,19 +1305,19 @@ class Remote:
             # it will raise an exception and skip the other if clauses
             # TODO Missing software updates (message format ?)
             if data["msg"] == "ambient_light":
-                _LOGGER.debug("Unfoldded circle remote update light")
+                _LOGGER.debug("Unfolded circle remote update light")
                 self._ambient_light_intensity = data["msg_data"]["intensity"]
                 self._last_update_type = RemoteUpdateType.AMBIENT_LIGHT
                 return
             if data["msg"] == "battery_status":
-                _LOGGER.debug("Unfoldded circle remote update battery")
+                _LOGGER.debug("Unfolded circle remote update battery")
                 self._battery_status = data["msg_data"]["status"]
                 self._battery_level = data["msg_data"]["capacity"]
                 self._is_charging = data["msg_data"]["power_supply"]
                 self._last_update_type = RemoteUpdateType.BATTERY
                 return
             if data["msg"] == "software_update":
-                _LOGGER.debug("Unfoldded circle remote software update")
+                _LOGGER.debug("Unfolded circle remote software update")
                 total_steps = 0
                 update_state = "INITIAL"
                 current_step = 0
@@ -1344,7 +1359,7 @@ class Remote:
                 self._last_update_type = RemoteUpdateType.SOFTWARE
                 return
             if data["msg"] == "configuration_change":
-                _LOGGER.debug("Unfoldded circle configuration change")
+                _LOGGER.debug("Unfolded circle configuration change")
                 state = data.get("msg_data").get("new_state")
                 if state.get("display") is not None:
                     self._display_auto_brightness = state.get("display").get(
@@ -1378,7 +1393,7 @@ class Remote:
                     self._sleep_timeout = state.get("power_saving").get("standby_sec")
                 self._last_update_type = RemoteUpdateType.CONFIGURATION
             if data["msg"] == "power_mode_change":
-                _LOGGER.debug("Unfoldded circle Power Mode change")
+                _LOGGER.debug("Unfolded circle Power Mode change")
                 self._power_mode = data.get("msg_data").get("mode")
                 self._last_update_type = RemoteUpdateType.CONFIGURATION
         except (KeyError, IndexError):
@@ -1396,7 +1411,7 @@ class Remote:
                 self._last_update_type = RemoteUpdateType.ACTIVITY
         except (KeyError, IndexError) as ex:
             _LOGGER.debug(
-                "Unfoldded circle remote update error while reading data: %s %s",
+                "Unfolded circle remote update error while reading data: %s %s",
                 data,
                 ex,
             )
@@ -1420,7 +1435,7 @@ class Remote:
                     == "media_player.on"
             ):
                 _LOGGER.debug(
-                    "Unfoldded circle remote update link between activity and entities"
+                    "Unfolded circle remote update link between activity and entities"
                 )
                 activity_id = data["msg_data"]["entity_id"]
                 entity_id = data["msg_data"]["new_state"]["attributes"]["step"][
@@ -1442,7 +1457,7 @@ class Remote:
                     data["msg_data"]["new_state"]["attributes"]["state"] == "ON"
                     or data["msg_data"]["new_state"]["attributes"]["state"] == "OFF"
             ):
-                _LOGGER.debug("Unfoldded circle remote update activity")
+                _LOGGER.debug("Unfolded circle remote update activity")
                 new_state = data["msg_data"]["new_state"]["attributes"]["state"]
                 activity_id = data["msg_data"]["entity_id"]
 
@@ -1493,7 +1508,7 @@ class Remote:
 
     def update_activity_entities(self, activity, included_entities: any):
         _LOGGER.debug(
-            "Unfoldded circle remote update_activity_entities %s %s",
+            "Unfolded circle remote update_activity_entities %s %s",
             activity.name,
             included_entities,
         )
@@ -1518,8 +1533,8 @@ class Remote:
 
     async def init(self):
         """Retrieves all information about the remote."""
-        _LOGGER.debug("Unfoldded circle remote init data")
-        group = asyncio.gather(
+        _LOGGER.debug("Unfolded circle remote init data")
+        tasks = [
             self.get_remote_battery_information(),
             self.get_remote_ambient_light_information(),
             self.get_remote_update_information(),
@@ -1536,19 +1551,26 @@ class Remote:
             self.get_remote_codesets(),
             self.get_docks(),
             self.get_remote_wifi_info(),
-        )
-        await group
+        ]
+        for coroutine in asyncio.as_completed(tasks):
+            try:
+                await coroutine
+            except Exception as ex:
+                _LOGGER.error("Unfolded circle remote initialization error %s", ex)
 
-        await self.get_activity_groups()
+        try:
+            await self.get_activity_groups()
+            for activity_group in self.activity_groups:
+                await activity_group.update()
+        except Exception as ex:
+            _LOGGER.error("Unfolded circle remote initialization error %s", ex)
 
-        for activity_group in self.activity_groups:
-            await activity_group.update()
-        _LOGGER.debug("Unfoldded circle remote data initialized")
+        _LOGGER.debug("Unfolded circle remote data initialized")
 
     async def update(self):
         """Updates all information about the remote."""
-        _LOGGER.debug("Unfoldded circle remote update data")
-        group = asyncio.gather(
+        _LOGGER.debug("Unfolded circle remote update data")
+        tasks = [
             self.get_remote_battery_information(),
             self.get_remote_ambient_light_information(),
             self.get_remote_update_information(),
@@ -1562,16 +1584,23 @@ class Remote:
             self.get_remote_power_saving_settings(),
             self.get_remote_update_settings(),
             self.get_activities_state(),
-        )
-        await group
+        ]
+        for coroutine in asyncio.as_completed(tasks):
+            try:
+                await coroutine
+            except Exception as ex:
+                _LOGGER.debug("Unfolded circle remote update error %s", ex)
 
         for activity_group in self.activity_groups:
-            await activity_group.update()
-        _LOGGER.debug("Unfoldded circle remote data updated")
+            try:
+                await activity_group.update()
+            except Exception as ex:
+                _LOGGER.debug("Unfolded circle remote update error %s", ex)
+        _LOGGER.debug("Unfolded circle remote data updated")
 
     async def polling_update(self):
         """Updates only polled information from the remote."""
-        _LOGGER.debug("Unfoldded circle remote update data")
+        _LOGGER.debug("Unfolded circle remote update data")
         group = asyncio.gather(self.get_stats())
         await group
 

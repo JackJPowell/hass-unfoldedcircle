@@ -32,7 +32,6 @@ _LOGGER: logging.Logger = logging.getLogger(__package__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Unfolded Circle Remote from a config entry."""
-
     try:
         remote_api = Remote(entry.data["host"], entry.data["pin"], entry.data["apiKey"])
         await remote_api.can_connect()
@@ -51,7 +50,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Extract activities and activity groups
     await coordinator.api.init()
-
     # Retrieve info from Remote
     # Get Basic Device Information
     await coordinator.async_config_entry_first_refresh()
@@ -70,7 +68,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         coordinator: UnfoldedCircleRemoteCoordinator = hass.data[DOMAIN][
             entry.entry_id
         ][UNFOLDED_CIRCLE_COORDINATOR]
-        await coordinator.close_websocket()
+        # Close websocket for remote coordinators or cancel subscribed events for global coordinator
+        await coordinator.close()
+        # TODO : unsubscribe events ?
     except Exception as ex:
         _LOGGER.error("Unfolded Circle Remote async_unload_entry error: %s", ex)
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
