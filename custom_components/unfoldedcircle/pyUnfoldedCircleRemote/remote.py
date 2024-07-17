@@ -650,7 +650,8 @@ class Remote:
         """Get System wifi information from remote. address."""
         if self._is_simulator:
             self._mac_address = SIMULATOR_MAC_ADDRESS
-            self._ip_address = "192.168.1.26"
+            parsed_uri = urlparse(self.endpoint)
+            self._ip_address = parsed_uri.netloc
             return
         async with (
             self.client() as session,

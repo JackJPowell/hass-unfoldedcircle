@@ -363,13 +363,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_open_remote_page(self):
-        # TODO not used, to be tested (add a final link to remote's page)
-        return self.async_external_step(
-            step_id="finish",
-            url=f"http://{self._remote.derive_configuration_url}#/integrations-devices/hass.main",
-        )
-
     async def async_step_select_entities(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle the selected entities to subscribe to."""
         errors: dict[str, str] = {}
@@ -443,6 +436,13 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                             "select_entities": "Try again",
                             "finish": "Ignore this step and finish"
                         })
+                # Subscribe to the new entities
+                await asyncio.sleep(2)
+                # TODO : subscribe to the full entities list
+                #  GET the right integration intgId
+                #  GET /api/intg/instances/:intgId/entities?reload=true
+                #  POST /api/intg/instances/:intgId/entities
+
             except Exception as ex:  # pylint: disable=broad-except
                 _LOGGER.error("Error while sending new entities to the remote %s (%s) %s",
                               self._remote.ip_address,
@@ -628,6 +628,12 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
                             "select_entities": "Try again",
                             "finish": "Ignore this step and finish"
                         })
+                
+                await asyncio.sleep(2)
+                # TODO : subscribe to the full entities list
+                #  GET the right integration intgId
+                #  GET /api/intg/instances/:intgId/entities?reload=true
+                #  POST /api/intg/instances/:intgId/entities
             except Exception as ex:  # pylint: disable=broad-except
                 _LOGGER.error("Error while sending new entities to the remote %s (%s) %s",
                               self._remote.ip_address,
