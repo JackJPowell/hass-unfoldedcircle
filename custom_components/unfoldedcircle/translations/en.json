@@ -37,7 +37,7 @@
           "remove_entities": "Remove entities"
         },
         "menu_options": {
-          "select_entities": "Retry connection",
+          "select_entities": "Remote is not connected, retry",
           "finish": "Ignore this step and finish"
         }
       }
@@ -48,9 +48,9 @@
       "init": {
         "title": "Unfolded Circle Options",
         "description": "Configure the remote entities or the component",
-        "data": {
-          "configuration_mode": "Configuration mode",
-          "advanced_configuration": "Advanced configuration"
+        "menu_options": {
+          "select_entities": "Configure the entities on the remote",
+          "activities": "Configure the integration"
         }
       },
       "media_player": {
@@ -68,13 +68,6 @@
         "data": {
           "activities_as_switches": "Create all activities as switch entities",
           "suppress_activity_groups": "Suppress creation of activity group entities"
-        }
-      },
-      "select_integration": {
-        "title": "Unfolded Circle Options",
-        "description": "Select the targeted Home Assistant integration",
-        "data": {
-          "integration": "Home Assistant Integration"
         }
       },
       "select_entities": {
