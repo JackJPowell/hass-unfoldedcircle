@@ -31,7 +31,7 @@ class SubscriptionEvent:
     subscription_id: int
     cancel_subscription_callback: Callable
     notification_callback: Callable[[dict[any, any]], None]
-    entity_ids: list[str] | None
+    entity_ids: list[str]
 
 
 @websocket_api.websocket_command(INFO_SCHEMA)
@@ -58,7 +58,7 @@ def ws_get_info(
 
 @websocket_api.websocket_command(
     {
-        vol.Required("type"): f"{DOMAIN}/event/configure",
+        vol.Required("type"): f"{DOMAIN}/event/configure/subscribe",
         vol.Optional("data"): dict[any, any],
     }
 )
@@ -70,18 +70,37 @@ def ws_configure_event(
 ) -> None:
     """Subscribe event to push modifications of configuration to the remote."""
     websocket_client = UCWebsocketClient(hass)
-    websocket_client.subscribe_entities_events(connection, msg)
+    websocket_client.configure_entities_events(connection, msg)
     connection.send_result(msg["id"])
 
 
 @websocket_api.websocket_command(
     {
-        vol.Required("type"): f"{DOMAIN}/event/unsubscribe",
+        vol.Required("type"): f"{DOMAIN}/event/configure/unsubscribe",
         vol.Optional("data"): dict[any, any],
     }
 )
 @callback
-def ws_unsubscribe_event(
+def ws_configure_unsubscribe_event(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict,
+) -> None:
+    """Subscribe event to push modifications of configuration to the remote."""
+    cancel_callback = connection.subscriptions.get(msg["id"], None)
+    if cancel_callback is not None:
+        cancel_callback()
+    connection.send_result(msg["id"])
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/event/entities/unsubscribe",
+        vol.Optional("data"): dict[any, any],
+    }
+)
+@callback
+def ws_unsubscribe_entities_event(
         hass: HomeAssistant,
         connection: websocket_api.ActiveConnection,
         msg: dict,
@@ -96,12 +115,12 @@ def ws_unsubscribe_event(
 
 @websocket_api.websocket_command(
     {
-        vol.Required("type"): f"{DOMAIN}/event/subscribed_entities",
+        vol.Required("type"): f"{DOMAIN}/event/entities/subscribe",
         vol.Optional("data"): dict[any, any],
     }
 )
 @callback
-def ws_subscribe_event(
+def ws_subscribe_entities_event(
         hass: HomeAssistant,
         connection: websocket_api.ActiveConnection,
         msg: dict,
@@ -135,8 +154,10 @@ class UCWebsocketClient(metaclass=Singleton):
         self._subscriptions: list[SubscriptionEvent] = []
         self._configurations: list[SubscriptionEvent] = []
         websocket_api.async_register_command(hass, ws_get_info)
-        websocket_api.async_register_command(hass, ws_subscribe_event)
-        websocket_api.async_register_command(hass, ws_unsubscribe_event)
+        websocket_api.async_register_command(hass, ws_subscribe_entities_event)
+        websocket_api.async_register_command(hass, ws_unsubscribe_entities_event)
+        websocket_api.async_register_command(hass, ws_configure_event)
+        websocket_api.async_register_command(hass, ws_configure_unsubscribe_event)
         _LOGGER.debug("Unfolded Circle websocket APIs registered. Ready to receive remotes requests")
 
     async def close(self):
@@ -273,11 +294,7 @@ class UCWebsocketClient(metaclass=Singleton):
         def remove_listener() -> None:
             """Remove the listener."""
             try:
-                _LOGGER.debug(
-                    "Unfolded Circle unregister configure_entities_events %s for remote %s",
-                    subscription_id,
-                    client_id,
-                )
+                _LOGGER.debug("UC removed configuration event for remote %s", client_id)
                 cancel_callback()
             except Exception:
                 pass
@@ -293,9 +310,10 @@ class UCWebsocketClient(metaclass=Singleton):
             cancel_subscription_callback=cancel_callback,
             subscription_id=subscription_id,
             notification_callback=forward_event,
+            entity_ids=[]
         )
-        self._subscriptions.append(configuration)
-        _LOGGER.debug("UC added configuration event from remote %s", client_id)
+        self._configurations.append(configuration)
+        _LOGGER.debug("UC added configuration event for remote %s", client_id)
 
         connection.subscriptions[subscription_id] = remove_listener
 
