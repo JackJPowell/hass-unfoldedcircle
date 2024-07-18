@@ -12,7 +12,8 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.typing import StateType
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
-from .entity import UnfoldedCircleEntity
+from .entity import UnfoldedCircleDockEntity, UnfoldedCircleEntity
+from .pyUnfoldedCircleRemote.dock import Dock
 
 
 @dataclass
@@ -89,6 +90,17 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
     ),
 )
 
+UNFOLDED_CIRCLE_DOCK_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
+    UnfoldedCircleSensorEntityDescription(
+        key="led_brightness",
+        device_class=SensorDeviceClass.ILLUMINANCE,
+        unit_of_measurement=PERCENTAGE,
+        name="Led Brightness",
+        has_entity_name=True,
+        unique_id="led_brightness",
+    ),
+)
+
 
 async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entities):
     """Add sensors for passed config_entry in HA."""
@@ -99,6 +111,12 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
         for description in UNFOLDED_CIRCLE_SENSOR
     )
 
+    for dock in coordinator.api._docks:
+        async_add_entities(
+            UnfoldedCircleDockSensor(coordinator, description, dock)
+            for description in UNFOLDED_CIRCLE_DOCK_SENSOR
+        )
+
 
 class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
     """Unfolded Circle Sensor Class."""
@@ -106,7 +124,9 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
     entity_description = UNFOLDED_CIRCLE_SENSOR
 
     def __init__(
-        self, coordinator, description: UnfoldedCircleSensorEntityDescription
+        self,
+        coordinator,
+        description: UnfoldedCircleSensorEntityDescription,
     ) -> None:
         """Initialize Unfolded Circle Sensor."""
         super().__init__(coordinator)
@@ -151,6 +171,63 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
     def available(self) -> bool:
         """Return if available."""
         return self.coordinator.api.online
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        self._attr_native_value = self.get_value()
+        self.async_write_ha_state()
+
+    @property
+    def native_value(self) -> StateType:
+        """Return native value for entity."""
+        return self.get_value()
+
+
+class UnfoldedCircleDockSensor(UnfoldedCircleDockEntity, SensorEntity):
+    """Unfolded Circle Sensor Class."""
+
+    entity_description = UNFOLDED_CIRCLE_SENSOR
+
+    def __init__(
+        self,
+        coordinator,
+        description: UnfoldedCircleSensorEntityDescription,
+        dock: Dock,
+    ) -> None:
+        """Initialize Unfolded Circle Sensor."""
+        super().__init__(coordinator, dock)
+        self._attr_unique_id = (
+            f"{self.dock.model_name}_{self.dock.serial_number}_{description.unique_id}"
+        )
+        self._attr_name = description.name
+        self._attr_unit_of_measurement = description.unit_of_measurement
+        self._attr_native_unit_of_measurement = description.unit_of_measurement
+        self._device_class = description.device_class
+        self._attr_entity_category = description.entity_category
+        self._attr_has_entity_name = description.has_entity_name
+        self.entity_description = description
+        self._state: StateType = None
+        self._dock: Dock = dock
+
+    async def async_added_to_hass(self) -> None:
+        """Run when this Entity has been added to HA."""
+        # Add websocket events according to corresponding entities
+        if self.entity_description.key == "ambient_light_intensity":
+            self.coordinator.subscribe_events["ambient_light"] = True
+        await super().async_added_to_hass()
+
+    def get_value(self) -> StateType:
+        """return native value of entity"""
+        dock = self.coordinator.api.get_dock_by_id(self._dock.id)
+        if dock:
+            self._attr_native_value = getattr(dock, self.entity_description.key)
+        return self._attr_native_value
+
+    @property
+    def available(self) -> bool:
+        """Return if available."""
+        return self._dock.is_active
 
     @callback
     def _handle_coordinator_update(self) -> None:

@@ -6,6 +6,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import UnfoldedCircleRemoteCoordinator
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
+from .pyUnfoldedCircleRemote.dock import Dock
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry):
@@ -14,7 +15,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry):
 
 
 class UnfoldedCircleEntity(CoordinatorEntity[UnfoldedCircleRemoteCoordinator]):
-    """Common entity class for all UC entities"""
+    """Common entity class for all Unfolded Circle entities"""
 
     def __init__(self, coordinator) -> None:
         """Initialize Unfolded Circle Sensor."""
@@ -40,4 +41,37 @@ class UnfoldedCircleEntity(CoordinatorEntity[UnfoldedCircleRemoteCoordinator]):
 
     @property
     def should_poll(self) -> bool:
+        """Should the entity poll for updates?"""
+        return False
+
+
+class UnfoldedCircleDockEntity(CoordinatorEntity[UnfoldedCircleRemoteCoordinator]):
+    """Common entity class for all Unfolded Circle Dock entities"""
+
+    def __init__(self, coordinator, dock: Dock) -> None:
+        """Initialize Unfolded Circle Sensor."""
+        super().__init__(coordinator)
+        self.coordinator = coordinator
+        self.dock = dock
+        self.coordinator.entities.append(self)
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return the device info."""
+        return DeviceInfo(
+            identifiers={
+                # Serial numbers are unique identifiers within a specific domain
+                (DOMAIN, f"{self.dock._model_name}-{self.dock.serial_number}")
+            },
+            name=self.dock.name,
+            manufacturer=self.dock.manufacturer,
+            model=self.dock.model_name,
+            sw_version=self.dock.software_version,
+            hw_version=self.dock.hardware_revision,
+            configuration_url=self.dock.remote_configuration_url,
+        )
+
+    @property
+    def should_poll(self) -> bool:
+        """Should the entity poll for updates?"""
         return False

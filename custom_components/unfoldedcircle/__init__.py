@@ -10,10 +10,10 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.network import get_url
-from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_API, UNFOLDED_CIRCLE_COORDINATOR
 from .coordinator import UnfoldedCircleRemoteCoordinator
+from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 PLATFORMS: list[Platform] = [
     Platform.SWITCH,
@@ -60,7 +60,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(update_listener))
     await zeroconf.async_get_async_instance(hass)
     await coordinator.init_websocket()
-    # await auth_tests(hass, remote_api)
     return True
 
 
@@ -85,42 +84,3 @@ async def update_listener(hass: HomeAssistant, entry: ConfigEntry):
     # await async_unload_entry(hass, entry)
     # await async_setup_entry(hass, entry)
     await hass.config_entries.async_reload(entry.entry_id)
-
-
-## Temporary block to help with testing auth endpoints
-## remove before release
-async def auth_tests(hass, remote_api) -> None:
-    ##Lets test some methods
-    instance_url = get_url(hass)
-    systems = await remote_api.get_registered_external_systems()
-    tokens = await remote_api.get_tokens_for_external_system("homeassistant")
-    token_id = await remote_api.set_token_for_external_system(
-        "homeassistant",
-        "test-token-id",
-        "test-token-value",
-        "Home Assistant",
-        "HA Desc",
-        instance_url,
-        "data",
-    )
-    token_id = await remote_api.set_token_for_external_system(
-        "homeassistant",
-        "test-token-id",
-        "test-token-value2",
-        "Home Assistant2",
-        "HA Desc2",
-        instance_url,
-        "data2",
-    )
-    token_id = await remote_api.update_token_for_external_system(
-        "homeassistant",
-        "test-token-id",
-        "test-token-value3",
-        "Home Assistant3",
-        "HA Desc3",
-        instance_url,
-        "data3",
-    )
-    status = await remote_api.delete_token_for_external_system(
-        "homeassistant", "test-token-id"
-    )

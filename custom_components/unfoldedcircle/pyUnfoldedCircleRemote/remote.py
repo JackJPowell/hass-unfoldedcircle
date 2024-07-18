@@ -13,16 +13,10 @@ from urllib.parse import urljoin, urlparse
 import aiohttp
 import zeroconf
 
-from .const import (
-    AUTH_APIKEY_NAME,
-    AUTH_USERNAME,
-    SIMULATOR_MAC_ADDRESS,
-    SYSTEM_COMMANDS,
-    ZEROCONF_SERVICE_TYPE,
-    ZEROCONF_TIMEOUT,
-    RemotePowerModes,
-    RemoteUpdateType,
-)
+from .const import (AUTH_APIKEY_NAME, AUTH_USERNAME, SIMULATOR_MAC_ADDRESS,
+                    SYSTEM_COMMANDS, ZEROCONF_SERVICE_TYPE, ZEROCONF_TIMEOUT,
+                    RemotePowerModes, RemoteUpdateType)
+from .dock import Dock
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -154,11 +148,12 @@ class Remote:
         self._cpu_load_one = 0.0
         self._power_mode = RemotePowerModes.NORMAL.value
         self._remotes = []
-        self._docks = []
+        self._ir_emitters = []
         self._ir_custom = []
         self._ir_codesets = []
         self._last_update_type = RemoteUpdateType.NONE
         self._is_simulator = None
+        self._docks: list[Dock] = []
 
     @property
     def name(self):
@@ -1193,6 +1188,40 @@ class Remote:
 
     async def get_docks(self) -> list:
         """Get list of docks defined."""
+        async with (
+            self.client() as session,
+            session.get(self.url("docks")) as response,
+        ):
+            await self.raise_on_error(response)
+            docks = await response.json()
+            for info in docks:
+                dock = Dock(
+                    dock_id=info.get("dock_id"),
+                    remote_endpoint=self.endpoint,
+                    apikey=self.apikey,
+                    name=info.get("name"),
+                    ws_url=info.get("resolved_ws_url"),
+                    is_active=info.get("active"),
+                    model_name=info.get("model"),
+                    hardware_revision=info.get("revision"),
+                    serial_number=info.get("serial"),
+                    led_brightness=info.get("led_brightness"),
+                    ethernet_led_brightness=info.get("eth_led_brightness"),
+                    software_version=info.get("version"),
+                    state=info.get("state"),
+                    is_learning_active=info.get("learning_active"),
+                    remote_configuration_url=self.configuration_url,
+                )
+                self._docks.append(dock)
+            return self._docks
+
+    def get_dock_by_id(self, dock_id: str) -> Dock:
+        for dock in self._docks:
+            if dock.id == dock_id:
+                return dock
+
+    async def get_ir_emitters(self) -> list:
+        """Get list of docks defined."""
         dock_data = {}
         async with (
             self.client() as session,
@@ -1206,8 +1235,8 @@ class Remote:
                         "name": dock.get("name"),
                         "device_id": dock.get("device_id"),
                     }
-                    self._docks.append(dock_data.copy())
-            return self._docks
+                    self._ir_emitters.append(dock_data.copy())
+            return self._ir_emitters
 
     async def send_remote_command(
         self, device="", command="", repeat=0, **kwargs
@@ -1237,10 +1266,11 @@ class Remote:
         if "dock" in kwargs:
             dock_name = kwargs.get("dock")
             emitter = next(
-                (dock for dock in self._docks if dock.get("name") == dock_name), None
+                (dock for dock in self._ir_emitters if dock.get("name") == dock_name),
+                None,
             )
         else:
-            emitter = self._docks[0].get("device_id")
+            emitter = self._ir_emitters[0].get("device_id")
 
         if emitter is None:
             raise NoEmitterFound("No emitter could be found with the supplied criteria")
@@ -1511,8 +1541,9 @@ class Remote:
             self.get_remote_update_settings(),
             self.get_activities(),
             self.get_remote_codesets(),
-            self.get_docks(),
+            self.get_ir_emitters(),
             self.get_remote_wifi_info(),
+            self.get_docks(),
         )
         await group
 

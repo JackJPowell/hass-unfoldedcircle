@@ -1,0 +1,387 @@
+"""Module to interact with the Unfolded Circle Remote Two Dock."""
+
+import logging
+import re
+from enum import Enum
+from urllib.parse import urljoin, urlparse
+
+import aiohttp
+
+_LOGGER = logging.getLogger(__name__)
+
+
+class DockCommand(Enum):
+    SET_LED_BRIGHTNESS = "SET_LED_BRIGHTNESS"
+    IDENTIFY = "IDENTIFY"
+    REBOOT = "REBOOT"
+
+
+class HTTPError(BaseException):
+    """Raised when an HTTP operation fails."""
+
+    def __init__(self, status_code, message) -> None:
+        """Raise HTTP Error."""
+        self.status_code = status_code
+        self.message = message
+        super().__init__(self.message, self.status_code)
+
+
+class AuthenticationError(BaseException):
+    """Raised when HTTP login fails."""
+
+
+class SystemCommandNotFound(BaseException):
+    """Raised when an invalid system command is supplied."""
+
+    def __init__(self, message) -> None:
+        """Raise command no found error."""
+        self.message = message
+        super().__init__(self.message)
+
+
+class ExternalSystemNotRegistered(BaseException):
+    """Raised when an unregistered external system is supplied."""
+
+    def __init__(self, message) -> None:
+        """Raise command no found error."""
+        self.message = message
+        super().__init__(self.message)
+
+
+class InvalidIRFormat(BaseException):
+    """Raised when invalid or insufficient IR details are passed."""
+
+    def __init__(self, message) -> None:
+        """Raise invalid IR format error."""
+        self.message = message
+        super().__init__(self.message)
+
+
+class NoEmitterFound(BaseException):
+    """Raised when no emitter could be identified from criteria given."""
+
+    def __init__(self, message) -> None:
+        """Raise invalid emitter error."""
+        self.message = message
+        super().__init__(self.message)
+
+
+class ApiKeyNotFound(BaseException):
+    """Raised when API Key with given name can't be found.
+
+    Attributes:
+        name -- Name of the API Key
+        message -- explanation of the error
+    """
+
+    def __init__(self, name, message="API key name not found") -> None:
+        """Raise API key not found."""
+        self.name = name
+        self.message = message
+        super().__init__(self.message)
+
+
+class Dock:
+    """Unfolded Circle Dock Class."""
+
+    def __init__(
+        self,
+        dock_id: str,
+        apikey: str,
+        remote_endpoint: str,
+        remote_configuration_url: str,
+        name: str = "",
+        ws_url: str = "",
+        is_active: bool = False,
+        model_name: str = "",
+        hardware_revision: str = "",
+        serial_number: str = "",
+        led_brightness: int = 0,
+        ethernet_led_brightness: int = 0,
+        software_version: str = "",
+        state: str = "",
+        is_learning_active: bool = False,
+    ) -> None:
+        """Create a new UC Remote Object."""
+
+        self._ws_endpoint = ws_url
+        self._id = dock_id
+        self._name = name
+        self._host_name = ""
+        self._software_version = software_version
+        self._serial_number = serial_number
+        self._model_name = model_name
+        self._hardware_revision = hardware_revision
+        self._model_number = ""
+        self._manufacturer = "Unfolded Circle"
+        self._mac_address = ""
+        self._ip_address = ""
+        self._is_active = is_active
+        self._led_brightness = led_brightness
+        self._ethernet_led_brightness = ethernet_led_brightness
+        self._state = state
+        self._is_learning_active = is_learning_active
+        self._token = ""
+        self._description = ""
+        self._check_for_updates = False
+        self._automatic_updates = False
+        self._available_update = []
+        self._latest_software_version = ""
+        self._release_notes_url = ""
+        self._release_notes = ""
+        self.endpoint = remote_endpoint
+        self.apikey = apikey
+        self._remote_configuration_url = remote_configuration_url
+
+    @property
+    def name(self):
+        """Name of the dock."""
+        return self._name or "Unfolded Circle Dock"
+
+    @property
+    def id(self):
+        """id of the dock."""
+        return self._id
+
+    @property
+    def host_name(self):
+        """host_name of the dock."""
+        return self._host_name
+
+    @property
+    def software_version(self):
+        """software version of the dock."""
+        return self._software_version
+
+    @property
+    def serial_number(self):
+        """serial number of the dock."""
+        return self._serial_number
+
+    @property
+    def model_name(self):
+        """model_name of the dock."""
+        if self._model_name == "UCD2":
+            return "Dock 2"
+        return self._model_name
+
+    @property
+    def hardware_revision(self):
+        """hardware_revision of the dock."""
+        return self._hardware_revision
+
+    @property
+    def model_number(self):
+        """model_number of the dock."""
+        return self._model_number
+
+    @property
+    def manufacturer(self):
+        """manufacturer of the dock."""
+        return self._manufacturer
+
+    @property
+    def mac_address(self):
+        """mac_address of the dock."""
+        return self._mac_address
+
+    @property
+    def ip_address(self):
+        """ip_address of the dock."""
+        return self._ip_address
+
+    @property
+    def is_active(self):
+        """Is the dock active"""
+        return self._is_active
+
+    @property
+    def led_brightness(self):
+        """led_brightness of the dock."""
+        return self._led_brightness
+
+    @property
+    def ethernet_led_brightness(self):
+        """ethernet_led_brightness of the dock."""
+        return self._ethernet_led_brightness
+
+    @property
+    def state(self):
+        """state of the dock."""
+        return self._state
+
+    @property
+    def is_learning_active(self):
+        """is_learning_active of the dock."""
+        return self._is_learning_active
+
+    @property
+    def token(self):
+        """token of the dock."""
+        return self._token
+
+    @property
+    def description(self):
+        """description of the dock."""
+        return self._description
+
+    @property
+    def check_for_updates(self):
+        """check_for_updates of the dock."""
+        return self._check_for_updates
+
+    @property
+    def automatic_updates(self):
+        """automatic_updates of the dock."""
+        return self._automatic_updates
+
+    @property
+    def available_update(self):
+        """available_update of the dock."""
+        return self._available_update
+
+    @property
+    def latest_software_version(self):
+        """latest_software_version of the dock."""
+        return self._latest_software_version
+
+    @property
+    def release_notes_url(self):
+        """release_notes_url of the dock."""
+        return self._release_notes_url
+
+    @property
+    def release_notes(self):
+        """release_notes of the dock."""
+        return self._release_notes
+
+    @property
+    def remote_configuration_url(self):
+        """remote_configuration_url of the dock."""
+        return self._remote_configuration_url
+
+    ### URL Helpers ###
+    def validate_url(self, uri):
+        """Validate passed in URL and attempts to correct api endpoint if path isn't supplied."""
+        if re.search("^http.*", uri) is None:
+            uri = (
+                "http://" + uri
+            )  # Normalize to absolute URLs so urlparse will parse the way we want
+        parsed_url = urlparse(uri)
+        # valdation = set(uri)
+        if parsed_url.scheme == "":
+            uri = "http://" + uri
+        if parsed_url.path == "/":  # Only host supplied
+            uri = uri + "api/"
+            return uri
+        if parsed_url.path == "":
+            uri = uri + "/api/"
+            return uri
+        if (
+            parsed_url.path[-1] != "/"
+        ):  # User supplied an endpoint, make sure it has a trailing slash
+            uri = uri + "/"
+        return uri
+
+    def derive_configuration_url(self) -> str:
+        """Derive configuration url from endpoint url."""
+        parsed_url = urlparse(self.endpoint)
+        self.configuration_url = (
+            f"{parsed_url.scheme}://{parsed_url.netloc}/configurator/"
+        )
+        return self.configuration_url
+
+    def url(self, path="/") -> str:
+        """Join path with base url."""
+        return urljoin(self.endpoint, path)
+
+    @staticmethod
+    def url_is_secure(url) -> bool:
+        """Returns true if the configuration url is using a secure protocol"""
+        parsed_url = urlparse(url)
+        if parsed_url.scheme == "https":
+            return True
+        return False
+
+    ### HTTP methods ###
+    def client(self) -> aiohttp.ClientSession:
+        """Create a aiohttp client object with needed headers and defaults."""
+        if self.apikey:
+            headers = {
+                "Authorization": "Bearer " + self.apikey,
+                "Accept": "application/json",
+            }
+            return aiohttp.ClientSession(
+                headers=headers, timeout=aiohttp.ClientTimeout(total=5)
+            )
+        # if self.pin:
+        #     auth = aiohttp.BasicAuth(AUTH_USERNAME, self.pin)
+        #     return aiohttp.ClientSession(
+        #         auth=auth, timeout=aiohttp.ClientTimeout(total=2)
+        #     )
+
+    async def can_connect(self) -> bool:
+        """Validate we can communicate with the remote given the supplied information."""
+        async with (
+            self.client() as session,
+            session.head(self.url("activities")) as response,
+        ):
+            if response.status == 401:
+                raise AuthenticationError
+            return response.status == 200
+
+    async def raise_on_error(self, response):
+        """Raise an HTTP error if the response returns poorly."""
+        if not response.ok:
+            content = await response.json()
+            msg = f"{response.status} Request: {content['code']} Reason: {content['message']}"
+            raise HTTPError(response.status, msg)
+        return response
+
+    async def get_info(self) -> str:
+        """Get dock information."""
+        async with (
+            self.client() as session,
+            session.get(self.url(f"docks/devices/{self.id}")) as response,
+        ):
+            await self.raise_on_error(response)
+            information = await response.json()
+            self._name = information.get("name")
+            self._ws_endpoint = information.get("resolved_ws_url")
+            self._is_active = information.get("active")
+            self._model_name = information.get("model")
+            self._hardware_revision = information.get("revision")
+            self._serial_number = information.get("serial")
+            self._led_brightness = information.get("led_brightness")
+            self._ethernet_led_brightness = information.get("eth_led_brightness")
+            self._software_version = information.get("version")
+            self._state = information.get("state")
+            self._is_learning_active = information.get("learning_active")
+
+            return information
+
+    async def get_update_status(self) -> str:
+        """Get dock update information"""
+        async with (
+            self.client() as session,
+            session.get(self.url(f"docks/devices/{self.id}/update")) as response,
+        ):
+            await self.raise_on_error(response)
+            information = await response.json()
+            self._latest_software_version = information.get("version")
+            self._available_update = information.get("update_available")
+            self._check_for_updates = information.get("update_check_enabled")
+
+            return information
+
+    async def send_command(self, command: DockCommand) -> str:
+        """Send a command to the dock"""
+        payload = {"command": f"{command}"}
+        async with (
+            self.client() as session,
+            session.post(
+                self.url(f"docks/devices/{self.id}/command"), json=payload
+            ) as response,
+        ):
+            await self.raise_on_error(response)
+            return await response.json()
