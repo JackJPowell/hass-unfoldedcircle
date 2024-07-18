@@ -21,7 +21,7 @@ from .const import (
     ZEROCONF_SERVICE_TYPE,
     ZEROCONF_TIMEOUT,
     RemotePowerModes,
-    RemoteUpdateType, DEFAULT_INTEGRATION_ID,
+    RemoteUpdateType, DEFAULT_HA_INTEGRATION_ID,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -159,7 +159,6 @@ class Remote:
         self._ir_codesets = []
         self._last_update_type = RemoteUpdateType.NONE
         self._is_simulator = None
-        self._integration_id = DEFAULT_INTEGRATION_ID
 
     @property
     def name(self):
@@ -378,10 +377,6 @@ class Remote:
     def last_update_type(self) -> RemoteUpdateType:
         """Last update type from received message."""
         return self._last_update_type
-
-    @property
-    def integration_id(self) -> str:
-        return self._integration_id
 
     ### URL Helpers ###
     def validate_url(self, uri):
@@ -689,6 +684,13 @@ class Remote:
             self._name = information.get("device").get("name")
             return information
 
+    async def get_remote_drivers(self) -> list[dict[str, any]]:
+        """List the integrations drivers on the remote."""
+        async with self.client() as session, session.get(
+                self.url("intg/drivers")) as response:
+            await self.raise_on_error(response)
+            return await response.json()
+
     async def get_remote_integrations(self) -> list[dict[str, any]]:
         """List the integrations instances on the remote."""
         async with self.client() as session, session.get(
@@ -696,24 +698,40 @@ class Remote:
             await self.raise_on_error(response)
             return await response.json()
 
-    def set_remote_integration_id(self, integration_id: str):
-        """Set target integration ID (multiple HA integrations internal/external)."""
-        self._integration_id = integration_id
-
-    async def get_remote_subscribed_entities(self) -> list[dict[str, any]]:
+    async def get_remote_integration_entities(self, integration_id, reload=False) -> list[dict[str, any]]:
+        """Get the available entities of the given integration on the remote."""
         async with self.client() as session, session.get(
-                self.url(f"entities?intg_ids={self._integration_id}")) as response:
+                self.url(f"intg/instances/{integration_id}/entities?reload=" +
+                         "true" if reload else "false")) as response:
             await self.raise_on_error(response)
             return await response.json()
 
-    async def add_remote_entities(self, entity_ids: list[str]) -> bool:
+    async def set_remote_integration_entities(self, integration_id,
+                                              entity_ids: list[dict[str, any]]) -> bool:
+        """Set the available entities of the given integration on the remote."""
+        async with self.client() as session, session.post(
+                self.url(f"intg/instances/{integration_id}/entities"),
+                json=entity_ids) as response:
+            await self.raise_on_error(response)
+            return True
+
+    async def get_remote_subscribed_entities(self, integration_id: str) -> list[dict[str, any]]:
+        """Return the list of subscribed entities for the given integration id."""
+        async with self.client() as session, session.get(
+                self.url(f"entities?intg_ids={integration_id}")) as response:
+            await self.raise_on_error(response)
+            return await response.json()
+
+    async def add_remote_entities(self, integration_id, entity_ids: list[str]) -> bool:
+        """Subscribe to the selected entities for the given integration id."""
         _LOGGER.debug("Add entities to remote %s : %s", self._ip_address, entity_ids)
         async with self.client() as session, session.post(
-                self.url(f"/intg/instances/{self._integration_id}/entities"), json=entity_ids) as response:
+                self.url(f"/intg/instances/{integration_id}/entities"), json=entity_ids) as response:
             await self.raise_on_error(response)
             return True
 
     async def remove_remote_entities(self, entity_ids: list[str]) -> bool:
+        """Remove the given subscribed entities."""
         _LOGGER.debug("Remove entities to remote %s : %s", self._ip_address, entity_ids)
         async with self.client() as session, session.request(method="DELETE",
                                                              url=self.url("/entities"),

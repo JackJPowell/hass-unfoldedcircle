@@ -3,7 +3,7 @@ import asyncio
 import logging
 import re
 from datetime import timedelta
-from typing import Any
+from typing import Any, Callable, Awaitable
 
 import voluptuous as vol
 from homeassistant import config_entries
@@ -28,7 +28,7 @@ from .const import (
     CONF_SUPPRESS_ACTIVITIY_GROUPS,
     DOMAIN, HA_SUPPORTED_DOMAINS, CONF_ADVANCED_CONFIGURATION,
 )
-from .websocket import UCWebsocketClient
+from .websocket import UCWebsocketClient, SubscriptionEvent
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -66,6 +66,145 @@ async def remove_token(hass: HomeAssistant, token):
     hass.auth.async_remove_refresh_token(refresh_token)
 
 
+async def async_step_select_entities(config_flow: ConfigFlow|config_entries.OptionsFlow,
+                                     hass: HomeAssistant, remote: Remote,
+                                     finish_callback: Callable[[dict[str, Any] | None], Awaitable[FlowResult]],
+                                     user_input: dict[str, Any] | None = None,
+                                     ) -> FlowResult:
+    """Handle the selected entities to subscribe to for both setup and config flows."""
+    errors: dict[str, str] = {}
+    subscription: SubscriptionEvent | None = None
+    websocket_client = UCWebsocketClient(hass)
+    filtered_domains = HA_SUPPORTED_DOMAINS
+    await remote.get_remote_wifi_info()
+
+    if user_input is None:
+        # First find the active HA drivers on the remote
+        integrations = await remote.get_remote_integrations()
+        _LOGGER.debug("Extraction of remote's integrations %s", integrations)
+        for integration in integrations:
+            integration_id: str | None = integration.get("integration_id", None)
+            if integration_id is None or not integration.get("enabled", False):
+                continue
+            # TODO hack to reload only HA integrations including external ones
+            if not integration_id.startswith("hass"):
+                continue
+            # Force reload of all the integrations entities as we don't know which one to address
+            _LOGGER.debug("Refresh the integration entities of %s", integration_id)
+            await remote.get_remote_integration_entities(integration_id, True)
+
+        # Wait until 10 seconds so that the driver connects to HA and subscribe to events
+        retries = 10
+        while retries > 0:
+            await asyncio.sleep(1)
+            retries -= 1
+            subscription = await websocket_client.get_subscribed_entities(remote.ip_address)
+            if subscription is not None:
+                break
+
+        # Last try : get remote with empty ID (can occur if the driver didn't get the remote ID yet
+        if subscription is None:
+            subscription = await websocket_client.get_subscribed_entities("")
+
+        if subscription is None:
+            _LOGGER.error("The remote's websocket didn't subscribe to configuration event, "
+                          "unable to retrieve and update entities")
+            return config_flow.async_show_menu(
+                step_id="select_entities",
+                menu_options={
+                    "select_entities": "Remote is not connected, retry",
+                    "finish": "Ignore this step and finish"
+                })
+
+        _LOGGER.debug("Found subscription for remote : %s", subscription)
+
+        config: EntitySelectorConfig = {
+            "exclude_entities": subscription.entity_ids,
+            "filter": [{
+                "domain": filtered_domains
+            }],
+            "multiple": True
+        }
+        data_schema: dict[any, any] = {
+            "add_entities": EntitySelector(config)
+        }
+        if len(subscription.entity_ids) > 0:
+            config: EntitySelectorConfig = {
+                "include_entities": subscription.entity_ids,
+                "filter": [{
+                    "domain": filtered_domains
+                }],
+                "multiple": True
+            }
+            data_schema.update({"remove_entities": EntitySelector(config)})
+
+        _LOGGER.debug("Add/removal of entities %s", data_schema)
+        return config_flow.async_show_form(
+            step_id="select_entities", data_schema=vol.Schema(data_schema), errors=errors
+        )
+    if user_input is not None:
+        subscription = await websocket_client.get_subscribed_entities(remote.ip_address)
+        if subscription is None:
+            subscription = await websocket_client.get_subscribed_entities("")
+        if subscription is None:
+            _LOGGER.error("The remote's websocket didn't subscribe to configuration event, "
+                          "unable to retrieve and update entities")
+            return config_flow.async_show_menu(
+                step_id="select_entities",
+                menu_options={
+                    "select_entities": "Remote is not connected, retry",
+                    "finish": "Ignore this step and finish"
+                })
+        add_entities = user_input.get("add_entities", [])
+        remove_entities = user_input.get("remove_entities", [])
+        final_list = set(subscription.entity_ids) - set(remove_entities)
+        final_list.update(add_entities)
+        final_list = list(final_list)
+
+        _LOGGER.debug("Selected entities to subscribe to : add %s, remove %s => %s",
+                      add_entities, remove_entities, final_list)
+
+        entity_states = []
+        for entity_id in final_list:
+            state = hass.states.get(entity_id)
+            if state is not None:
+                entity_states.append(state)
+        try:
+            result = await websocket_client.send_configuration_to_remote(remote.ip_address,
+                                                                         entity_states)
+            if not result:
+                _LOGGER.error("Failed to notify remote with the new entities %s", remote.ip_address)
+                return config_flow.async_show_menu(
+                    step_id="select_entities",
+                    menu_options={
+                        "select_entities": "Try again",
+                        "finish": "Ignore this step and finish"
+                    })
+            # Subscribe to the new entities
+            integrations = await remote.get_remote_integrations()
+            for integration in integrations:
+                integration_id = integration.get("integration_id", None)
+                if integration_id is None or integration.get("driver_id", "") != subscription.driver_id:
+                    continue
+                await remote.get_remote_integration_entities(integration_id, True)
+                await asyncio.sleep(3)
+                # Subscribe to all available entities sent before
+                await remote.set_remote_integration_entities(integration_id, [])
+
+        except Exception as ex:  # pylint: disable=broad-except
+            _LOGGER.error("Error while sending new entities to the remote %s (%s) %s",
+                          remote.ip_address,
+                          final_list,
+                          ex)
+            return config_flow.async_show_menu(
+                step_id="select_entities",
+                menu_options={
+                    "select_entities": "Try again",
+                    "finish": "Ignore this step and finish"
+                })
+        return await finish_callback(None)
+
+
 class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Unfolded Circle Remote."""
 
@@ -79,10 +218,8 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self.api_keyname: str | None = None
         self.discovery_info: dict[str, Any] = {}
         self._data = None
-        self._filtered_domains = HA_SUPPORTED_DOMAINS
         self._remote: Remote | None = None
         self._websocket_client: UCWebsocketClient | None
-        self._entity_ids: list[str] | None = None
 
     async def validate_input(self, data: dict[str, Any], host: str = "") -> dict[str, Any]:
         """Validate the user input allows us to connect.
@@ -160,27 +297,32 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         hostname = discovery_info.hostname
         name = discovery_info.name
         endpoint = f"http://{host}:{port}/api/"
-
+        # Best location to initialize websocket instance : it will run even if no integrations are configured
+        self._websocket_client = UCWebsocketClient(self.hass)
         mac_address = None
         is_simulator = False
+        # TODO : check RemoteThree regex see with @markus
         try:
-            # TODO : add RemoteThree regex see with @markus
-            mac_address = re.match(r"RemoteTwo-(.*?)\.", hostname).group(1).lower()
+            mac_address = re.match(r"(?:RemoteTwo|RemoteThree)-(.*?)\.", hostname).group(1).lower()
         except Exception:
             try:
-                mac_address = re.match(r"RemoteTwo-(.*?)\.", name).group(1).lower()
+                mac_address = re.match(r"(?:RemoteTwo|RemoteThree)-(.*?)\.", name).group(1).lower()
             except Exception:
-                if discovery_info.properties.get("model") != "UCR2-simulator":
+                if (discovery_info.properties.get("model") != "UCR2-simulator"
+                        and discovery_info.properties.get("model") != "UCR3-simulator"):
                     return self.async_abort(reason="no_mac")
                 _LOGGER.debug("Zeroconf from the Simulator %s", discovery_info)
                 is_simulator = True
                 mac_address = SIMULATOR_MAC_ADDRESS.replace(":", "").lower()
 
+        remote_name = "Remote Two"
+        if "RemoteThree" in hostname:
+            remote_name = "Remote Three"
         self.discovery_info.update(
             {
                 CONF_HOST: host,
                 CONF_PORT: port,
-                CONF_NAME: "Remote Two (" + host + ")",
+                CONF_NAME: f"{remote_name} ({host})",
                 CONF_MAC: mac_address,
             }
         )
@@ -195,12 +337,12 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             await self._async_set_unique_id_and_abort_if_already_configured(mac_address)
 
         # Retrieve device friendly name set by the user
-        device_name = "Remote Two"
+        device_name = remote_name
         try:
             response = await Remote.get_version_information(endpoint)
             device_name = response.get("device_name", None)
             if not device_name:
-                device_name = "Remote Two"
+                device_name = remote_name
         except Exception:
             pass
 
@@ -226,7 +368,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Confirm discovery."""
-        self._websocket_client = UCWebsocketClient(self.hass)
         errors: dict[str, str] = {}
         if user_input is None or user_input == {}:
             return self.async_show_form(
@@ -365,97 +506,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_select_entities(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle the selected entities to subscribe to."""
-        errors: dict[str, str] = {}
-
-        if user_input is None:
-            retries = 10
-            while retries > 0:
-                await asyncio.sleep(1)
-                retries -= 1
-                self._entity_ids = await self._websocket_client.get_subscribed_entities(self._remote.ip_address)
-                if self._entity_ids is not None:
-                    break
-
-            if self._entity_ids is None:
-                _LOGGER.error("The remote's websocket didn't subscribe to configuration event, "
-                              "unable to retrieve and update entities")
-                return self.async_show_menu(
-                    step_id="select_entities",
-                    menu_options={
-                        "select_entities": "Remote is not connected, retry",
-                        "finish": "Ignore this step and finish"
-                    })
-
-            config: EntitySelectorConfig = {
-                "exclude_entities": self._entity_ids,
-                "filter": [{
-                    "domain": self._filtered_domains
-                }],
-                "multiple": True
-            }
-            data_schema: dict[any, any] = {
-                "add_entities": EntitySelector(config)
-            }
-            if len(self._entity_ids) > 0:
-                config: EntitySelectorConfig = {
-                    "include_entities": self._entity_ids,
-                    "filter": [{
-                        "domain": self._filtered_domains
-                    }],
-                    "multiple": True
-                }
-                data_schema.update({"remove_entities": EntitySelector(config)})
-
-            _LOGGER.debug("Add/removal of entities %s", data_schema)
-            return self.async_show_form(
-                step_id="select_entities", data_schema=vol.Schema(data_schema), errors=errors
-            )
-        if user_input is not None:
-            add_entities = user_input.get("add_entities", [])
-            remove_entities = user_input.get("remove_entities", [])
-            final_list = set(self._entity_ids) - set(remove_entities)
-            final_list.update(add_entities)
-            final_list = list(final_list)
-
-            _LOGGER.debug("Selected entities to subscribe to : add %s, remove %s => %s",
-                          add_entities, remove_entities, final_list)
-
-            entity_states = []
-            for entity_id in final_list:
-                state = self.hass.states.get(entity_id)
-                if state is not None:
-                    entity_states.append(state)
-            try:
-                result = await self._websocket_client.send_configuration_to_remote(self._remote.ip_address,
-                                                                                   entity_states)
-                if not result:
-                    _LOGGER.error("Failed to notify remote with the new entities %s", self._remote.ip_address)
-                    return self.async_show_menu(
-                        step_id="select_entities",
-                        menu_options={
-                            "select_entities": "Try again",
-                            "finish": "Ignore this step and finish"
-                        })
-                # Subscribe to the new entities
-                await asyncio.sleep(2)
-                # TODO : subscribe to the full entities list
-                #  GET the right integration intgId
-                #  GET /api/intg/instances/:intgId/entities?reload=true
-                #  POST /api/intg/instances/:intgId/entities
-
-            except Exception as ex:  # pylint: disable=broad-except
-                _LOGGER.error("Error while sending new entities to the remote %s (%s) %s",
-                              self._remote.ip_address,
-                              final_list,
-                              ex)
-                return self.async_show_menu(
-                    step_id="select_entities",
-                    menu_options={
-                        "select_entities": "Try again",
-                        "finish": "Ignore this step and finish"
-                    })
-
-            return self.async_create_entry(title=self._data["title"], data=self._data)
+        return await async_step_select_entities(self, self.hass, self._remote, self.async_step_finish, user_input)
 
     async def async_step_finish(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         return self.async_create_entry(title=self._data["title"], data=self._data)
@@ -469,7 +520,6 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         self.config_entry = config_entry
         self.options = dict(config_entry.options)
         self._remote: Remote | None = None
-        self._filtered_domains = HA_SUPPORTED_DOMAINS
         self._websocket_client: UCWebsocketClient | None
         self._entity_ids: list[str] | None = None
 
@@ -557,96 +607,7 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_select_entities(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle the selected entities to subscribe to."""
-        errors: dict[str, str] = {}
-
-        if user_input is None:
-            retries = 10
-            while retries > 0:
-                await asyncio.sleep(1)
-                retries -= 1
-                self._entity_ids = await self._websocket_client.get_subscribed_entities(self._remote.ip_address)
-                if self._entity_ids is not None:
-                    break
-
-            if self._entity_ids is None:
-                _LOGGER.error("The remote's websocket didn't subscribe to configuration event, "
-                              "unable to retrieve and update entities")
-                return self.async_show_menu(
-                    step_id="select_entities",
-                    menu_options={
-                        "select_entities": "Remote is not connected, retry",
-                        "finish": "Ignore this step and finish"
-                    })
-
-            config: EntitySelectorConfig = {
-                "exclude_entities": self._entity_ids,
-                "filter": [{
-                    "domain": self._filtered_domains
-                }],
-                "multiple": True
-            }
-            data_schema: dict[any, any] = {
-                "add_entities": EntitySelector(config)
-            }
-            if len(self._entity_ids) > 0:
-                config: EntitySelectorConfig = {
-                    "include_entities": self._entity_ids,
-                    "filter": [{
-                        "domain": self._filtered_domains
-                    }],
-                    "multiple": True
-                }
-                data_schema.update({"remove_entities": EntitySelector(config)})
-
-            _LOGGER.debug("Add/removal of entities %s", data_schema)
-            return self.async_show_form(
-                step_id="select_entities", data_schema=vol.Schema(data_schema), errors=errors
-            )
-        if user_input is not None:
-            add_entities = user_input.get("add_entities", [])
-            remove_entities = user_input.get("remove_entities", [])
-            final_list = set(self._entity_ids) - set(remove_entities)
-            final_list.update(add_entities)
-            final_list = list(final_list)
-
-            _LOGGER.debug("Selected entities to subscribe to : add %s, remove %s => %s",
-                          add_entities, remove_entities, final_list)
-
-            entity_states = []
-            for entity_id in final_list:
-                state = self.hass.states.get(entity_id)
-                if state is not None:
-                    entity_states.append(state)
-            try:
-                result = await self._websocket_client.send_configuration_to_remote(self._remote.ip_address,
-                                                                                   entity_states)
-                if not result:
-                    _LOGGER.error("Failed to notify remote with the new entities %s", self._remote.ip_address)
-                    return self.async_show_menu(
-                        step_id="select_entities",
-                        menu_options={
-                            "select_entities": "Try again",
-                            "finish": "Ignore this step and finish"
-                        })
-                
-                await asyncio.sleep(2)
-                # TODO : subscribe to the full entities list
-                #  GET the right integration intgId
-                #  GET /api/intg/instances/:intgId/entities?reload=true
-                #  POST /api/intg/instances/:intgId/entities
-            except Exception as ex:  # pylint: disable=broad-except
-                _LOGGER.error("Error while sending new entities to the remote %s (%s) %s",
-                              self._remote.ip_address,
-                              final_list,
-                              ex)
-                return self.async_show_menu(
-                    step_id="select_entities",
-                    menu_options={
-                        "select_entities": "Try again",
-                        "finish": "Ignore this step and finish"
-                    })
-
-            return await self._update_options()
+        return await async_step_select_entities(self, self.hass, self._remote, self.async_step_finish, user_input)
 
     async def async_step_finish(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         return await self._update_options()
