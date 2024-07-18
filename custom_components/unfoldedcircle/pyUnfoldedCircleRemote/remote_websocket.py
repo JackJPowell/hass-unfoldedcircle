@@ -124,14 +124,12 @@ class RemoteWebsocket:
         _LOGGER.debug(
             "UnfoldedCircleRemote subscribing to events %s", self.events_to_subscribe
         )
-        await self.send_message(
-            {
-                "id": 1,
-                "kind": "req",
-                "msg": "subscribe_events",
-                "msg_data": {"channels": self.events_to_subscribe},
-            }
-        )
+        await self.send_message({
+            "id": 1,
+            "kind": "req",
+            "msg": "subscribe_events",
+            "msg_data": {"channels": self.events_to_subscribe},
+        })
 
     async def send_message(self, message: any) -> None:
         """Send a message to the connected websocket."""

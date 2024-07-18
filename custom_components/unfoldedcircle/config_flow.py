@@ -45,12 +45,10 @@ from .websocket import SubscriptionEvent, UCWebsocketClient
 
 _LOGGER = logging.getLogger(__name__)
 
-STEP_USER_DATA_SCHEMA = vol.Schema(
-    {
-        vol.Required("host"): str,
-        vol.Required("pin"): str,
-    }
-)
+STEP_USER_DATA_SCHEMA = vol.Schema({
+    vol.Required("host"): str,
+    vol.Required("pin"): str,
+})
 
 STEP_ZEROCONF_DATA_SCHEMA = vol.Schema({vol.Required("pin"): str})
 
@@ -364,14 +362,12 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         remote_name = "Remote Two"
         if "RemoteThree" in hostname:
             remote_name = "Remote Three"
-        self.discovery_info.update(
-            {
-                CONF_HOST: host,
-                CONF_PORT: port,
-                CONF_NAME: f"{remote_name} ({host})",
-                CONF_MAC: mac_address,
-            }
-        )
+        self.discovery_info.update({
+            CONF_HOST: host,
+            CONF_PORT: port,
+            CONF_NAME: f"{remote_name} ({host})",
+            CONF_MAC: mac_address,
+        })
 
         _LOGGER.debug(
             "Unfolded circle remote found %s %s %s :", mac_address, host, discovery_info
@@ -395,15 +391,13 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         if is_simulator:
             device_name = f"{device_name} Simulator"
 
-        self.context.update(
-            {
-                "title_placeholders": {"name": device_name},
-                "configuration_url": (
-                    f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
-                ),
-                "product": "Product",
-            }
-        )
+        self.context.update({
+            "title_placeholders": {"name": device_name},
+            "configuration_url": (
+                f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
+            ),
+            "product": "Product",
+        })
 
         _LOGGER.debug(
             "Unfolded Circle Zeroconf Creating: %s %s", mac_address, discovery_info
@@ -606,28 +600,26 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="media_player",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_GLOBAL_MEDIA_ENTITY,
-                        default=self.config_entry.options.get(
-                            CONF_GLOBAL_MEDIA_ENTITY, True
-                        ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
-                        default=self.config_entry.options.get(
-                            CONF_ACTIVITY_GROUP_MEDIA_ENTITIES, False
-                        ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_ACTIVITY_MEDIA_ENTITIES,
-                        default=self.config_entry.options.get(
-                            CONF_ACTIVITY_MEDIA_ENTITIES, False
-                        ),
-                    ): bool,
-                }
-            ),
+            data_schema=vol.Schema({
+                vol.Optional(
+                    CONF_GLOBAL_MEDIA_ENTITY,
+                    default=self.config_entry.options.get(
+                        CONF_GLOBAL_MEDIA_ENTITY, True
+                    ),
+                ): bool,
+                vol.Optional(
+                    CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
+                    default=self.config_entry.options.get(
+                        CONF_ACTIVITY_GROUP_MEDIA_ENTITIES, False
+                    ),
+                ): bool,
+                vol.Optional(
+                    CONF_ACTIVITY_MEDIA_ENTITIES,
+                    default=self.config_entry.options.get(
+                        CONF_ACTIVITY_MEDIA_ENTITIES, False
+                    ),
+                ): bool,
+            }),
             last_step=True,
         )
 
@@ -639,22 +631,20 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="activities",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_ACTIVITIES_AS_SWITCHES,
-                        default=self.config_entry.options.get(
-                            CONF_ACTIVITIES_AS_SWITCHES, False
-                        ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_SUPPRESS_ACTIVITIY_GROUPS,
-                        default=self.config_entry.options.get(
-                            CONF_SUPPRESS_ACTIVITIY_GROUPS, False
-                        ),
-                    ): bool,
-                }
-            ),
+            data_schema=vol.Schema({
+                vol.Optional(
+                    CONF_ACTIVITIES_AS_SWITCHES,
+                    default=self.config_entry.options.get(
+                        CONF_ACTIVITIES_AS_SWITCHES, False
+                    ),
+                ): bool,
+                vol.Optional(
+                    CONF_SUPPRESS_ACTIVITIY_GROUPS,
+                    default=self.config_entry.options.get(
+                        CONF_SUPPRESS_ACTIVITIY_GROUPS, False
+                    ),
+                ): bool,
+            }),
             last_step=False,
         )
 

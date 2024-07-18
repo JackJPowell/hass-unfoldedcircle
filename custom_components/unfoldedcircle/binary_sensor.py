@@ -19,9 +19,10 @@ async def async_setup_entry(
 ) -> None:
     """Use to setup entity."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
-    async_add_entities(
-        [BatteryBinarySensor(coordinator), PollingBinarySensor(coordinator)]
-    )
+    async_add_entities([
+        BatteryBinarySensor(coordinator),
+        PollingBinarySensor(coordinator),
+    ])
 
 
 class PollingBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
