@@ -10,10 +10,10 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.network import get_url
-from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 from .const import DOMAIN, UNFOLDED_CIRCLE_API, UNFOLDED_CIRCLE_COORDINATOR
 from .coordinator import UnfoldedCircleRemoteCoordinator
+from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 PLATFORMS: list[Platform] = [
     Platform.SWITCH,

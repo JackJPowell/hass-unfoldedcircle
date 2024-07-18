@@ -3,7 +3,7 @@
 
 import logging
 from dataclasses import dataclass
-from typing import Callable, Any
+from typing import Any, Callable
 
 import voluptuous as vol
 from homeassistant.components import websocket_api
@@ -12,6 +12,7 @@ from homeassistant.helpers.event import (
     EventStateChangedData,
     async_track_state_change_event,
 )
+
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 
 _LOGGER = logging.getLogger(__name__)
@@ -38,9 +39,9 @@ class SubscriptionEvent:
 @websocket_api.websocket_command(INFO_SCHEMA)
 @callback
 def ws_get_info(
-        hass: HomeAssistant,
-        connection: websocket_api.ActiveConnection,
-        msg: dict,
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict,
 ) -> None:
     """Handle get info command."""
     # websocket_client = UCWebsocketClient(hass)
@@ -65,9 +66,9 @@ def ws_get_info(
 )
 @callback
 def ws_configure_event(
-        hass: HomeAssistant,
-        connection: websocket_api.ActiveConnection,
-        msg: dict,
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict,
 ) -> None:
     """Subscribe event to push modifications of configuration to the remote."""
     websocket_client = UCWebsocketClient(hass)
@@ -83,9 +84,9 @@ def ws_configure_event(
 )
 @callback
 def ws_configure_unsubscribe_event(
-        hass: HomeAssistant,
-        connection: websocket_api.ActiveConnection,
-        msg: dict,
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict,
 ) -> None:
     """Subscribe event to push modifications of configuration to the remote."""
     cancel_callback = connection.subscriptions.get(msg["id"], None)
@@ -102,9 +103,9 @@ def ws_configure_unsubscribe_event(
 )
 @callback
 def ws_unsubscribe_entities_event(
-        hass: HomeAssistant,
-        connection: websocket_api.ActiveConnection,
-        msg: dict,
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict,
 ) -> None:
     """Unsubscribe events."""
     # websocket_client = UCWebsocketClient(hass)
@@ -122,9 +123,9 @@ def ws_unsubscribe_entities_event(
 )
 @callback
 def ws_subscribe_entities_event(
-        hass: HomeAssistant,
-        connection: websocket_api.ActiveConnection,
-        msg: dict,
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict,
 ) -> None:
     """Subscribe to incoming and outgoing events."""
     websocket_client = UCWebsocketClient(hass)
@@ -134,6 +135,7 @@ def ws_subscribe_entities_event(
 
 class Singleton(type):
     """Singleton type to instantiate a single instance"""
+
     _instances = {}
 
     def __call__(cls, *args, **kwargs):
@@ -159,7 +161,9 @@ class UCWebsocketClient(metaclass=Singleton):
         websocket_api.async_register_command(hass, ws_unsubscribe_entities_event)
         websocket_api.async_register_command(hass, ws_configure_event)
         websocket_api.async_register_command(hass, ws_configure_unsubscribe_event)
-        _LOGGER.debug("Unfolded Circle websocket APIs registered. Ready to receive remotes requests")
+        _LOGGER.debug(
+            "Unfolded Circle websocket APIs registered. Ready to receive remotes requests"
+        )
 
     async def close(self):
         for subscription in self._subscriptions:
@@ -181,13 +185,19 @@ class UCWebsocketClient(metaclass=Singleton):
         # TODO better handling of client ids
         client_id = client_id.split(":")[0]
         for subscription in self._subscriptions:
-            _LOGGER.debug("Get subscribed entities for client %s : found client %s, (driver %s)",
-                          client_id, subscription.client_id, subscription.driver_id)
+            _LOGGER.debug(
+                "Get subscribed entities for client %s : found client %s, (driver %s)",
+                client_id,
+                subscription.client_id,
+                subscription.driver_id,
+            )
             if subscription.client_id.startswith(client_id):
                 return subscription
         return None
 
-    async def send_configuration_to_remote(self, client_id: str, new_configuration: any) -> bool:
+    async def send_configuration_to_remote(
+        self, client_id: str, new_configuration: any
+    ) -> bool:
         if client_id is None:
             return False
         # TODO better handling of client ids
@@ -209,16 +219,18 @@ class UCWebsocketClient(metaclass=Singleton):
             _LOGGER.warning(
                 "Unfolded Circle cannot notify remote %s for new configuration, it is not registered (%s)",
                 client_id,
-                new_configuration
+                new_configuration,
             )
             return False
-        _LOGGER.debug("Notify new configuration to remote %s (%s)", client_id, new_configuration)
-        configuration.notification_callback({
-            "data": new_configuration
-        })
+        _LOGGER.debug(
+            "Notify new configuration to remote %s (%s)", client_id, new_configuration
+        )
+        configuration.notification_callback({"data": new_configuration})
         return True
 
-    def subscribe_entities_events(self, connection: websocket_api.ActiveConnection, msg: dict):
+    def subscribe_entities_events(
+        self, connection: websocket_api.ActiveConnection, msg: dict
+    ):
         """Adds and handles subscribed event"""
         subscription: SubscriptionEvent | None = None
         cancel_callback: Callable[[], None] | None = None
@@ -267,7 +279,9 @@ class UCWebsocketClient(metaclass=Singleton):
         data = msg["data"]
         entities = data.get("entities", [])
         client_id = data.get("client_id", "")
-        driver_id = data.get("driver_id", "hass")   # TODO : upcoming modifications of core+HA driver
+        driver_id = data.get(
+            "driver_id", "hass"
+        )  # TODO : upcoming modifications of core+HA driver
 
         cancel_callback = async_track_state_change_event(
             self.hass, entities, entities_state_change_event
@@ -281,14 +295,18 @@ class UCWebsocketClient(metaclass=Singleton):
             entity_ids=entities,
         )
         self._subscriptions.append(subscription)
-        _LOGGER.debug("UC added subscription from remote %s for entity ids %s", client_id, entities)
+        _LOGGER.debug(
+            "UC added subscription from remote %s for entity ids %s",
+            client_id,
+            entities,
+        )
 
         connection.subscriptions[subscription_id] = remove_listener
 
         return remove_listener
 
     def configure_entities_events(
-            self, connection: websocket_api.ActiveConnection, msg: dict
+        self, connection: websocket_api.ActiveConnection, msg: dict
     ):
         """Subscribed event from remotes to receive new configuration data (entities to subscribe)"""
         configuration: SubscriptionEvent | None = None
@@ -315,7 +333,9 @@ class UCWebsocketClient(metaclass=Singleton):
         subscription_id = msg["id"]
         data = msg["data"]
         client_id = data.get("client_id", "")
-        driver_id = data.get("driver_id", "hass")  # TODO : upcoming modifications of core+HA driver
+        driver_id = data.get(
+            "driver_id", "hass"
+        )  # TODO : upcoming modifications of core+HA driver
 
         configuration = SubscriptionEvent(
             client_id=client_id,
@@ -323,7 +343,7 @@ class UCWebsocketClient(metaclass=Singleton):
             cancel_subscription_callback=cancel_callback,
             subscription_id=subscription_id,
             notification_callback=forward_event,
-            entity_ids=[]
+            entity_ids=[],
         )
         self._configurations.append(configuration)
         _LOGGER.debug("UC added configuration event for remote %s", client_id)

@@ -7,27 +7,23 @@ import logging
 from typing import Any
 from urllib.error import HTTPError
 
-
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
-
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
     UpdateFailed,
 )
-from .pyUnfoldedCircleRemote.remote import Remote
-from .pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
 
 from .const import DEVICE_SCAN_INTERVAL, DOMAIN
+from .pyUnfoldedCircleRemote.remote import Remote
+from .pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
 from .websocket import UCWebsocketClient
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class UnfoldedCircleRemoteCoordinator(
-    DataUpdateCoordinator[dict[str, Any]]
-):
+class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Data update coordinator for an Unfolded Circle Remote device."""
 
     # List of events to subscribe to the websocket
