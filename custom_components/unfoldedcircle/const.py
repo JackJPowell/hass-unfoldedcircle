@@ -9,7 +9,6 @@ CONF_ACTIVITY_GROUP_MEDIA_ENTITIES = "activity_group_media_entities"
 CONF_GLOBAL_MEDIA_ENTITY = "global_media_entity"
 CONF_ACTIVITY_MEDIA_ENTITIES = "activity_media_entities"
 CONF_ACTIVITIES_AS_SWITCHES = "activities_as_switches"
-CONF_ADVANCED_CONFIGURATION = "advanced_configuration"
 CONF_SUPPRESS_ACTIVITIY_GROUPS = "suppress_activity_groups"
 DEVICE_SCAN_INTERVAL = timedelta(seconds=30)
 UNFOLDED_CIRCLE_COORDINATOR = "unfolded_circle_coordinator"

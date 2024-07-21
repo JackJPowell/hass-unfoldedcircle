@@ -12,7 +12,6 @@ from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN
 from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.config_entries import ConfigEntry, ConfigFlow
 from homeassistant.const import (
-    ATTR_FRIENDLY_NAME,
     CONF_HOST,
     CONF_MAC,
     CONF_NAME,
@@ -25,14 +24,12 @@ from homeassistant.helpers.network import get_url
 from homeassistant.helpers.selector import (
     EntitySelector,
     EntitySelectorConfig,
-    selector,
 )
 
 from .const import (
     CONF_ACTIVITIES_AS_SWITCHES,
     CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
     CONF_ACTIVITY_MEDIA_ENTITIES,
-    CONF_ADVANCED_CONFIGURATION,
     CONF_GLOBAL_MEDIA_ENTITY,
     CONF_SERIAL,
     CONF_SUPPRESS_ACTIVITIY_GROUPS,

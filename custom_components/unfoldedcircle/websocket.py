@@ -23,6 +23,11 @@ INFO_SCHEMA = {
     vol.Optional("data", description="Any Dict"): dict[any, any],
 }
 
+STATES_SCHEMA = {
+    vol.Required("type"): f"{DOMAIN}/entities/states",
+    vol.Optional("message", description="Any String"): str,
+    vol.Optional("data", description="Any Dict"): dict[any, any],
+}
 
 @dataclass
 class SubscriptionEvent:
@@ -44,7 +49,6 @@ def ws_get_info(
     msg: dict,
 ) -> None:
     """Handle get info command."""
-    # websocket_client = UCWebsocketClient(hass)
     _LOGGER.debug("Unfolded Circle connect request %s", msg)
     connection.send_message({
         "id": msg.get("id"),
@@ -53,6 +57,34 @@ def ws_get_info(
         "result": {"state": "CONNECTED", "cat": "DEVICE", "version": "1.0.0"},
         "message": msg.get("message"),
         "data": msg.get("data"),
+    })
+
+
+@websocket_api.websocket_command(STATES_SCHEMA)
+@callback
+def ws_get_states(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict,
+) -> None:
+    """Handle get info command."""
+    _LOGGER.debug("Unfolded Circle get entities states request %s", msg)
+    entity_ids: list[str] = msg.get("data", {}).get("entity_ids", [])
+    entity_states = []
+    # If entity_ids list is empty, send all entities
+    if len(entity_ids) == 0:
+        entity_states = hass.states.all()
+    else:
+        for entity_id in entity_ids:
+            state = hass.states.get(entity_id)
+            if state is not None:
+                entity_states.append(state)
+    # Send requested entity states back to remote
+    connection.send_message({
+        "id": msg.get("id"),
+        "type": "result",
+        "success": True,
+        "result": entity_states,
     })
 
 
@@ -147,6 +179,7 @@ class UCWebsocketClient(metaclass=Singleton):
         self._subscriptions: list[SubscriptionEvent] = []
         self._configurations: list[SubscriptionEvent] = []
         websocket_api.async_register_command(hass, ws_get_info)
+        websocket_api.async_register_command(hass, ws_get_states)
         websocket_api.async_register_command(hass, ws_subscribe_entities_event)
         websocket_api.async_register_command(hass, ws_unsubscribe_entities_event)
         websocket_api.async_register_command(hass, ws_configure_event)
