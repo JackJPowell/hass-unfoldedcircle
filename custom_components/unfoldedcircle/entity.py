@@ -7,6 +7,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from . import UnfoldedCircleRemoteCoordinator
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 from .pyUnfoldedCircleRemote.dock import Dock
+from .coordinator import UnfoldedCircleDockCoordinator
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry):
@@ -45,14 +46,13 @@ class UnfoldedCircleEntity(CoordinatorEntity[UnfoldedCircleRemoteCoordinator]):
         return False
 
 
-class UnfoldedCircleDockEntity(CoordinatorEntity[UnfoldedCircleRemoteCoordinator]):
+class UnfoldedCircleDockEntity(CoordinatorEntity[UnfoldedCircleDockCoordinator]):
     """Common entity class for all Unfolded Circle Dock entities"""
 
-    def __init__(self, coordinator, dock: Dock) -> None:
+    def __init__(self, coordinator) -> None:
         """Initialize Unfolded Circle Sensor."""
         super().__init__(coordinator)
         self.coordinator = coordinator
-        self.dock = dock
         self.coordinator.entities.append(self)
 
     @property
@@ -61,17 +61,20 @@ class UnfoldedCircleDockEntity(CoordinatorEntity[UnfoldedCircleRemoteCoordinator
         return DeviceInfo(
             identifiers={
                 # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, f"{self.dock._model_name}-{self.dock.serial_number}")
+                (
+                    DOMAIN,
+                    f"{self.coordinator.api.model_name}-{self.coordinator.api.serial_number}",
+                )
             },
-            name=self.dock.name,
-            manufacturer=self.dock.manufacturer,
-            model=self.dock.model_name,
-            sw_version=self.dock.software_version,
-            hw_version=self.dock.hardware_revision,
-            configuration_url=self.dock.remote_configuration_url,
+            name=self.coordinator.api.name,
+            manufacturer=self.coordinator.api.manufacturer,
+            model=self.coordinator.api.model_name,
+            sw_version=self.coordinator.api.software_version,
+            hw_version=self.coordinator.api.hardware_revision,
+            configuration_url=self.coordinator.api.remote_configuration_url,
         )
 
     @property
     def should_poll(self) -> bool:
         """Should the entity poll for updates?"""
-        return False
+        return True

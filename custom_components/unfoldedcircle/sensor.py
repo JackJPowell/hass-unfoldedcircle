@@ -11,9 +11,12 @@ from homeassistant.const import LIGHT_LUX, PERCENTAGE, EntityCategory, UnitOfInf
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.typing import StateType
 
-from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
+from .const import (
+    DOMAIN,
+    UNFOLDED_CIRCLE_COORDINATOR,
+    UNFOLDED_CIRCLE_DOCK_COORDINATORS,
+)
 from .entity import UnfoldedCircleDockEntity, UnfoldedCircleEntity
-from .pyUnfoldedCircleRemote.dock import Dock
 
 
 @dataclass
@@ -90,16 +93,16 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
     ),
 )
 
-UNFOLDED_CIRCLE_DOCK_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
-    UnfoldedCircleSensorEntityDescription(
-        key="led_brightness",
-        device_class=SensorDeviceClass.ILLUMINANCE,
-        unit_of_measurement=PERCENTAGE,
-        name="Led Brightness",
-        has_entity_name=True,
-        unique_id="led_brightness",
-    ),
-)
+# UNFOLDED_CIRCLE_DOCK_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
+#     UnfoldedCircleSensorEntityDescription(
+#         key="led_brightness",
+#         device_class=SensorDeviceClass.ILLUMINANCE,
+#         unit_of_measurement=PERCENTAGE,
+#         name="Led Brightness",
+#         has_entity_name=True,
+#         unique_id="led_brightness",
+#     ),
+# )
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entities):
@@ -111,11 +114,15 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
         for description in UNFOLDED_CIRCLE_SENSOR
     )
 
-    for dock in coordinator.api._docks:
-        async_add_entities(
-            UnfoldedCircleDockSensor(coordinator, description, dock)
-            for description in UNFOLDED_CIRCLE_DOCK_SENSOR
-        )
+    dock_coordinators = hass.data[DOMAIN][config_entry.entry_id][
+        UNFOLDED_CIRCLE_DOCK_COORDINATORS
+    ]
+
+    # for dock_coordinator in dock_coordinators:
+    #     async_add_entities(
+    #         UnfoldedCircleDockSensor(dock_coordinator, description)
+    #         for description in UNFOLDED_CIRCLE_DOCK_SENSOR
+    #     )
 
 
 class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
@@ -193,13 +200,10 @@ class UnfoldedCircleDockSensor(UnfoldedCircleDockEntity, SensorEntity):
         self,
         coordinator,
         description: UnfoldedCircleSensorEntityDescription,
-        dock: Dock,
     ) -> None:
         """Initialize Unfolded Circle Sensor."""
-        super().__init__(coordinator, dock)
-        self._attr_unique_id = (
-            f"{self.dock.model_name}_{self.dock.serial_number}_{description.unique_id}"
-        )
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{self.coordinator.api.model_name}_{self.coordinator.api.serial_number}_{description.unique_id}"
         self._attr_name = description.name
         self._attr_unit_of_measurement = description.unit_of_measurement
         self._attr_native_unit_of_measurement = description.unit_of_measurement
@@ -208,7 +212,6 @@ class UnfoldedCircleDockSensor(UnfoldedCircleDockEntity, SensorEntity):
         self._attr_has_entity_name = description.has_entity_name
         self.entity_description = description
         self._state: StateType = None
-        self._dock: Dock = dock
 
     async def async_added_to_hass(self) -> None:
         """Run when this Entity has been added to HA."""
@@ -219,23 +222,18 @@ class UnfoldedCircleDockSensor(UnfoldedCircleDockEntity, SensorEntity):
 
     def get_value(self) -> StateType:
         """return native value of entity"""
-        dock = self.coordinator.api.get_dock_by_id(self._dock.id)
-        if dock:
-            self._attr_native_value = getattr(dock, self.entity_description.key)
+        self._attr_native_value = getattr(
+            self.coordinator.api, self.entity_description.key
+        )
         return self._attr_native_value
 
     @property
     def available(self) -> bool:
         """Return if available."""
-        return self._dock.is_active
+        return self.coordinator.api.is_active
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         self._attr_native_value = self.get_value()
         self.async_write_ha_state()
-
-    @property
-    def native_value(self) -> StateType:
-        """Return native value for entity."""
-        return self.get_value()

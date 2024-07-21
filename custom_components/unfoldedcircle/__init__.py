@@ -9,10 +9,14 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from homeassistant.helpers.network import get_url
 
-from .const import DOMAIN, UNFOLDED_CIRCLE_API, UNFOLDED_CIRCLE_COORDINATOR
-from .coordinator import UnfoldedCircleRemoteCoordinator
+from .const import (
+    DOMAIN,
+    UNFOLDED_CIRCLE_API,
+    UNFOLDED_CIRCLE_COORDINATOR,
+    UNFOLDED_CIRCLE_DOCK_COORDINATORS,
+)
+from .coordinator import UnfoldedCircleRemoteCoordinator, UnfoldedCircleDockCoordinator
 from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 PLATFORMS: list[Platform] = [
@@ -43,19 +47,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as ex:
         raise ConfigEntryNotReady(ex) from ex
 
+    dock_coordinators: list[UnfoldedCircleDockCoordinator] = []
     coordinator = UnfoldedCircleRemoteCoordinator(hass, remote_api)
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
-        UNFOLDED_CIRCLE_COORDINATOR: coordinator,
-        UNFOLDED_CIRCLE_API: remote_api,
-    }
 
     # Extract activities and activity groups
     await coordinator.api.init()
 
     # Retrieve info from Remote
     # Get Basic Device Information
-    await coordinator.async_config_entry_first_refresh()
 
+    for dock in remote_api._docks:
+        dock_coordinator = UnfoldedCircleDockCoordinator(hass, dock)
+        dock_coordinators.append(dock_coordinator)
+        await dock_coordinator.async_config_entry_first_refresh()
+        await dock_coordinator.init_websocket()
+
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+        UNFOLDED_CIRCLE_COORDINATOR: coordinator,
+        UNFOLDED_CIRCLE_API: remote_api,
+        UNFOLDED_CIRCLE_DOCK_COORDINATORS: dock_coordinators,
+    }
+
+    await coordinator.async_config_entry_first_refresh()
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(update_listener))
     await zeroconf.async_get_async_instance(hass)

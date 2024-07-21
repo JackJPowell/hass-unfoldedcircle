@@ -1,7 +1,9 @@
 """Module to interact with the Unfolded Circle Remote Two Dock."""
 
 import logging
+import asyncio
 import re
+import json
 from enum import Enum
 from urllib.parse import urljoin, urlparse
 
@@ -132,6 +134,7 @@ class Dock:
         self.endpoint = remote_endpoint
         self.apikey = apikey
         self._remote_configuration_url = remote_configuration_url
+        self.websocket = ""
 
     @property
     def name(self):
@@ -162,7 +165,7 @@ class Dock:
     def model_name(self):
         """model_name of the dock."""
         if self._model_name == "UCD2":
-            return "Dock 2"
+            return "Dock Two"
         return self._model_name
 
     @property
@@ -374,9 +377,13 @@ class Dock:
 
             return information
 
-    async def send_command(self, command: DockCommand) -> str:
+    async def send_command(
+        self, command: DockCommand, command_value: str = None
+    ) -> str:
         """Send a command to the dock"""
         payload = {"command": f"{command}"}
+        if command_value:
+            payload = {"command": f"{command}", "value": f"{command_value}"}
         async with (
             self.client() as session,
             session.post(
@@ -385,3 +392,27 @@ class Dock:
         ):
             await self.raise_on_error(response)
             return await response.json()
+
+    def update_from_message(self, message: any) -> None:
+        """Update internal data from received websocket messages"""
+        data = json.loads(message)
+        _LOGGER.debug("RC2 received websocket message %s", data)
+        try:
+            # Beware when modifying this code : if an attribute is missing in one of the if clauses,
+            # it will raise an exception and skip the other if clauses
+            # TODO Missing software updates (message format ?)
+            if data["type"] == "auth_required":
+                _LOGGER.debug("auth is required")
+        except Exception:
+            pass
+
+    async def update(self):
+        """Updates all information about the remote."""
+        _LOGGER.debug("Unfoldded circle remote update data")
+        group = asyncio.gather(
+            self.get_info(),
+            self.get_update_status(),
+        )
+        await group
+
+        _LOGGER.debug("Unfoldded circle remote data updated")

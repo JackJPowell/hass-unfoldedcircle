@@ -8,20 +8,18 @@ from dataclasses import dataclass
 from typing import Any, Callable
 from urllib.error import HTTPError
 
-from homeassistant.components import websocket_api
-from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers.event import (
-    EventStateChangedData,
-    async_track_state_change_event,
-)
+
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
     UpdateFailed,
 )
 from pyUnfoldedCircleRemote.remote import Remote
-from pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
+from .pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
+from .pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
+from .pyUnfoldedCircleRemote.dock import Dock
 
 from .const import DEVICE_SCAN_INTERVAL, DOMAIN
 from .websocket import UCClientInterface, async_register_websocket_commands
@@ -40,17 +38,15 @@ class SubscriptionEvent:
     entity_ids: list[str]
 
 
-class UnfoldedCircleRemoteCoordinator(
+class UnfoldedCircleCoordinator(
     DataUpdateCoordinator[dict[str, Any]], UCClientInterface
 ):
-    """Data update coordinator for an Unfolded Circle Remote device."""
+    """Base Unfolded Circle Coordinator Class"""
 
-    # List of events to subscribe to the websocket
     subscribe_events: dict[str, bool]
     entities: list[CoordinatorEntity]
 
-    def __init__(self, hass: HomeAssistant, unfolded_circle_remote_device) -> None:
-        """Initialize the Coordinator."""
+    def __init__(self, hass: HomeAssistant, unfolded_circle_device) -> None:
         super().__init__(
             hass,
             name=DOMAIN,
@@ -58,32 +54,28 @@ class UnfoldedCircleRemoteCoordinator(
             update_interval=DEVICE_SCAN_INTERVAL,
         )
         self.hass = hass
-        self.api: Remote = unfolded_circle_remote_device
+        self.api: Remote = unfolded_circle_device
         self.data = {}
-        self.remote_websocket = RemoteWebsocket(self.api.endpoint, self.api.apikey)
+        self.websocket = DockWebsocket(self.api.endpoint, self.api.apikey)
         self.websocket_task = None
         self.subscribe_events = {}
         self.polling_data = False
         self.entities = []
         self._subscriptions: list[SubscriptionEvent] = []
-
-        async_register_websocket_commands(hass)
-        _LOGGER.debug("Unfolded Circle websocket APIs registered")
+        self.docks: list[Dock] = []
 
     async def init_websocket(self):
         """Initialize the Web Socket"""
-        self.remote_websocket.events_to_subscribe = [
+        self.websocket.events_to_subscribe = [
             "software_updates",
             *list(self.subscribe_events.keys()),
         ]
         _LOGGER.debug(
             "Unfolded Circle Remote events list to subscribe %s",
-            self.remote_websocket.events_to_subscribe,
+            self.websocket.events_to_subscribe,
         )
         self.websocket_task = asyncio.create_task(
-            self.remote_websocket.init_websocket(
-                self.receive_data, self.reconnection_ws
-            )
+            self.websocket.init_websocket(self.receive_data, self.reconnection_ws)
         )
 
     def update(self, message: any):
@@ -197,80 +189,69 @@ class UnfoldedCircleRemoteCoordinator(
         try:
             if self.websocket_task:
                 self.websocket_task.cancel()
-            if self.remote_websocket:
-                await self.remote_websocket.close_websocket()
+            if self.websocket:
+                await self.websocket.close_websocket()
         except Exception as ex:
             _LOGGER.error("Unfolded Circle Remote while closing websocket: %s", ex)
 
-    def subscribe_entities_events(
-        self, connection: websocket_api.ActiveConnection, msg: dict
-    ):
-        """Adds and handles subscribed event"""
-        subscription: SubscriptionEvent | None = None
-        cancel_callback: Callable[[], None] | None = None
 
-        @callback
-        def forward_event(data: dict[any, any]) -> None:
-            """Forward message to websocket subscription."""
-            connection.send_event(
-                msg["id"],
-                data,
-            )
+class UnfoldedCircleRemoteCoordinator(
+    UnfoldedCircleCoordinator, DataUpdateCoordinator[dict[str, Any]], UCClientInterface
+):
+    """Data update coordinator for an Unfolded Circle Remote device."""
 
-        def entities_state_change_event(event: Event[EventStateChangedData]) -> Any:
-            """Method called by HA when one of the subscribed entities have changed state."""
-            # Note that this method has to be encapsulated in the subscribe_entities_events method
-            # in order to maintain a reference to the subscription variable
-            entity_id = event.data["entity_id"]
-            old_state = event.data["old_state"]
-            new_state = event.data["new_state"]
-            _LOGGER.debug("Received notification to send to UC remote %s", event)
-            subscription.notification_callback(
-                {
-                    "data": {
-                        "entity_id": entity_id,
-                        "new_state": new_state,
-                        "old_state": old_state,  # TODO : old state useful ?
-                    }
-                }
-            )
+    # List of events to subscribe to the websocket
+    subscribe_events: dict[str, bool]
+    entities: list[CoordinatorEntity]
 
-        def remove_listener() -> None:
-            """Remove the listener."""
-            try:
-                _LOGGER.debug(
-                    "Unfolded Circle unregister event %s for remote %s",
-                    subscription_id,
-                    client_id,
-                )
-                cancel_callback()
-            except Exception:
-                pass
-            self._subscriptions.remove(subscription)
+    def __init__(self, hass: HomeAssistant, unfolded_circle_remote_device) -> None:
+        """Initialize the Coordinator."""
+        super().__init__(hass, unfolded_circle_remote_device)
+        self.hass = hass
+        self.api: Remote = unfolded_circle_remote_device
+        self.data = {}
+        self.websocket = RemoteWebsocket(self.api.endpoint, self.api.apikey)
+        self.websocket_task = None
+        self.subscribe_events = {}
+        self.polling_data = False
+        self.entities = []
+        self._subscriptions: list[SubscriptionEvent] = []
+        self.docks: list[Dock] = self.api._docks
 
-        # Create the new events subscription
-        subscription_id = msg["id"]
-        data = msg["data"]
-        entities = data.get("entities", [])
-        client_id = data.get("client_id", "")
+        async_register_websocket_commands(hass)
+        _LOGGER.debug("Unfolded Circle websocket APIs registered")
 
-        cancel_callback = async_track_state_change_event(
-            self.hass, entities, entities_state_change_event
-        )
-        subscription = SubscriptionEvent(
-            client_id=client_id,
-            cancel_subscription_callback=cancel_callback,
-            subscription_id=subscription_id,
-            notification_callback=forward_event,
-            entity_ids=entities,
-        )
-        self._subscriptions.append(subscription)
-        _LOGGER.debug(
-            "UC added subscription from remote %s for entity ids %s",
-            client_id,
-            entities,
+
+class UnfoldedCircleDockCoordinator(
+    UnfoldedCircleCoordinator, DataUpdateCoordinator[dict[str, Any]], UCClientInterface
+):
+    """Data update coordinator for an Unfolded Circle Remote device."""
+
+    # List of events to subscribe to the websocket
+    subscribe_events: dict[str, bool]
+    entities: list[CoordinatorEntity]
+
+    def __init__(self, hass: HomeAssistant, dock: Dock) -> None:
+        """Initialize the Coordinator."""
+        super().__init__(hass, dock)
+        self.hass = hass
+        self.api: Dock = dock
+        self.data = {}
+        self.websocket = DockWebsocket(self.api._ws_endpoint, api_key=dock.apikey)
+        self.websocket_task = None
+        self.subscribe_events = {}
+        self.polling_data = False
+        self.entities = []
+        self._subscriptions: list[SubscriptionEvent] = []
+
+        async_register_websocket_commands(hass)
+        _LOGGER.debug("Unfolded Circle websocket APIs registered")
+
+    async def init_websocket(self):
+        """Initialize the Web Socket"""
+        self.websocket_task = asyncio.create_task(
+            self.websocket.init_websocket(self.receive_data, self.reconnection_ws)
         )
 
-        connection.subscriptions[subscription_id] = remove_listener
-
-        return remove_listener
+    def debug_structure(self):
+        pass
