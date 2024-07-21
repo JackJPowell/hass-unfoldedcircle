@@ -5,36 +5,56 @@
   "postCreateCommand": ".devcontainer/setup",
   "postAttachCommand": ".devcontainer/setup",
   "forwardPorts": [8123],
+  "runArgs": ["-e", "GIT_EDITOR=code --wait"],
+  "containerEnv": {
+    "PYTHONASYNCIODEBUG": "1"
+  },
   "customizations": {
     "vscode": {
       "extensions": [
-        "ms-python.python",
-        "ms-python.black-formatter",
-        "ms-python.isort",
+        "charliermarsh.ruff",
         "ms-python.pylint",
         "ms-python.vscode-pylance",
+        "visualstudioexptteam.vscodeintellicode",
+        "redhat.vscode-yaml",
         "esbenp.prettier-vscode",
-        "github.vscode-pull-request-github",
-        "ryanluker.vscode-coverage-gutters"
+        "GitHub.vscode-pull-request-github",
+        "GitHub.copilot"
       ],
       "settings": {
-        "files.eol": "\n",
-        "editor.tabSize": 4,
-        "python.pythonPath": "/usr/bin/python3",
-        "python.analysis.autoSearchPaths": false,
-        "python.formatting.provider": "black",
+        "python.experiments.optOutFrom": ["pythonTestAdapter"],
+        "python.defaultInterpreterPath": "/home/vscode/.local/ha-venv/bin/python",
+        "python.pythonPath": "/home/vscode/.local/ha-venv/bin/python",
+        "python.terminal.activateEnvInCurrentTerminal": true,
+        "python.testing.pytestArgs": ["--no-cov"],
+        "pylint.importStrategy": "fromEnvironment",
         "editor.formatOnPaste": false,
         "editor.formatOnSave": true,
         "editor.formatOnType": true,
-        "editor.codeActionsOnSave": {
-          "source.organizeImports": true
+        "files.trimTrailingWhitespace": true,
+        "terminal.integrated.profiles.linux": {
+          "zsh": {
+            "path": "/usr/bin/zsh"
+          }
         },
-        "files.trimTrailingWhitespace": true
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "yaml.customTags": [
+          "!input scalar",
+          "!secret scalar",
+          "!include_dir_named scalar",
+          "!include_dir_list scalar",
+          "!include_dir_merge_list scalar",
+          "!include_dir_merge_named scalar"
+        ],
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff"
+        }
       }
     }
   },
   "remoteUser": "vscode",
   "features": {
-    "rust": "latest"
+    "rust": "latest",
+    "ghcr.io/devcontainers/features/github-cli:1": {}
   }
 }

@@ -15,7 +15,6 @@ from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_platform, service
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from pyUnfoldedCircleRemote.const import RemoteUpdateType
 
 from .const import (
     CONF_ACTIVITIES_AS_SWITCHES,
@@ -25,6 +24,7 @@ from .const import (
 )
 from .coordinator import UnfoldedCircleRemoteCoordinator
 from .entity import UnfoldedCircleEntity
+from .pyUnfoldedCircleRemote.const import RemoteUpdateType
 
 
 @dataclass
@@ -157,9 +157,9 @@ async def async_setup_entry(
             )
             test = 1 + 1
 
-    prevent_sleep_schema = cv.make_entity_service_schema(
-        {vol.Optional(ATTR_PREVENT_SLEEP, default=False): cv.boolean}
-    )
+    prevent_sleep_schema = cv.make_entity_service_schema({
+        vol.Optional(ATTR_PREVENT_SLEEP, default=False): cv.boolean
+    })
 
     hass.services.async_register(
         DOMAIN, UPDATE_ACTIVITY_SERVICE, async_service_handle, prevent_sleep_schema
