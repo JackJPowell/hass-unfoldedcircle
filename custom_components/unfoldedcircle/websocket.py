@@ -73,7 +73,7 @@ def ws_get_states(
     entity_states = []
     # If entity_ids list is empty, send all entities
     if len(entity_ids) == 0:
-        entity_states = hass.states.all()
+        entity_states = hass.states.async_all()
     else:
         for entity_id in entity_ids:
             state = hass.states.get(entity_id)
@@ -115,7 +115,8 @@ def ws_configure_unsubscribe_event(
     msg: dict,
 ) -> None:
     """Subscribe event to push modifications of configuration to the remote."""
-    cancel_callback = connection.subscriptions.get(msg["id"], None)
+    cancel_callback = connection.subscriptions.get(msg.get("data", {})
+                                                   .get("subscription_id", ""), None)
     if cancel_callback is not None:
         cancel_callback()
     connection.send_result(msg["id"])
@@ -132,8 +133,8 @@ def ws_unsubscribe_entities_event(
     msg: dict,
 ) -> None:
     """Unsubscribe events."""
-    # websocket_client = UCWebsocketClient(hass)
-    cancel_callback = connection.subscriptions.get(msg["id"], None)
+    cancel_callback = connection.subscriptions.get(msg.get("data", {})
+                                                   .get("subscription_id", ""), None)
     if cancel_callback is not None:
         cancel_callback()
     connection.send_result(msg["id"])
