@@ -115,9 +115,10 @@ def ws_configure_unsubscribe_event(
     msg: dict,
 ) -> None:
     """Subscribe event to push modifications of configuration to the remote."""
-    cancel_callback = connection.subscriptions.get(msg.get("data", {})
-                                                   .get("subscription_id", ""), None)
+    subscription_id = msg.get("data", {}).get("subscription_id", "")
+    cancel_callback = connection.subscriptions.get(subscription_id, None)
     if cancel_callback is not None:
+        _LOGGER.debug(f"Unsubscribe {DOMAIN}/event/configure/unsubscribe for id %s", subscription_id)
         cancel_callback()
     connection.send_result(msg["id"])
 
@@ -133,9 +134,10 @@ def ws_unsubscribe_entities_event(
     msg: dict,
 ) -> None:
     """Unsubscribe events."""
-    cancel_callback = connection.subscriptions.get(msg.get("data", {})
-                                                   .get("subscription_id", ""), None)
+    subscription_id = msg.get("data", {}).get("subscription_id", "")
+    cancel_callback = connection.subscriptions.get(subscription_id, None)
     if cancel_callback is not None:
+        _LOGGER.debug(f"Unsubscribe {DOMAIN}/event/entities/unsubscribe for id %s", subscription_id)
         cancel_callback()
     connection.send_result(msg["id"])
 
