@@ -13,9 +13,16 @@ from urllib.parse import urljoin, urlparse
 import aiohttp
 import zeroconf
 
-from .const import (AUTH_APIKEY_NAME, AUTH_USERNAME, SIMULATOR_MAC_ADDRESS,
-                    SYSTEM_COMMANDS, ZEROCONF_SERVICE_TYPE, ZEROCONF_TIMEOUT,
-                    RemotePowerModes, RemoteUpdateType)
+from .const import (
+    AUTH_APIKEY_NAME,
+    AUTH_USERNAME,
+    SIMULATOR_MAC_ADDRESS,
+    SYSTEM_COMMANDS,
+    ZEROCONF_SERVICE_TYPE,
+    ZEROCONF_TIMEOUT,
+    RemotePowerModes,
+    RemoteUpdateType,
+)
 from .dock import Dock
 
 _LOGGER = logging.getLogger(__name__)
@@ -1074,13 +1081,17 @@ class Remote:
             self.client() as session,
             session.post(self.url("system/update/latest")) as response,
         ):
-            await self.raise_on_error(response)
-            information = await response.json()
-            if information.get("state") == "DOWNLOAD":
-                self._update_in_progress = False
+            if response.ok:
+                information = await response.json()
+                if information.get("state") == "DOWNLOAD":
+                    self._update_in_progress = False
 
-            if information.get("state") == "START":
-                self._update_in_progress = True
+                if information.get("state") == "START":
+                    self._update_in_progress = True
+            if response.status == 409:
+                information = {"state": "DOWNLOADING"}
+            if response.status == 503:
+                information = {"state": "NO_BATTERY"}
             return information
 
     async def get_update_status(self) -> str:
@@ -1313,6 +1324,7 @@ class Remote:
                 total_steps = 0
                 update_state = "INITIAL"
                 current_step = 0
+                percentage_offset = 0
                 if data.get("msg_data").get("event_type") == "START":
                     self._update_in_progress = True
                 if data.get("msg_data").get("event_type") == "PROGRESS":

@@ -2,8 +2,8 @@
 
 import logging
 import math
-import time
 from typing import Any
+import asyncio
 
 from homeassistant.components.update import (
     UpdateDeviceClass,
@@ -80,7 +80,7 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
             # keep trying. If not, give it 3 times (30 seconds) before timing out.
             while update_information.get("state") != "START" and retry_count < 6:
                 self._is_downloading = True
-                time.sleep(5)
+                await asyncio.sleep(5)
                 download_percentage = await self.update_download_status()
                 if download_percentage == previous_download_percentage:
                     retry_count = retry_count + 1
