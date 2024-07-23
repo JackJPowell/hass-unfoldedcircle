@@ -78,6 +78,12 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
             # the update routine again. If download has completed, the upgrade
             # will begin. In between check on download status. If it is progressing
             # keep trying. If not, give it 3 times (30 seconds) before timing out.
+            if update_information.get("state") == "NO_BATTERY":
+                _LOGGER.error(
+                    "Unfolded Circle Update Failed -- Please charge the remote before upgrading."
+                )
+                return
+
             while update_information.get("state") != "START" and retry_count < 6:
                 self._is_downloading = True
                 await asyncio.sleep(5)
