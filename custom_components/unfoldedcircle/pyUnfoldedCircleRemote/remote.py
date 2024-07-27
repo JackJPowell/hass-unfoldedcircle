@@ -1105,7 +1105,8 @@ class Remote:
             information = await response.json()
             if response.ok:
                 self._download_percent = information.get("download_percent")
-            return information
+                return information
+            return {"state": "UNKNOWN", "download_percent": 0}
 
     async def get_activity_state(self, entity_id) -> str:
         """Get activity state for a remote entity."""
