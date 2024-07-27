@@ -229,14 +229,14 @@ class RemoteDockSensor(UnfoldedCircleDockEntity, RemoteEntity):
         if not is_existing_list:
             try:
                 new_remote = await self.coordinator.api.create_remote(
-                    name="Playstation Remote",
+                    name="Update Me",
                     device=device,
-                    description="PS Control",
-                    icon="uc:game",
+                    description="My Device",
+                    icon="uc:movie",
                 )
                 remote_entity_id = new_remote.get("entity_id")
                 # Refresh the list of remotes (We are shortcutting to save time. This
-                # probably should just call the complete update methd)
+                # probably should just call the get_remotes_complete() method)
                 await self.coordinator.api._remotes_complete.append(new_remote.copy())
             except Exception as ex:
                 pass

@@ -490,13 +490,46 @@ class Dock:
             return await response.json()
 
     async def add_remote_command_to_codeset(
-        self, remote_entity_id: str, command_id: str, value: str, ir_format: str
+        self,
+        remote_entity_id: str,
+        command_id: str,
+        value: str,
+        ir_format: str,
+        update_if_exists: bool = True,
     ) -> list:
         """Get list of remote codesets."""
         ir_data = {"value": f"{value}", "format": f"{ir_format}"}
         async with (
             self.client() as session,
             session.post(
+                self.url(f"remotes/{remote_entity_id}/ir/{command_id}"), json=ir_data
+            ) as response,
+        ):
+            codeset = await response.json()
+            if response.status == 422:
+                if update_if_exists:
+                    codeset = await self.update_remote_command_in_codeset(
+                        remote_entity_id, command_id, value, ir_format
+                    )
+                    return codeset
+                else:
+                    await self.raise_on_error(response)
+
+            if response.ok:
+                return codeset
+
+    async def update_remote_command_in_codeset(
+        self,
+        remote_entity_id: str,
+        command_id: str,
+        value: str,
+        ir_format: str,
+    ) -> list:
+        """Update command in remote codesets."""
+        ir_data = {"value": f"{value}", "format": f"{ir_format}"}
+        async with (
+            self.client() as session,
+            session.patch(
                 self.url(f"remotes/{remote_entity_id}/ir/{command_id}"), json=ir_data
             ) as response,
         ):
@@ -524,9 +557,6 @@ class Dock:
         data = json.loads(message)
         _LOGGER.debug("RC2 received websocket message %s", data)
         try:
-            # Beware when modifying this code : if an attribute is missing in one of the if clauses,
-            # it will raise an exception and skip the other if clauses
-            # TODO Missing software updates (message format ?)
             if data["type"] == "auth_required":
                 _LOGGER.debug("auth is required")
             if data["msg"] == "ir_receive":
