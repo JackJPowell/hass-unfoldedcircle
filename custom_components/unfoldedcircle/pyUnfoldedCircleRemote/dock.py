@@ -123,6 +123,8 @@ class Dock:
         self._ethernet_led_brightness = ethernet_led_brightness
         self._state = state
         self._is_learning_active = is_learning_active
+        self._learned_code = {}
+        self._codesets = []
         self._token = ""
         self._description = ""
         self._check_for_updates = False
@@ -131,6 +133,8 @@ class Dock:
         self._latest_software_version = ""
         self._release_notes_url = ""
         self._release_notes = ""
+        self._remotes = []
+        self._remotes_complete = []
         self.endpoint = remote_endpoint
         self.apikey = apikey
         self._remote_configuration_url = remote_configuration_url
@@ -199,6 +203,21 @@ class Dock:
         return self._is_active
 
     @property
+    def remotes(self):
+        """List of defined remotes."""
+        return self._remotes
+
+    @property
+    def remotes_complete(self):
+        """List of defined remotes_complete."""
+        return self._remotes_complete
+
+    @property
+    def codesets(self):
+        """List of defined codesets."""
+        return self._codesets
+
+    @property
     def led_brightness(self):
         """led_brightness of the dock."""
         return self._led_brightness
@@ -217,6 +236,11 @@ class Dock:
     def is_learning_active(self):
         """is_learning_active of the dock."""
         return self._is_learning_active
+
+    @property
+    def learned_code(self):
+        """Most recent learned code."""
+        return self._learned_code
 
     @property
     def token(self):
@@ -377,6 +401,108 @@ class Dock:
 
             return information
 
+    async def start_ir_learning(self) -> str:
+        """Start an IR Learning Session"""
+        async with (
+            self.client() as session,
+            session.put(self.url(f"ir/emitters/{self.id}/learn")) as response,
+        ):
+            await self.raise_on_error(response)
+            information = await response.json()
+
+            return information
+
+    async def stop_ir_learning(self) -> str:
+        """Stop an IR learning session"""
+        async with (
+            self.client() as session,
+            session.delete(self.url(f"ir/emitters/{self.id}/learn")) as response,
+        ):
+            await self.raise_on_error(response)
+            information = await response.json()
+
+            return information
+
+    async def get_remotes(self) -> list:
+        """Get list of remotes defined. (IR Remotes as defined by Unfolded Circle)."""
+        remote_data = {}
+        async with (
+            self.client() as session,
+            session.get(self.url("remotes")) as response,
+        ):
+            await self.raise_on_error(response)
+            remotes = await response.json()
+            for remote in remotes:
+                if remote.get("enabled") is True:
+                    remote_data = {
+                        "name": remote.get("name").get("en"),
+                        "entity_id": remote.get("entity_id"),
+                    }
+                    self._remotes.append(remote_data.copy())
+            return self._remotes
+
+    async def get_remotes_complete(self) -> list:
+        """Get list of remotes defined. (IR Remotes as defined by Unfolded Circle)."""
+        if not self.remotes:
+            await self.get_remotes()
+
+        for remote in self.remotes:
+            entity_id = remote.get("entity_id")
+            async with (
+                self.client() as session,
+                session.get(self.url(f"remotes/{entity_id}")) as response,
+            ):
+                await self.raise_on_error(response)
+                remote_info = await response.json()
+                self._remotes_complete.append(remote_info.copy())
+        return self._remotes_complete
+
+    async def get_custom_codesets(self) -> list:
+        """Get list of custom ir codesets."""
+        async with (
+            self.client() as session,
+            session.get(self.url("ir/codes/custom")) as response,
+        ):
+            await self.raise_on_error(response)
+            codesets = await response.json()
+            self._codesets = codesets
+            return self._codesets
+
+    async def create_remote(
+        self, name: str, device: str, description: str, icon: str = "uc:movie"
+    ) -> dict:
+        """Create a new remote codeset. (IR Remotes as defined by Unfolded Circle)."""
+        remote_data = {
+            "name": {"en": f"{name}"},
+            "icon": f"{icon}",
+            "description": {"en": f"{description}"},
+            "custom_codeset": {
+                "manufacturer_id": "custom",
+                "device_name": f"{device}",
+                "device_type": "various",
+            },
+        }
+        async with (
+            self.client() as session,
+            session.post(self.url("remotes"), json=remote_data) as response,
+        ):
+            await self.raise_on_error(response)
+            return await response.json()
+
+    async def add_remote_command_to_codeset(
+        self, remote_entity_id: str, command_id: str, value: str, ir_format: str
+    ) -> list:
+        """Get list of remote codesets."""
+        ir_data = {"value": f"{value}", "format": f"{ir_format}"}
+        async with (
+            self.client() as session,
+            session.post(
+                self.url(f"remotes/{remote_entity_id}/ir/{command_id}"), json=ir_data
+            ) as response,
+        ):
+            await self.raise_on_error(response)
+            return await response.json()
+
     async def send_command(
         self, command: DockCommand, command_value: str = None
     ) -> str:
@@ -403,6 +529,8 @@ class Dock:
             # TODO Missing software updates (message format ?)
             if data["type"] == "auth_required":
                 _LOGGER.debug("auth is required")
+            if data["msg"] == "ir_receive":
+                self._learned_code = data.get("ir_code")
         except Exception:
             pass
 
