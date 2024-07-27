@@ -113,7 +113,8 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
         self._attr_unique_id = (
             f"{self.coordinator.api.serial_number}_{description.unique_id}"
         )
-        self._attr_name = f"{self.coordinator.api.name} {description.name}"
+        self._attr_has_entity_name = True
+        self._attr_name = f"{description.name}"
         self._attr_unit_of_measurement = description.unit_of_measurement
         self._attr_native_unit_of_measurement = description.unit_of_measurement
         self._device_class = description.device_class
@@ -157,8 +158,3 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
         """Handle updated data from the coordinator."""
         self._attr_native_value = self.get_value()
         self.async_write_ha_state()
-
-    @property
-    def native_value(self) -> StateType:
-        """Return native value for entity."""
-        return self.get_value()

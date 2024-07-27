@@ -173,7 +173,8 @@ class UCRemoteSwitch(UnfoldedCircleEntity, SwitchEntity):
         """Initialize a switch."""
         super().__init__(coordinator)
         self.switch = switch
-        self._attr_name = f"{self.coordinator.api.name} {switch.name}"
+        self._attr_has_entity_name = True
+        self._attr_name = f"{switch.name}"
         self._attr_unique_id = switch._id
         self._state = switch.state
         self._attr_icon = "mdi:remote-tv"
@@ -229,7 +230,8 @@ class UCRemoteConfigSwitch(UnfoldedCircleEntity, SwitchEntity):
         self._attr_unique_id = (
             f"{self.coordinator.api.serial_number}_{description.unique_id}"
         )
-        self._attr_name = f"{self.coordinator.api.name} {description.name}"
+        self._attr_has_entity_name = True
+        self._attr_name = f"{description.name}"
         key = "_" + self._description.key
         self._attr_native_value = coordinator.data.get(key)
         if coordinator.data.get(key) is True:

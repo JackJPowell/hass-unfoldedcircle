@@ -38,7 +38,8 @@ class PollingBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
         self._attr_unique_id = f"{self.coordinator.api.serial_number}_polling_status"
 
         # The name of the entity
-        self._attr_name = f"{self.coordinator.api.name} Polling Status"
+        self._attr_has_entity_name = True
+        self._attr_name = "Polling Status"
         self._attr_native_value = self.coordinator.polling_data
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._extra_state_attributes = {}
@@ -82,9 +83,9 @@ class BatteryBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
     def __init__(self, coordinator) -> None:
         """Initialize Binary Sensor."""
         super().__init__(coordinator)
-
+        self._attr_has_entity_name = True
         self._attr_unique_id = f"{self.coordinator.api.serial_number}_charging_status"
-        self._attr_name = f"{self.coordinator.api.name} Charging Status"
+        self._attr_name = "Charging Status"
         self._attr_native_value = False
 
     @property
