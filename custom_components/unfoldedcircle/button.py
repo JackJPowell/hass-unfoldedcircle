@@ -31,7 +31,7 @@ class RebootButton(UnfoldedCircleEntity, ButtonEntity):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._attr_has_entity_name = True
-        self._attr_unique_id = f"{self.coordinator.api.serial_number}_restart_button"
+        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_restart_button"
         self._attr_name = "Restart Remote"
 
     @property

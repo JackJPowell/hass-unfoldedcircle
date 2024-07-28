@@ -67,7 +67,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             entry.domain != Platform.UPDATE
             and "ucr" not in entry.unique_id.lower()
             and "ucd" not in entry.unique_id.lower()
-            and (entry.domain != Platform.SWITCH and "uc.main" not in entry.unique_id)
+            and (entry.domain == Platform.SWITCH and "uc.main" not in entry.unique_id)
         ):
             new = f"{coordinator.api.model_number}_{entry.unique_id}"
             return {"new_unique_id": entry.unique_id.replace(entry.unique_id, new)}
