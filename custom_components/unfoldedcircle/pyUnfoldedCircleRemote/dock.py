@@ -376,7 +376,7 @@ class Dock:
             self._name = information.get("name")
             self._ws_endpoint = information.get("resolved_ws_url")
             self._is_active = information.get("active")
-            self._model_name = information.get("model")
+            self._model_number = information.get("model")
             self._hardware_revision = information.get("revision")
             self._serial_number = information.get("serial")
             self._led_brightness = information.get("led_brightness")

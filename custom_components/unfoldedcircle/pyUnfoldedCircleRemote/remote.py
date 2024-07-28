@@ -566,7 +566,6 @@ class Remote:
                         url=url,
                         data=data,
                     )
-                    return
                 if response.ok:
                     return content
         raise ExternalSystemNotRegistered

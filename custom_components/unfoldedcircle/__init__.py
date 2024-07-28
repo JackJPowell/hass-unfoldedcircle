@@ -59,6 +59,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     for dock in remote_api._docks:
         dock_coordinator = UnfoldedCircleDockCoordinator(hass, dock)
         dock_coordinators.append(dock_coordinator)
+        await dock_coordinator.api.update()
         await dock_coordinator.async_config_entry_first_refresh()
         await dock_coordinator.init_websocket()
 

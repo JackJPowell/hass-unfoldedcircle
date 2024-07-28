@@ -60,11 +60,10 @@ class UnfoldedCircleDockEntity(CoordinatorEntity[UnfoldedCircleDockCoordinator])
         """Return the device info."""
         return DeviceInfo(
             identifiers={
-                # Serial numbers are unique identifiers within a specific domain
                 (
                     DOMAIN,
-                    {self.coordinator.api.model_number},
-                    {self.coordinator.api.serial_number},
+                    self.coordinator.api.model_number,
+                    self.coordinator.api.serial_number,
                 )
             },
             name=self.coordinator.api.name,

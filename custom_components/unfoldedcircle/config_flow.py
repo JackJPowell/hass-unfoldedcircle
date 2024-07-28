@@ -91,8 +91,8 @@ async def validate_input(
     await remote.get_remote_wifi_info()
     token = await generateToken(hass, remote.name)
     token_id = await remote.set_token_for_external_system(
-        "homeassistant",
-        f"{remote.name} id",
+        "hass",
+        "hass_id",
         token,
         "Home Assistant",
         "Home Assistant Long Lived Access Token",
