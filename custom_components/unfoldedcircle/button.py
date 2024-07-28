@@ -55,9 +55,7 @@ class UpdateCheckButton(UnfoldedCircleEntity, ButtonEntity):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._attr_has_entity_name = True
-        self._attr_unique_id = (
-            f"{self.coordinator.api.serial_number}_update_check_button"
-        )
+        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_update_check_button"
         self._attr_name = "Check for Update"
 
     @property

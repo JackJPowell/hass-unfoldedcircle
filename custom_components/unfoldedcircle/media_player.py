@@ -109,19 +109,15 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         self.activity = activity
         if activity_group is None and activity is None:
             self._attr_name = "Media Player"
-            self._attr_unique_id = f"{self.coordinator.api.serial_number}_mediaplayer"
+            self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_mediaplayer"
             self.activities = self.coordinator.api.activities
         elif activity is not None:
             self._attr_name = f"{activity.name} Media Player"
-            self._attr_unique_id = (
-                f"{self.coordinator.api.serial_number}_{activity.name}_mediaplayer"
-            )
+            self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_{activity.name}_mediaplayer"
             self.activities = [activity]
         elif activity_group is not None:
             self._attr_name = f"{activity_group.name} Media Player"
-            self._attr_unique_id = (
-                f"{self.coordinator.api.serial_number}_{activity_group.id}_mediaplayer"
-            )
+            self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_{activity_group.id}_mediaplayer"
             self.activities = self.activity_group.activities
         self._extra_state_attributes = {}
         self._current_activity = None

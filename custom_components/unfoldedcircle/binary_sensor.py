@@ -35,7 +35,7 @@ class PollingBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
         super().__init__(coordinator)
 
         # As per the sensor, this must be a unique value within this domain.
-        self._attr_unique_id = f"{self.coordinator.api.serial_number}_polling_status"
+        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_polling_status"
 
         # The name of the entity
         self._attr_has_entity_name = True
