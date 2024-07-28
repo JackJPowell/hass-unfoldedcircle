@@ -63,7 +63,8 @@ class UnfoldedCircleDockEntity(CoordinatorEntity[UnfoldedCircleDockCoordinator])
                 # Serial numbers are unique identifiers within a specific domain
                 (
                     DOMAIN,
-                    f"{self.coordinator.api.model_name}-{self.coordinator.api.serial_number}",
+                    {self.coordinator.api.model_number},
+                    {self.coordinator.api.serial_number},
                 )
             },
             name=self.coordinator.api.name,
