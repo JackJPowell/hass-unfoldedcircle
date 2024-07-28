@@ -57,6 +57,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Retrieve info from Remote
     # Get Basic Device Information
+    for dock in remote_api._docks:
+        dock_coordinator = UnfoldedCircleDockCoordinator(hass, dock)
+        dock_coordinators.append(dock_coordinator)
+        await dock_coordinator.api.update()
+        await dock_coordinator.async_config_entry_first_refresh()
+        await dock_coordinator.init_websocket()
+
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+        UNFOLDED_CIRCLE_COORDINATOR: coordinator,
+        UNFOLDED_CIRCLE_API: remote_api,
+        UNFOLDED_CIRCLE_DOCK_COORDINATORS: dock_coordinators,
+    }
 
     for dock in remote_api._docks:
         dock_coordinator = UnfoldedCircleDockCoordinator(hass, dock)
