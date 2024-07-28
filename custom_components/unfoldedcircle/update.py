@@ -40,8 +40,9 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
     def __init__(self, coordinator) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
-        self._attr_unique_id = f"{self.coordinator.api.name}_update_status"
-        self._attr_name = f"{self.coordinator.api.name} Firmware"
+        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_update_status"
+        self._attr_has_entity_name = True
+        self._attr_name = "Firmware"
         self._attr_device_class = UpdateDeviceClass.FIRMWARE
         self._attr_auto_update = self.coordinator.api.automatic_updates
         self._attr_installed_version = self.coordinator.api.sw_version

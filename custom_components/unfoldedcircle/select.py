@@ -39,10 +39,9 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
         """Initialize a switch."""
         super().__init__(coordinator)
         self.activity_group = activity_group
-        self._attr_name = f"{self.coordinator.api.name} {activity_group.name}"
-        self._attr_unique_id = (
-            f"{self.coordinator.api.serial_number}_{activity_group._id}"
-        )
+        self._attr_has_entity_name = True
+        self._attr_name = f"{activity_group.name}"
+        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_{activity_group._id}"
         self._state = activity_group.state
         self._attr_icon = "mdi:remote-tv"
         self._attr_native_value = "OFF"
