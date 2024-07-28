@@ -30,7 +30,11 @@ class UnfoldedCircleEntity(CoordinatorEntity[UnfoldedCircleRemoteCoordinator]):
         return DeviceInfo(
             identifiers={
                 # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, self.coordinator.api.serial_number)
+                (
+                    DOMAIN,
+                    self.coordinator.api.model_number,
+                    self.coordinator.api.serial_number,
+                )
             },
             name=self.coordinator.api.name,
             manufacturer=self.coordinator.api.manufacturer,

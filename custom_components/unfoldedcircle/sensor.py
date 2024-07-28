@@ -137,10 +137,9 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
     ) -> None:
         """Initialize Unfolded Circle Sensor."""
         super().__init__(coordinator)
-        self._attr_unique_id = (
-            f"{self.coordinator.api.serial_number}_{description.unique_id}"
-        )
-        self._attr_name = f"{self.coordinator.api.name} {description.name}"
+        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_{description.unique_id}"
+        self._attr_has_entity_name = True
+        self._attr_name = f"{description.name}"
         self._attr_unit_of_measurement = description.unit_of_measurement
         self._attr_native_unit_of_measurement = description.unit_of_measurement
         self._device_class = description.device_class

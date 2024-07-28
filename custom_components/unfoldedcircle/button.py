@@ -44,8 +44,9 @@ class RebootButton(UnfoldedCircleEntity, ButtonEntity):
     def __init__(self, coordinator) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
-        self._attr_unique_id = f"{self.coordinator.api.serial_number}_restart_button"
-        self._attr_name = f"{self.coordinator.api.name} Restart Remote"
+        self._attr_has_entity_name = True
+        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_restart_button"
+        self._attr_name = "Restart Remote"
 
     @property
     def available(self) -> bool:
@@ -67,10 +68,9 @@ class UpdateCheckButton(UnfoldedCircleEntity, ButtonEntity):
     def __init__(self, coordinator) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
-        self._attr_unique_id = (
-            f"{self.coordinator.api.serial_number}_update_check_button"
-        )
-        self._attr_name = f"{self.coordinator.api.name} Check for Update"
+        self._attr_has_entity_name = True
+        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_update_check_button"
+        self._attr_name = "Check for Update"
 
     @property
     def available(self) -> bool:

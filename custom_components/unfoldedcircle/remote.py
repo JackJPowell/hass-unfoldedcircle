@@ -355,8 +355,9 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
     def __init__(self, coordinator) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
-        self._attr_unique_id = f"{self.coordinator.api.serial_number}_remote"
-        self._attr_name = f"{self.coordinator.api.name} Remote"
+        self._attr_has_entity_name = True
+        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_remote"
+        self._attr_name = "Remote"
         self._attr_activity_list = []
         self._extra_state_attributes = {}
         self._attr_is_on = False
