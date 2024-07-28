@@ -26,10 +26,12 @@ async def async_setup_entry(
     ]
     async_add_entities([RebootButton(coordinator), UpdateCheckButton(coordinator)])
     for dock_coordinator in dock_coordinators:
-        async_add_entities([
-            RebootDockButton(dock_coordinator),
-            IdentifyDockButton(dock_coordinator),
-        ])
+        async_add_entities(
+            [
+                RebootDockButton(dock_coordinator),
+                IdentifyDockButton(dock_coordinator),
+            ]
+        )
 
 
 class RebootButton(UnfoldedCircleEntity, ButtonEntity):
@@ -84,16 +86,15 @@ class UpdateCheckButton(UnfoldedCircleEntity, ButtonEntity):
 class RebootDockButton(UnfoldedCircleDockEntity, ButtonEntity):
     """Representation of a Button entity."""
 
-    _attr_entity_category = EntityCategory.CONFIG
-    _attr_icon = "mdi:gesture-tap-button"
-    _attr_device_class = ButtonDeviceClass.RESTART
-    _attr_has_entity_name = True
-
     def __init__(self, coordinator) -> None:
         """Initialize the button."""
         super().__init__(coordinator)
         self._attr_unique_id = f"{self.coordinator.api.model_name}_{self.coordinator.api.serial_number}_restart_button"
         self._attr_name = "Restart Dock"
+        self._attr_entity_category = EntityCategory.CONFIG
+        self._attr_icon = "mdi:gesture-tap-button"
+        self._attr_device_class = ButtonDeviceClass.RESTART
+        self._attr_has_entity_name = True
 
     @property
     def available(self) -> bool:
@@ -108,16 +109,15 @@ class RebootDockButton(UnfoldedCircleDockEntity, ButtonEntity):
 class IdentifyDockButton(UnfoldedCircleDockEntity, ButtonEntity):
     """Representation of a Button entity."""
 
-    _attr_entity_category = EntityCategory.CONFIG
-    _attr_icon = "mdi:gesture-tap-button"
-    _attr_device_class = ButtonDeviceClass.IDENTIFY
-    _attr_has_entity_name = True
-
     def __init__(self, coordinator) -> None:
         """Initialize the button."""
         super().__init__(coordinator)
         self._attr_unique_id = f"{self.coordinator.api.model_name}_{self.coordinator.api.serial_number}_identify_button"
         self._attr_name = "Identify Dock"
+        self._attr_entity_category = EntityCategory.CONFIG
+        self._attr_icon = "mdi:gesture-tap-button"
+        self._attr_device_class = ButtonDeviceClass.IDENTIFY
+        self._attr_has_entity_name = True
 
     @property
     def available(self) -> bool:
