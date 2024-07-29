@@ -11,10 +11,15 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
-from .const import DOMAIN, UNFOLDED_CIRCLE_API, UNFOLDED_CIRCLE_COORDINATOR
-from .coordinator import UnfoldedCircleRemoteCoordinator
+from .const import (
+    DOMAIN,
+    UNFOLDED_CIRCLE_API,
+    UNFOLDED_CIRCLE_COORDINATOR,
+    UNFOLDED_CIRCLE_DOCK_COORDINATORS,
+)
+from .coordinator import UnfoldedCircleRemoteCoordinator, UnfoldedCircleDockCoordinator
+from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 PLATFORMS: list[Platform] = [
     Platform.SWITCH,
@@ -44,17 +49,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as ex:
         raise ConfigEntryNotReady(ex) from ex
 
+    dock_coordinators: list[UnfoldedCircleDockCoordinator] = []
     coordinator = UnfoldedCircleRemoteCoordinator(hass, remote_api)
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
-        UNFOLDED_CIRCLE_COORDINATOR: coordinator,
-        UNFOLDED_CIRCLE_API: remote_api,
-    }
 
     # Extract activities and activity groups
     await coordinator.api.init()
 
     # Retrieve info from Remote
     # Get Basic Device Information
+    for dock in remote_api._docks:
+        dock_coordinator = UnfoldedCircleDockCoordinator(hass, dock)
+        dock_coordinators.append(dock_coordinator)
+        await dock_coordinator.api.update()
+        await dock_coordinator.async_config_entry_first_refresh()
+        await dock_coordinator.init_websocket()
+
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+        UNFOLDED_CIRCLE_COORDINATOR: coordinator,
+        UNFOLDED_CIRCLE_API: remote_api,
+        UNFOLDED_CIRCLE_DOCK_COORDINATORS: dock_coordinators,
+    }
+
     await coordinator.async_config_entry_first_refresh()
 
     @callback

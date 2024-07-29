@@ -2,8 +2,8 @@
 
 import logging
 import math
-import time
 from typing import Any
+import asyncio
 
 from homeassistant.components.update import (
     UpdateDeviceClass,
@@ -79,9 +79,15 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
             # the update routine again. If download has completed, the upgrade
             # will begin. In between check on download status. If it is progressing
             # keep trying. If not, give it 3 times (30 seconds) before timing out.
+            if update_information.get("state") == "NO_BATTERY":
+                _LOGGER.error(
+                    "Unfolded Circle Update Failed -- Please charge the remote before upgrading."
+                )
+                return
+
             while update_information.get("state") != "START" and retry_count < 6:
                 self._is_downloading = True
-                time.sleep(5)
+                await asyncio.sleep(5)
                 download_percentage = await self.update_download_status()
                 if download_percentage == previous_download_percentage:
                     retry_count = retry_count + 1

@@ -11,8 +11,12 @@ from homeassistant.const import LIGHT_LUX, PERCENTAGE, EntityCategory, UnitOfInf
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.typing import StateType
 
-from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
-from .entity import UnfoldedCircleEntity
+from .const import (
+    DOMAIN,
+    UNFOLDED_CIRCLE_COORDINATOR,
+    UNFOLDED_CIRCLE_DOCK_COORDINATORS,
+)
+from .entity import UnfoldedCircleDockEntity, UnfoldedCircleEntity
 
 
 @dataclass
@@ -89,6 +93,17 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
     ),
 )
 
+# UNFOLDED_CIRCLE_DOCK_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
+#     UnfoldedCircleSensorEntityDescription(
+#         key="led_brightness",
+#         device_class=SensorDeviceClass.ILLUMINANCE,
+#         unit_of_measurement=PERCENTAGE,
+#         name="Led Brightness",
+#         has_entity_name=True,
+#         unique_id="led_brightness",
+#     ),
+# )
+
 
 async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entities):
     """Add sensors for passed config_entry in HA."""
@@ -99,6 +114,16 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
         for description in UNFOLDED_CIRCLE_SENSOR
     )
 
+    dock_coordinators = hass.data[DOMAIN][config_entry.entry_id][
+        UNFOLDED_CIRCLE_DOCK_COORDINATORS
+    ]
+
+    # for dock_coordinator in dock_coordinators:
+    #     async_add_entities(
+    #         UnfoldedCircleDockSensor(dock_coordinator, description)
+    #         for description in UNFOLDED_CIRCLE_DOCK_SENSOR
+    #     )
+
 
 class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
     """Unfolded Circle Sensor Class."""
@@ -106,7 +131,9 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
     entity_description = UNFOLDED_CIRCLE_SENSOR
 
     def __init__(
-        self, coordinator, description: UnfoldedCircleSensorEntityDescription
+        self,
+        coordinator,
+        description: UnfoldedCircleSensorEntityDescription,
     ) -> None:
         """Initialize Unfolded Circle Sensor."""
         super().__init__(coordinator)

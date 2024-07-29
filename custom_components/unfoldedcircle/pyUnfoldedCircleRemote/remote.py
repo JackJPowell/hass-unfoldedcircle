@@ -13,9 +13,17 @@ from urllib.parse import urljoin, urlparse
 import aiohttp
 import zeroconf
 
-from .const import (AUTH_APIKEY_NAME, AUTH_USERNAME, SIMULATOR_MAC_ADDRESS,
-                    SYSTEM_COMMANDS, ZEROCONF_SERVICE_TYPE, ZEROCONF_TIMEOUT,
-                    RemotePowerModes, RemoteUpdateType)
+from .const import (
+    AUTH_APIKEY_NAME,
+    AUTH_USERNAME,
+    SIMULATOR_MAC_ADDRESS,
+    SYSTEM_COMMANDS,
+    ZEROCONF_SERVICE_TYPE,
+    ZEROCONF_TIMEOUT,
+    RemotePowerModes,
+    RemoteUpdateType,
+)
+from .dock import Dock
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,6 +44,15 @@ class AuthenticationError(BaseException):
 
 class SystemCommandNotFound(BaseException):
     """Raised when an invalid system command is supplied."""
+
+    def __init__(self, message) -> None:
+        """Raise command no found error."""
+        self.message = message
+        super().__init__(self.message)
+
+
+class ExternalSystemNotRegistered(BaseException):
+    """Raised when an unregistered external system is supplied."""
 
     def __init__(self, message) -> None:
         """Raise command no found error."""
@@ -138,11 +155,12 @@ class Remote:
         self._cpu_load_one = 0.0
         self._power_mode = RemotePowerModes.NORMAL.value
         self._remotes = []
-        self._docks = []
+        self._ir_emitters = []
         self._ir_custom = []
         self._ir_codesets = []
         self._last_update_type = RemoteUpdateType.NONE
         self._is_simulator = None
+        self._docks: list[Dock] = []
 
     @property
     def name(self):
@@ -480,6 +498,135 @@ class Remote:
             session.delete(self.url("auth/api_keys/" + api_key_id)) as response,
         ):
             await self.raise_on_error(response)
+
+    async def get_registered_external_systems(self) -> str:
+        """Returns an array of dict[system,name] representing
+        the registered external systems on the remote"""
+        async with (
+            self.client() as session,
+            session.get(
+                self.url("auth/external"),
+            ) as response,
+        ):
+            await self.raise_on_error(response)
+            return await response.json()
+
+    async def get_tokens_for_external_system(
+        self,
+        system: str,
+    ) -> str:
+        """Lists available token information for the given system"""
+
+        if self.is_external_system_valid(system):
+            async with (
+                self.client() as session,
+                session.get(self.url(f"auth/external/{system}")) as response,
+            ):
+                await self.raise_on_error(response)
+                return await response.json()
+        raise ExternalSystemNotRegistered
+
+    async def set_token_for_external_system(
+        self,
+        system: str,
+        token_id: str,
+        token: str,
+        name: str = "Home Assistant Integration",
+        description: str = None,
+        url: str = None,
+        data: str = None,
+    ) -> str:
+        """This method allows the external system to automatically provide the access
+        token for the corresponding R2 integration instead of forcing the user to type it in.
+        If the token name already exists for the given system, error 422 is returned."""
+
+        if await self.is_external_system_valid(system):
+            body = {
+                "token_id": f"{token_id}",
+                "name": f"{name}",
+                "token": f"{token}",
+                "description": f"{description}",
+                "url": f"{url}",
+                "data": f"{data}",
+            }
+            async with (
+                self.client() as session,
+                session.post(
+                    self.url(f"auth/external/{system}"), json=body
+                ) as response,
+            ):
+                content = await response.json()
+                if response.status == 422:
+                    return await self.update_token_for_external_system(
+                        system=system,
+                        token_id=token_id,
+                        token=token,
+                        name=name,
+                        description=description,
+                        url=url,
+                        data=data,
+                    )
+                if response.ok:
+                    return content
+        raise ExternalSystemNotRegistered
+
+    async def update_token_for_external_system(
+        self,
+        system: str,
+        token_id: str,
+        token: str,
+        name: str = "Home Assistant Integration",
+        description: str = None,
+        url: str = None,
+        data: str = None,
+    ) -> str:
+        """This methods allows an already provided token of an external system to be updated.
+        The token is identified by the system name and the token identification."""
+
+        if await self.is_external_system_valid(system):
+            body = {
+                "token_id": f"{token_id}",
+                "name": f"{name}",
+                "token": f"{token}",
+                "description": f"{description}",
+                "url": f"{url}",
+                "data": f"{data}",
+            }
+            async with (
+                self.client() as session,
+                session.put(
+                    self.url(f"auth/external/{system}/{token_id}"), json=body
+                ) as response,
+            ):
+                await self.raise_on_error(response)
+                return await response.json()
+        raise ExternalSystemNotRegistered
+
+    async def delete_token_for_external_system(
+        self,
+        system: str,
+        token_id: str,
+    ) -> str:
+        """Deletes supplied token for the given system"""
+
+        if await self.is_external_system_valid(system):
+            async with (
+                self.client() as session,
+                session.delete(
+                    self.url(f"auth/external/{system}/{token_id}")
+                ) as response,
+            ):
+                await self.raise_on_error(response)
+                return await response.json()
+        raise ExternalSystemNotRegistered
+
+    async def is_external_system_valid(self, system) -> bool:
+        """Checks against the registered external systems on the remote
+        to validate the supplied system name"""
+        registered_systems = await self.get_registered_external_systems()
+        for rs in registered_systems:
+            if system == rs.get("system"):
+                return True
 
     @staticmethod
     async def get_version_information(base_url) -> str:
@@ -933,13 +1080,17 @@ class Remote:
             self.client() as session,
             session.post(self.url("system/update/latest")) as response,
         ):
-            await self.raise_on_error(response)
-            information = await response.json()
-            if information.get("state") == "DOWNLOAD":
-                self._update_in_progress = False
+            if response.ok:
+                information = await response.json()
+                if information.get("state") == "DOWNLOAD":
+                    self._update_in_progress = False
 
-            if information.get("state") == "START":
-                self._update_in_progress = True
+                if information.get("state") == "START":
+                    self._update_in_progress = True
+            if response.status == 409:
+                information = {"state": "DOWNLOADING"}
+            if response.status == 503:
+                information = {"state": "NO_BATTERY"}
             return information
 
     async def get_update_status(self) -> str:
@@ -1047,6 +1198,40 @@ class Remote:
 
     async def get_docks(self) -> list:
         """Get list of docks defined."""
+        async with (
+            self.client() as session,
+            session.get(self.url("docks")) as response,
+        ):
+            await self.raise_on_error(response)
+            docks = await response.json()
+            for info in docks:
+                dock = Dock(
+                    dock_id=info.get("dock_id"),
+                    remote_endpoint=self.endpoint,
+                    apikey=self.apikey,
+                    name=info.get("name"),
+                    ws_url=info.get("resolved_ws_url"),
+                    is_active=info.get("active"),
+                    model_name=info.get("model"),
+                    hardware_revision=info.get("revision"),
+                    serial_number=info.get("serial"),
+                    led_brightness=info.get("led_brightness"),
+                    ethernet_led_brightness=info.get("eth_led_brightness"),
+                    software_version=info.get("version"),
+                    state=info.get("state"),
+                    is_learning_active=info.get("learning_active"),
+                    remote_configuration_url=self.configuration_url,
+                )
+                self._docks.append(dock)
+            return self._docks
+
+    def get_dock_by_id(self, dock_id: str) -> Dock:
+        for dock in self._docks:
+            if dock.id == dock_id:
+                return dock
+
+    async def get_ir_emitters(self) -> list:
+        """Get list of docks defined."""
         dock_data = {}
         async with (
             self.client() as session,
@@ -1060,8 +1245,8 @@ class Remote:
                         "name": dock.get("name"),
                         "device_id": dock.get("device_id"),
                     }
-                    self._docks.append(dock_data.copy())
-            return self._docks
+                    self._ir_emitters.append(dock_data.copy())
+            return self._ir_emitters
 
     async def send_remote_command(
         self, device="", command="", repeat=0, **kwargs
@@ -1091,10 +1276,11 @@ class Remote:
         if "dock" in kwargs:
             dock_name = kwargs.get("dock")
             emitter = next(
-                (dock for dock in self._docks if dock.get("name") == dock_name), None
+                (dock for dock in self._ir_emitters if dock.get("name") == dock_name),
+                None,
             )
         else:
-            emitter = self._docks[0].get("device_id")
+            emitter = self._ir_emitters[0].get("device_id")
 
         if emitter is None:
             raise NoEmitterFound("No emitter could be found with the supplied criteria")
@@ -1137,6 +1323,7 @@ class Remote:
                 total_steps = 0
                 update_state = "INITIAL"
                 current_step = 0
+                percentage_offset = 0
                 if data.get("msg_data").get("event_type") == "START":
                     self._update_in_progress = True
                 if data.get("msg_data").get("event_type") == "PROGRESS":
@@ -1365,8 +1552,9 @@ class Remote:
             self.get_remote_update_settings(),
             self.get_activities(),
             self.get_remote_codesets(),
-            self.get_docks(),
+            self.get_ir_emitters(),
             self.get_remote_wifi_info(),
+            self.get_docks(),
         )
         await group
 
