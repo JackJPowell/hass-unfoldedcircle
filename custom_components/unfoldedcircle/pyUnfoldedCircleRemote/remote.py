@@ -1101,10 +1101,11 @@ class Remote:
             self.client() as session,
             session.get(self.url("system/update/latest")) as response,
         ):
-            await self.raise_on_error(response)
             information = await response.json()
-            self._download_percent = information.get("download_percent")
-            return information
+            if response.ok:
+                self._download_percent = information.get("download_percent")
+                return information
+            return {"state": "UNKNOWN", "download_percent": 0}
 
     async def get_activity_state(self, entity_id) -> str:
         """Get activity state for a remote entity."""
