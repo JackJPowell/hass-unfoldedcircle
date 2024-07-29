@@ -1,6 +1,5 @@
 # Home Assistant
 homeassistant>=2024.7.2
-<<<<<<< HEAD
 home-assistant-frontend==20240719.0
 
 # Development
@@ -52,24 +51,3 @@ voluptuous==0.13.1
 voluptuous-serialize==2.6.0
 voluptuous-openapi==0.0.4
 yarl==1.9.4
-=======
-home-assistant-frontend
-
-# Integration
-pyUnfoldedCircleRemote~=0.6.5
-
-# Development
-colorlog==6.7.0
-pip==24.1.2
-pylint>=3.0.3
-rel~=0.4.9.6
-requests~=2.32.3
-voluptuous~=0.13.1
-aiohttp~=3.9.3
-zeroconf~=0.131.0
-websockets~=12.0
-pyUnfoldedCircleRemote~=0.6.5
-ha-ffmpeg==3.2.0
-ruff>=0.5.3
-PyTurboJPEG==1.7.1
->>>>>>> origin/main
