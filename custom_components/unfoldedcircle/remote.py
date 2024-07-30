@@ -21,8 +21,9 @@ from homeassistant.components.remote import (
 )
 from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant, callback, ServiceCall
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import service, entity_platform
 from homeassistant.helpers.entity import ToggleEntityDescription
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -31,6 +32,7 @@ from .const import (
     DOMAIN,
     UNFOLDED_CIRCLE_COORDINATOR,
     UNFOLDED_CIRCLE_DOCK_COORDINATORS,
+    LEARN_IR_COMMAND_SERVICE,
 )
 from .entity import UnfoldedCircleEntity, UnfoldedCircleDockEntity
 from .pyUnfoldedCircleRemote.remote import AuthenticationError
@@ -76,6 +78,8 @@ async def async_setup_entry(
     dock_coordinators = hass.data[DOMAIN][config_entry.entry_id][
         UNFOLDED_CIRCLE_DOCK_COORDINATORS
     ]
+    platform = entity_platform.async_get_current_platform()
+
     async_add_entities([RemoteSensor(coordinator)])
 
     for dock_coordinator in dock_coordinators:
@@ -96,6 +100,45 @@ async def async_setup_entry(
                 )
             ]
         )
+
+    @service.verify_domain_control(hass, DOMAIN)
+    async def async_service_handle(service_call: ServiceCall) -> None:
+        """Handle dispatched services."""
+
+        assert platform is not None
+        entities = await platform.async_extract_from_service(service_call)
+
+        if not entities:
+            return
+
+        for entity in entities:
+            assert isinstance(entity, RemoteSensor)
+
+        if service_call.service == LEARN_IR_COMMAND_SERVICE:
+            coordinator = hass.data[DOMAIN][config_entry.entry_id][
+                UNFOLDED_CIRCLE_COORDINATOR
+            ]
+            ir = IR(coordinator, hass, data=service_call.data)
+            await ir.async_learn_command()
+            # Make the update
+
+    create_codeset_schema = cv.make_entity_service_schema(
+        {
+            vol.Optional("codeset_name", default="My codeset"): cv.string,
+            vol.Optional("codeset_description"): cv.string,
+            vol.Optional("codeset_icon", default="uc:movie"): cv.string,
+            vol.Required(ATTR_DEVICE): vol.All(cv.string, vol.Length(min=1)),
+            vol.Required(ATTR_COMMAND): vol.All(
+                cv.ensure_list,
+                [vol.All(cv.string, vol.Length(min=1))],
+                vol.Length(min=1),
+            ),
+        }
+    )
+
+    hass.services.async_register(
+        DOMAIN, LEARN_IR_COMMAND_SERVICE, async_service_handle, create_codeset_schema
+    )
 
 
 class RemoteDockSensor(UnfoldedCircleDockEntity, RemoteEntity):
@@ -418,3 +461,100 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
         """Handle updated data from the coordinator."""
         self.update_state()
         self.async_write_ha_state()
+
+
+class IR:
+    def __init__(self, coordinator, hass, data):
+        self.coordinator = coordinator
+        self.hass = hass
+        self.data = data
+
+    async def async_learn_command(self, **kwargs: Any) -> None:
+        """Learn a list of commands from a remote."""
+
+        await self.coordinator.api.get_remotes_complete()
+
+        name = self.data.get("codeset_name")
+        desc = self.data.get("codeset_description")
+        icon = self.data.get("codeset_icon")
+        subdevice = self.data.get("device")
+        for command in self.data.get("commands"):
+            try:
+                code = await self._async_learn_ir_command(
+                    command, subdevice, name, desc, icon
+                )
+
+            except (AuthenticationError, OSError) as err:
+                _LOGGER.error("Failed to learn '%s': %s", command, err)
+                break
+
+            except Exception as err:
+                _LOGGER.error("Failed to learn '%s': %s", command, err)
+                continue
+
+    async def _async_learn_ir_command(self, command, device, name, desc, icon):
+        """Learn an infrared command."""
+
+        try:
+            await self.coordinator.api.start_ir_learning()
+
+        except (Exception, OSError) as err:
+            _LOGGER.debug("Failed to enter learning mode: %s", err)
+            raise
+
+        persistent_notification.async_create(
+            self.hass,
+            f"Press the '{command}' button.",
+            title=f"Learn command for {device}",
+            notification_id="learn_command",
+        )
+
+        is_existing_list = False
+        remote_entity_id = ""
+        for remote in self.coordinator.api.remotes_complete:
+            if remote.get("options").get("ir").get("codeset").get("name") == device:
+                remote_entity_id = remote.get("entity_id")
+                is_existing_list = True
+
+        if not is_existing_list:
+            try:
+                new_remote = await self.coordinator.api.create_remote(
+                    name=name,
+                    device=device,
+                    description="My Device",
+                    icon=icon,
+                )
+                remote_entity_id = new_remote.get("entity_id")
+                # Refresh the list of remotes (We are shortcutting to save time. This
+                # probably should just call the get_remotes_complete() method)
+                await self.coordinator.api._remotes_complete.append(new_remote.copy())
+            except Exception as ex:
+                pass
+
+        try:
+            start_time = dt_util.utcnow()
+            while (dt_util.utcnow() - start_time) < LEARNING_TIMEOUT:
+                await asyncio.sleep(1)
+                try:
+                    if self.coordinator.api.learned_code:
+                        ir_format = "HEX"
+                        learned_code: str = self.coordinator.api.learned_code
+                        if "0x" not in learned_code.lower():
+                            ir_format = "PRONTO"
+
+                        await self.coordinator.api.add_remote_command_to_codeset(
+                            remote_entity_id, command, learned_code, ir_format
+                        )
+                        self.coordinator.api._learned_code = None
+                        return self.coordinator.api._learned_code
+                except AuthenticationError:
+                    continue
+
+            raise TimeoutError(
+                f"No infrared code received within {LEARNING_TIMEOUT.total_seconds()} seconds"
+            )
+
+        finally:
+            persistent_notification.async_dismiss(
+                self.hass, notification_id="learn_command"
+            )

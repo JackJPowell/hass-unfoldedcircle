@@ -1,5 +1,6 @@
 {
   "services": {
-    "update_activity": "mdi:movie-open-edit-outline"
+    "update_activity": "mdi:movie-open-edit-outline",
+    "learn_ir_command": "mdi:remote"
   }
 }
