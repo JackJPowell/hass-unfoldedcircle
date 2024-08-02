@@ -6,7 +6,6 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import UnfoldedCircleRemoteCoordinator
 from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
-from .pyUnfoldedCircleRemote.dock import Dock
 from .coordinator import UnfoldedCircleDockCoordinator
 
 

@@ -17,9 +17,9 @@ from homeassistant.helpers.update_coordinator import (
     UpdateFailed,
 )
 from pyUnfoldedCircleRemote.remote import Remote
-from .pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
-from .pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
-from .pyUnfoldedCircleRemote.dock import Dock
+from pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
+from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
+from pyUnfoldedCircleRemote.dock import Dock
 
 from .const import DEVICE_SCAN_INTERVAL, DOMAIN
 from .websocket import UCClientInterface, async_register_websocket_commands
