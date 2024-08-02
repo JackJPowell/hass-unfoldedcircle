@@ -23,7 +23,7 @@ async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
-    coordinator: UnfoldedCircleRemoteCoordinator = hass.data[DOMAIN][
-        entry.entry_id
-    ][UNFOLDED_CIRCLE_COORDINATOR]
+    coordinator: UnfoldedCircleRemoteCoordinator = hass.data[DOMAIN][entry.entry_id][
+        UNFOLDED_CIRCLE_COORDINATOR
+    ]
     return async_redact_data(coordinator.data, TO_REDACT)

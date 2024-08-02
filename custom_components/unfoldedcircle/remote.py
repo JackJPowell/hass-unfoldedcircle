@@ -50,9 +50,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Platform."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][
-        UNFOLDED_CIRCLE_COORDINATOR
-    ]
+    coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
     dock_coordinators = hass.data[DOMAIN][config_entry.entry_id][
         UNFOLDED_CIRCLE_DOCK_COORDINATORS
     ]
@@ -256,9 +254,7 @@ class IR:
                 _LOGGER.error("Failed to learn '%s': %s", command, err)
                 continue
 
-    async def _async_learn_ir_command(
-        self, command, device, name, description, icon
-    ):
+    async def _async_learn_ir_command(self, command, device, name, description, icon):
         """Learn an infrared command."""
 
         try:
@@ -278,10 +274,7 @@ class IR:
         is_existing_list = False
         remote_entity_id = ""
         for remote in self.coordinator.api.remotes_complete:
-            if (
-                remote.get("options").get("ir").get("codeset").get("name")
-                == device
-            ):
+            if remote.get("options").get("ir").get("codeset").get("name") == device:
                 remote_entity_id = remote.get("entity_id")
                 is_existing_list = True
 
@@ -296,9 +289,7 @@ class IR:
                 remote_entity_id = new_remote.get("entity_id")
                 # Refresh the list of remotes (We are shortcutting to save time. This
                 # probably should just call the get_remotes_complete() method)
-                await self.coordinator.api._remotes_complete.append(
-                    new_remote.copy()
-                )
+                await self.coordinator.api._remotes_complete.append(new_remote.copy())
             except Exception as ex:
                 pass
 
@@ -313,13 +304,11 @@ class IR:
                         if "0x" not in learned_code.lower():
                             ir_format = "PRONTO"
 
-                        await (
-                            self.coordinator.api.add_remote_command_to_codeset(
-                                remote_entity_id,
-                                command,
-                                learned_code,
-                                ir_format,
-                            )
+                        await self.coordinator.api.add_remote_command_to_codeset(
+                            remote_entity_id,
+                            command,
+                            learned_code,
+                            ir_format,
                         )
                         self.coordinator.api._learned_code = None
                         return self.coordinator.api._learned_code

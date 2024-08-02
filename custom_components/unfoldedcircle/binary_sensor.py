@@ -18,13 +18,13 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Use to setup entity."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][
-        UNFOLDED_CIRCLE_COORDINATOR
-    ]
-    async_add_entities([
-        BatteryBinarySensor(coordinator),
-        PollingBinarySensor(coordinator),
-    ])
+    coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
+    async_add_entities(
+        [
+            BatteryBinarySensor(coordinator),
+            PollingBinarySensor(coordinator),
+        ]
+    )
 
 
 class PollingBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
@@ -64,9 +64,7 @@ class PollingBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         self._attr_native_value = self.coordinator.polling_data
-        self._extra_state_attributes["Polling state"] = (
-            self.coordinator.polling_data
-        )
+        self._extra_state_attributes["Polling state"] = self.coordinator.polling_data
         self._extra_state_attributes["Websocket state"] = (
             self.coordinator.websocket_task is not None
         )

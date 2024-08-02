@@ -74,9 +74,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Use to setup entity."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][
-        UNFOLDED_CIRCLE_COORDINATOR
-    ]
+    coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
     media_players = []
     # Enable the global media player entity for all activities if enabled by user
     if config_entry.options.get(CONF_GLOBAL_MEDIA_ENTITY, True):
@@ -192,9 +190,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
                         continue
                     # Take this new one only if it has image URL
                     # or defined duration and the state is equal or better
-                    if (
-                        entity.media_image_url or entity.media_duration > 0
-                    ) and (
+                    if (entity.media_image_url or entity.media_duration > 0) and (
                         self._active_media_entity.state == entity.state
                         or entity.state == "PLAYING"
                         or entity.state == "BUFFERING"
@@ -229,10 +225,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         """Return the state of the device."""
         an_activity_is_on = False
         for activity in self.coordinator.api.activities:
-            if (
-                activity.state == "ON"
-                and activity.has_media_player_entities is True
-            ):
+            if activity.state == "ON" and activity.has_media_player_entities is True:
                 an_activity_is_on = True
                 break
 
@@ -241,9 +234,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         elif self.activity is not None and self.activity.state == "OFF":
             self._state = STATE_OFF
         elif self._active_media_entity:
-            self._state = STATES_MAP.get(
-                self._active_media_entity.state, STATE_OFF
-            )
+            self._state = STATES_MAP.get(self._active_media_entity.state, STATE_OFF)
         elif self.activity is not None and self.activity.state == "ON":
             self._state = STATE_ON
         elif (
@@ -323,10 +314,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
 
     @property
     def media_image_hash(self) -> str | None:
-        if (
-            self._active_media_entity
-            and self._active_media_entity.media_image_url
-        ):
+        if self._active_media_entity and self._active_media_entity.media_image_url:
             return hashlib.sha256(
                 str.encode(self._active_media_entity.media_image_url)
             ).hexdigest()
@@ -335,10 +323,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     @property
     def media_image_url(self) -> str | None:
         """Image url of current playing media."""
-        if (
-            self._active_media_entity
-            and self._active_media_entity.media_image_url
-        ):
+        if self._active_media_entity and self._active_media_entity.media_image_url:
             if self._active_media_entity.media_image_url.startswith("data:"):
                 return None
             else:
@@ -347,10 +332,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
 
     async def async_get_media_image(self) -> tuple[bytes | None, str | None]:
         """Fetch media image of current playing image."""
-        if (
-            self._active_media_entity
-            and self._active_media_entity.media_image_url
-        ):
+        if self._active_media_entity and self._active_media_entity.media_image_url:
             if self._active_media_entity.media_image_url.startswith("data:"):
                 # Starts with data:image/png;base64,
                 try:
@@ -450,13 +432,10 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         if (
             self._active_media_entity is not None
             and self._active_media_entity.activity is not None
-            and self._active_media_entity.activity.volume_mute_command
-            is not None
+            and self._active_media_entity.activity.volume_mute_command is not None
         ):
-            entity_id = (
-                self._active_media_entity.activity.volume_mute_command.get(
-                    "entity_id"
-                )
+            entity_id = self._active_media_entity.activity.volume_mute_command.get(
+                "entity_id"
             )
             for media_player in self._active_media_entities:
                 if media_player.id == entity_id:
@@ -470,13 +449,10 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         if (
             self._active_media_entity is not None
             and self._active_media_entity.activity is not None
-            and self._active_media_entity.activity.volume_mute_command
-            is not None
+            and self._active_media_entity.activity.volume_mute_command is not None
         ):
-            entity_id = (
-                self._active_media_entity.activity.volume_mute_command.get(
-                    "entity_id"
-                )
+            entity_id = self._active_media_entity.activity.volume_mute_command.get(
+                "entity_id"
             )
             for media_player in self._active_media_entities:
                 if media_player.id == entity_id:
@@ -566,10 +542,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
             if last_update_type != RemoteUpdateType.ACTIVITY:
                 return
             self.update_state()
-            if (
-                self._active_media_entity
-                and not self._active_media_entity.initialized
-            ):
+            if self._active_media_entity and not self._active_media_entity.initialized:
                 _LOGGER.debug(
                     "Unfolded circle changed active media player entity not initialized, update it"
                 )

@@ -60,9 +60,7 @@ class DockWebsocket(Websocket):
             close_timeout=20,
         ):
             try:
-                _LOGGER.debug(
-                    "UnfoldedCircleDock websocket connection initialized"
-                )
+                _LOGGER.debug("UnfoldedCircleDock websocket connection initialized")
                 self.websocket = websocket
 
                 if first:
@@ -78,15 +76,15 @@ class DockWebsocket(Websocket):
                     async for message in websocket:
                         try:
                             data = json.loads(message)
-                            _LOGGER.debug(
-                                "RC2 received websocket message %s", data
-                            )
+                            _LOGGER.debug("RC2 received websocket message %s", data)
                             if data["type"] == "auth_required":
                                 asyncio.ensure_future(
-                                    self.send_message({
-                                        "type": "auth",
-                                        "token": "0149",
-                                    })
+                                    self.send_message(
+                                        {
+                                            "type": "auth",
+                                            "token": "0149",
+                                        }
+                                    )
                                 )
                             asyncio.ensure_future(receive_callback(message))
                         except Exception as ex:
@@ -101,6 +99,4 @@ class DockWebsocket(Websocket):
                 )
                 await asyncio.sleep(WS_RECONNECTION_DELAY)
                 continue
-        _LOGGER.error(
-            "UnfoldedCircleRemote exiting init_websocket, this is not normal"
-        )
+        _LOGGER.error("UnfoldedCircleRemote exiting init_websocket, this is not normal")

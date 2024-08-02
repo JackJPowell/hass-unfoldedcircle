@@ -73,9 +73,7 @@ class Websocket:
             close_timeout=20,
         ):
             try:
-                _LOGGER.debug(
-                    "UnfoldedCircleDock websocket connection initialized"
-                )
+                _LOGGER.debug("UnfoldedCircleDock websocket connection initialized")
                 self.websocket = websocket
 
                 if first:
@@ -91,15 +89,15 @@ class Websocket:
                     async for message in websocket:
                         try:
                             data = json.loads(message)
-                            _LOGGER.debug(
-                                "RC2 received websocket message %s", data
-                            )
+                            _LOGGER.debug("RC2 received websocket message %s", data)
                             if data["type"] == "auth_required":
                                 asyncio.ensure_future(
-                                    self.send_message({
-                                        "type": "auth",
-                                        "token": "0149",
-                                    })
+                                    self.send_message(
+                                        {
+                                            "type": "auth",
+                                            "token": "0149",
+                                        }
+                                    )
                                 )
                             asyncio.ensure_future(receive_callback(message))
                         except Exception as ex:
@@ -114,16 +112,12 @@ class Websocket:
                 )
                 await asyncio.sleep(WS_RECONNECTION_DELAY)
                 continue
-        _LOGGER.error(
-            "UnfoldedCircleRemote exiting init_websocket, this is not normal"
-        )
+        _LOGGER.error("UnfoldedCircleRemote exiting init_websocket, this is not normal")
 
     async def close_websocket(self):
         """Terminate web socket connection"""
         if self.websocket is not None:
-            await self.websocket.close(
-                1001, "Close connection"
-            )  # 1001 : going away
+            await self.websocket.close(1001, "Close connection")  # 1001 : going away
             self.websocket = None
 
     async def subscribe_events(self) -> None:
@@ -132,12 +126,14 @@ class Websocket:
             "UnfoldedCircleRemote subscribing to events %s",
             self.events_to_subscribe,
         )
-        await self.send_message({
-            "id": 1,
-            "kind": "req",
-            "msg": "subscribe_events",
-            "msg_data": {"channels": self.events_to_subscribe},
-        })
+        await self.send_message(
+            {
+                "id": 1,
+                "kind": "req",
+                "msg": "subscribe_events",
+                "msg_data": {"channels": self.events_to_subscribe},
+            }
+        )
 
     async def send_message(self, message: any) -> None:
         """Send a message to the connected websocket."""

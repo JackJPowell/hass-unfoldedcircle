@@ -75,9 +75,7 @@ class UnfoldedCircleCoordinator(
             self.websocket.events_to_subscribe,
         )
         self.websocket_task = asyncio.create_task(
-            self.websocket.init_websocket(
-                self.receive_data, self.reconnection_ws
-            )
+            self.websocket.init_websocket(self.receive_data, self.reconnection_ws)
         )
 
     def update(self, message: any):
@@ -137,10 +135,7 @@ class UnfoldedCircleCoordinator(
                     + activity.state
                 )
                 for media_entity in activity.mediaplayer_entities:
-                    if (
-                        active_media_entity
-                        and active_media_entity == media_entity
-                    ):
+                    if active_media_entity and active_media_entity == media_entity:
                         debug_info.append(
                             "   > Media "
                             + media_entity.name
@@ -197,9 +192,7 @@ class UnfoldedCircleCoordinator(
             if self.websocket:
                 await self.websocket.close_websocket()
         except Exception as ex:
-            _LOGGER.error(
-                "Unfolded Circle Remote while closing websocket: %s", ex
-            )
+            _LOGGER.error("Unfolded Circle Remote while closing websocket: %s", ex)
 
 
 class UnfoldedCircleRemoteCoordinator(
@@ -213,9 +206,7 @@ class UnfoldedCircleRemoteCoordinator(
     subscribe_events: dict[str, bool]
     entities: list[CoordinatorEntity]
 
-    def __init__(
-        self, hass: HomeAssistant, unfolded_circle_remote_device
-    ) -> None:
+    def __init__(self, hass: HomeAssistant, unfolded_circle_remote_device) -> None:
         """Initialize the Coordinator."""
         super().__init__(hass, unfolded_circle_remote_device)
         self.hass = hass
@@ -250,9 +241,7 @@ class UnfoldedCircleDockCoordinator(
         self.hass = hass
         self.api: Dock = dock
         self.data = {}
-        self.websocket = DockWebsocket(
-            self.api._ws_endpoint, api_key=dock.apikey
-        )
+        self.websocket = DockWebsocket(self.api._ws_endpoint, api_key=dock.apikey)
         self.websocket_task = None
         self.subscribe_events = {}
         self.polling_data = False
@@ -265,9 +254,7 @@ class UnfoldedCircleDockCoordinator(
     async def init_websocket(self):
         """Initialize the Web Socket"""
         self.websocket_task = asyncio.create_task(
-            self.websocket.init_websocket(
-                self.receive_data, self.reconnection_ws
-            )
+            self.websocket.init_websocket(self.receive_data, self.reconnection_ws)
         )
 
     def debug_structure(self):

@@ -49,19 +49,23 @@ def ws_get_info(
     """Handle get info command."""
 
     _LOGGER.debug("Unfolded Circle connect request %s", msg)
-    connection.send_message({
-        "id": msg.get("id"),
-        "type": "result",
-        "success": True,
-        "result": {"state": "CONNECTED", "cat": "DEVICE", "version": "1.0.0"},
-        "message": msg.get("message"),
-        "data": msg.get("data"),
-    })
+    connection.send_message(
+        {
+            "id": msg.get("id"),
+            "type": "result",
+            "success": True,
+            "result": {"state": "CONNECTED", "cat": "DEVICE", "version": "1.0.0"},
+            "message": msg.get("message"),
+            "data": msg.get("data"),
+        }
+    )
 
 
-@websocket_api.websocket_command({
-    vol.Required("type"): f"{DOMAIN}/event/unsubscribe",
-})
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/event/unsubscribe",
+    }
+)
 @callback
 def ws_unsubscribe_event(
     hass: HomeAssistant,
@@ -74,9 +78,9 @@ def ws_unsubscribe_event(
         connection.send_result(msg["id"])
         return
 
-    coordinator: UCClientInterface = (
-        next(iter(hass.data[DOMAIN].values()))
-    ).get(UNFOLDED_CIRCLE_COORDINATOR, None)
+    coordinator: UCClientInterface = (next(iter(hass.data[DOMAIN].values()))).get(
+        UNFOLDED_CIRCLE_COORDINATOR, None
+    )
     if coordinator is None:
         _LOGGER.error("Unfolded Circle coordinator not initialized")
         connection.send_result(msg["id"])
@@ -88,10 +92,12 @@ def ws_unsubscribe_event(
     connection.send_result(msg["id"])
 
 
-@websocket_api.websocket_command({
-    vol.Required("type"): f"{DOMAIN}/event/subscribed_entities",
-    vol.Optional("data"): dict[any, any],
-})
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/event/subscribed_entities",
+        vol.Optional("data"): dict[any, any],
+    }
+)
 @callback
 def ws_subscribe_event(
     hass: HomeAssistant,
@@ -103,9 +109,9 @@ def ws_subscribe_event(
         _LOGGER.error("Unfolded Circle integration not configured")
         return
 
-    coordinator: UCClientInterface = (
-        next(iter(hass.data[DOMAIN].values()))
-    ).get(UNFOLDED_CIRCLE_COORDINATOR, None)
+    coordinator: UCClientInterface = (next(iter(hass.data[DOMAIN].values()))).get(
+        UNFOLDED_CIRCLE_COORDINATOR, None
+    )
     if coordinator is None:
         _LOGGER.error("Unfolded Circle coordinator not initialized")
 

@@ -44,9 +44,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Unfolded Circle Remote from a config entry."""
 
     try:
-        remote_api = Remote(
-            entry.data["host"], entry.data["pin"], entry.data["apiKey"]
-        )
+        remote_api = Remote(entry.data["host"], entry.data["pin"], entry.data["apiKey"])
         await remote_api.can_connect()
         await remote_api.get_remote_information()
 
@@ -93,9 +91,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             and "ucd" not in entry.unique_id.lower()
         ):
             new = f"{coordinator.api.model_number}_{entry.unique_id}"
-            return {
-                "new_unique_id": entry.unique_id.replace(entry.unique_id, new)
-            }
+            return {"new_unique_id": entry.unique_id.replace(entry.unique_id, new)}
 
         if (
             entry.domain == Platform.SWITCH
@@ -104,9 +100,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             and "uc.main" not in entry.unique_id
         ):
             new = f"{coordinator.api.model_number}_{entry.unique_id}"
-            return {
-                "new_unique_id": entry.unique_id.replace(entry.unique_id, new)
-            }
+            return {"new_unique_id": entry.unique_id.replace(entry.unique_id, new)}
 
         if (
             entry.domain == Platform.UPDATE
@@ -114,9 +108,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             and "ucd" not in entry.unique_id.lower()
         ):
             new = f"{coordinator.api.model_number}_{coordinator.api.serial_number}_update_status"
-            return {
-                "new_unique_id": entry.unique_id.replace(entry.unique_id, new)
-            }
+            return {"new_unique_id": entry.unique_id.replace(entry.unique_id, new)}
 
         # No migration needed
         return None
@@ -125,9 +117,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Migrate Device Name -- Make the device name match the psn username
     # We can remove this logic after a reasonable period of time has passed.
     if entry.version == 1:
-        await er.async_migrate_entries(
-            hass, entry.entry_id, async_migrate_entity_entry
-        )
+        await er.async_migrate_entries(hass, entry.entry_id, async_migrate_entity_entry)
         _migrate_device_identifiers(hass, entry.entry_id, coordinator)
         hass.config_entries.async_update_entry(entry, version=2)
 
@@ -147,9 +137,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await coordinator.close_websocket()
     except Exception as ex:
         _LOGGER.error("Unfolded Circle Remote async_unload_entry error: %s", ex)
-    if unload_ok := await hass.config_entries.async_unload_platforms(
-        entry, PLATFORMS
-    ):
+    if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         hass.data[DOMAIN].pop(entry.entry_id)
 
     return unload_ok
@@ -173,9 +161,7 @@ def _migrate_device_identifiers(
 ) -> None:
     """Migrate old device identifiers."""
     dev_reg = dr.async_get(hass)
-    devices: list[dr.DeviceEntry] = dr.async_entries_for_config_entry(
-        dev_reg, entry_id
-    )
+    devices: list[dr.DeviceEntry] = dr.async_entries_for_config_entry(dev_reg, entry_id)
     for device in devices:
         old_identifier = list(next(iter(device.identifiers)))
         if (
@@ -194,6 +180,4 @@ def _migrate_device_identifiers(
                 device.identifiers,
                 new_identifier,
             )
-            dev_reg.async_update_device(
-                device.id, new_identifiers=new_identifier
-            )
+            dev_reg.async_update_device(device.id, new_identifiers=new_identifier)

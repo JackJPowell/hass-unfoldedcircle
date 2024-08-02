@@ -11,9 +11,7 @@ from .coordinator import UnfoldedCircleDockCoordinator
 
 async def async_setup_entry(hass: HomeAssistant, config_entry):
     """Add sensors for passed config_entry in HA."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][
-        UNFOLDED_CIRCLE_COORDINATOR
-    ]
+    coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
 
 
 class UnfoldedCircleEntity(CoordinatorEntity[UnfoldedCircleRemoteCoordinator]):
@@ -51,9 +49,7 @@ class UnfoldedCircleEntity(CoordinatorEntity[UnfoldedCircleRemoteCoordinator]):
         return False
 
 
-class UnfoldedCircleDockEntity(
-    CoordinatorEntity[UnfoldedCircleDockCoordinator]
-):
+class UnfoldedCircleDockEntity(CoordinatorEntity[UnfoldedCircleDockCoordinator]):
     """Common entity class for all Unfolded Circle Dock entities"""
 
     def __init__(self, coordinator) -> None:

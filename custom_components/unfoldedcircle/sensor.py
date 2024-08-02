@@ -110,13 +110,9 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
 # )
 
 
-async def async_setup_entry(
-    hass: HomeAssistant, config_entry, async_add_entities
-):
+async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entities):
     """Add sensors for passed config_entry in HA."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][
-        UNFOLDED_CIRCLE_COORDINATOR
-    ]
+    coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
 
     async_add_entities(
         UnfoldedCircleSensor(coordinator, description)
@@ -178,9 +174,7 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
     def get_value(self) -> StateType:
         """return native value of entity"""
         if self.coordinator.data:
-            self._state = getattr(
-                self.coordinator.api, self.entity_description.key
-            )
+            self._state = getattr(self.coordinator.api, self.entity_description.key)
             self._attr_native_value = self._state
         return self._state
 

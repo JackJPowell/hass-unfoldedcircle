@@ -80,9 +80,7 @@ class RemoteWebsocket(Websocket):
             close_timeout=20,
         ):
             try:
-                _LOGGER.debug(
-                    "UnfoldedCircleRemote websocket connection initialized"
-                )
+                _LOGGER.debug("UnfoldedCircleRemote websocket connection initialized")
                 self.websocket = websocket
                 if first:
                     first = False
@@ -110,9 +108,7 @@ class RemoteWebsocket(Websocket):
                 )
                 await asyncio.sleep(WS_RECONNECTION_DELAY)
                 continue
-        _LOGGER.error(
-            "UnfoldedCircleRemote exiting init_websocket, this is not normal"
-        )
+        _LOGGER.error("UnfoldedCircleRemote exiting init_websocket, this is not normal")
 
     def create_api_key(self):
         """Create API key using rest API. Need to call login_api first"""

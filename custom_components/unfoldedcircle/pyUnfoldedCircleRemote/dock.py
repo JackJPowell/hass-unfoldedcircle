@@ -380,9 +380,7 @@ class Dock:
             self._hardware_revision = information.get("revision")
             self._serial_number = information.get("serial")
             self._led_brightness = information.get("led_brightness")
-            self._ethernet_led_brightness = information.get(
-                "eth_led_brightness"
-            )
+            self._ethernet_led_brightness = information.get("eth_led_brightness")
             self._software_version = information.get("version")
             self._state = information.get("state")
             self._is_learning_active = information.get("learning_active")
@@ -393,9 +391,7 @@ class Dock:
         """Get dock update information"""
         async with (
             self.client() as session,
-            session.get(
-                self.url(f"docks/devices/{self.id}/update")
-            ) as response,
+            session.get(self.url(f"docks/devices/{self.id}/update")) as response,
         ):
             await self.raise_on_error(response)
             information = await response.json()
@@ -420,9 +416,7 @@ class Dock:
         """Stop an IR learning session"""
         async with (
             self.client() as session,
-            session.delete(
-                self.url(f"ir/emitters/{self.id}/learn")
-            ) as response,
+            session.delete(self.url(f"ir/emitters/{self.id}/learn")) as response,
         ):
             await self.raise_on_error(response)
             information = await response.json()

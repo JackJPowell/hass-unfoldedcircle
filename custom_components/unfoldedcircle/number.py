@@ -50,33 +50,25 @@ async def update_remote_button_settings(
 async def update_remote_sound_settings(
     coordinator: UnfoldedCircleRemoteCoordinator, value: int
 ) -> None:
-    await coordinator.api.patch_remote_sound_settings(
-        sound_effects_volume=value
-    )
+    await coordinator.api.patch_remote_sound_settings(sound_effects_volume=value)
 
 
 async def update_remote_display_timeout_settings(
     coordinator: UnfoldedCircleRemoteCoordinator, value: int
 ) -> None:
-    await coordinator.api.patch_remote_power_saving_settings(
-        display_timeout=value
-    )
+    await coordinator.api.patch_remote_power_saving_settings(display_timeout=value)
 
 
 async def update_remote_wakeup_sensitivity_settings(
     coordinator: UnfoldedCircleRemoteCoordinator, value: int
 ) -> None:
-    await coordinator.api.patch_remote_power_saving_settings(
-        wakeup_sensitivity=value
-    )
+    await coordinator.api.patch_remote_power_saving_settings(wakeup_sensitivity=value)
 
 
 async def update_remote_sleep_timeout_settings(
     coordinator: UnfoldedCircleRemoteCoordinator, value: int
 ) -> None:
-    await coordinator.api.patch_remote_power_saving_settings(
-        sleep_timeout=value
-    )
+    await coordinator.api.patch_remote_power_saving_settings(sleep_timeout=value)
 
 
 UNFOLDED_CIRCLE_NUMBER: tuple[UnfoldedCircleNumberEntityDescription, ...] = (
@@ -156,9 +148,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Number platform."""
     # Setup connection with devices
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][
-        UNFOLDED_CIRCLE_COORDINATOR
-    ]
+    coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
     dock_coordinators = hass.data[DOMAIN][config_entry.entry_id][
         UNFOLDED_CIRCLE_DOCK_COORDINATORS
     ]
@@ -221,9 +211,7 @@ class UCRemoteNumber(UnfoldedCircleEntity, NumberEntity):
 async def update_dock_led_brightness(
     coordinator: UnfoldedCircleDockCoordinator, value: int
 ) -> None:
-    await coordinator.api.send_command(
-        command="SET_LED_BRIGHNESS", command_value=value
-    )
+    await coordinator.api.send_command(command="SET_LED_BRIGHNESS", command_value=value)
 
 
 async def update_dock_ethernet_led_brightness(
@@ -234,9 +222,7 @@ async def update_dock_ethernet_led_brightness(
     )
 
 
-UNFOLDED_CIRCLE_DOCK_NUMBER: tuple[
-    UnfoldedCircleNumberEntityDescription, ...
-] = (
+UNFOLDED_CIRCLE_DOCK_NUMBER: tuple[UnfoldedCircleNumberEntityDescription, ...] = (
     UnfoldedCircleNumberEntityDescription(
         key="led_brightness",
         device_class=None,
