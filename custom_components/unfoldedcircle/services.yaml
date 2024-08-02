@@ -21,18 +21,11 @@ learn_ir_command:
       - integration: unfoldedcircle
         domain: remote
   fields:
-    codeset_name:
-      name: Codeset Name
-      description: The name of your new codeset
-      required: false
-    codeset_description:
-      name: Codeset Description
-      description: The Description of your codeset
-      required: false
-    codeset_icon:
-      name: Codeset Icon
-      description: A uc:icon to associate with your codeset
-      required: false
-    command:
-      name: List of Commands
-      required: false
+    remote:
+      name: Remote Entity Information
+      description: Remote Dictionary containing -> Name, Description, and Icon
+      required: true
+    ir_dataset:
+      name: IR Codeset Information
+      description: IR Codeset Dictionary containing -> Name and a list of commands
+      required: true
