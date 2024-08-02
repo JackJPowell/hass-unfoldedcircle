@@ -1,7 +1,7 @@
 {
-  "name": "Unfolded Circle",
-  "homeassistant": "2023.10.0",
-  "render_readme": true,
-  "zip_release": true,
-  "filename": "unfoldedcircle.zip"
+    "name": "Unfolded Circle",
+    "homeassistant": "2023.10.0",
+    "render_readme": true,
+    "zip_release": true,
+    "filename": "unfoldedcircle.zip",
 }

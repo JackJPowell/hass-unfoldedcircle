@@ -20,18 +20,21 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up entity in HA."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
+    coordinator = hass.data[DOMAIN][config_entry.entry_id][
+        UNFOLDED_CIRCLE_COORDINATOR
+    ]
     dock_coordinators = hass.data[DOMAIN][config_entry.entry_id][
         UNFOLDED_CIRCLE_DOCK_COORDINATORS
     ]
-    async_add_entities([RebootButton(coordinator), UpdateCheckButton(coordinator)])
+    async_add_entities([
+        RebootButton(coordinator),
+        UpdateCheckButton(coordinator),
+    ])
     for dock_coordinator in dock_coordinators:
-        async_add_entities(
-            [
-                RebootDockButton(dock_coordinator),
-                IdentifyDockButton(dock_coordinator),
-            ]
-        )
+        async_add_entities([
+            RebootDockButton(dock_coordinator),
+            IdentifyDockButton(dock_coordinator),
+        ])
 
 
 class RebootButton(UnfoldedCircleEntity, ButtonEntity):

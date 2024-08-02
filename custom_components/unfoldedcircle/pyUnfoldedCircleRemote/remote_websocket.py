@@ -66,7 +66,8 @@ class RemoteWebsocket(Websocket):
         """Initialize websocket connection with the registered API key."""
         await self.close_websocket()
         _LOGGER.debug(
-            "UnfoldedCircleRemote websocket init connection to %s", self.endpoint
+            "UnfoldedCircleRemote websocket init connection to %s",
+            self.endpoint,
         )
 
         first = True
@@ -79,7 +80,9 @@ class RemoteWebsocket(Websocket):
             close_timeout=20,
         ):
             try:
-                _LOGGER.debug("UnfoldedCircleRemote websocket connection initialized")
+                _LOGGER.debug(
+                    "UnfoldedCircleRemote websocket connection initialized"
+                )
                 self.websocket = websocket
                 if first:
                     first = False
@@ -107,7 +110,9 @@ class RemoteWebsocket(Websocket):
                 )
                 await asyncio.sleep(WS_RECONNECTION_DELAY)
                 continue
-        _LOGGER.error("UnfoldedCircleRemote exiting init_websocket, this is not normal")
+        _LOGGER.error(
+            "UnfoldedCircleRemote exiting init_websocket, this is not normal"
+        )
 
     def create_api_key(self):
         """Create API key using rest API. Need to call login_api first"""
@@ -159,7 +164,8 @@ class RemoteWebsocket(Websocket):
         if self.session is None:
             return
         response = self.session.post(
-            self.api_endpoint + "/pub/logout", params={"id": self.session.cookies["id"]}
+            self.api_endpoint + "/pub/logout",
+            params={"id": self.session.cookies["id"]},
         )
         _LOGGER.info("Logout %d", response.status_code)
         self.session = None

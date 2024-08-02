@@ -112,7 +112,9 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Switch platform."""
     # Setup connection with devices
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
+    coordinator = hass.data[DOMAIN][config_entry.entry_id][
+        UNFOLDED_CIRCLE_COORDINATOR
+    ]
     platform = entity_platform.async_get_current_platform()
 
     activities = []
@@ -127,7 +129,9 @@ async def async_setup_entry(
     # Create switch for each activity only for activities not defined in any activity group
     async_add_entities(
         UCRemoteSwitch(coordinator, switch)
-        for switch in filter(lambda a: a not in activities, coordinator.api.activities)
+        for switch in filter(
+            lambda a: a not in activities, coordinator.api.activities
+        )
     )
 
     async_add_entities(
@@ -157,12 +161,15 @@ async def async_setup_entry(
             )
             test = 1 + 1
 
-    prevent_sleep_schema = cv.make_entity_service_schema(
-        {vol.Optional(ATTR_PREVENT_SLEEP, default=False): cv.boolean}
-    )
+    prevent_sleep_schema = cv.make_entity_service_schema({
+        vol.Optional(ATTR_PREVENT_SLEEP, default=False): cv.boolean
+    })
 
     hass.services.async_register(
-        DOMAIN, UPDATE_ACTIVITY_SERVICE, async_service_handle, prevent_sleep_schema
+        DOMAIN,
+        UPDATE_ACTIVITY_SERVICE,
+        async_service_handle,
+        prevent_sleep_schema,
     )
 
 

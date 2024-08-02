@@ -677,7 +677,9 @@ class Remote:
 
     async def get_remote_configuration(self) -> str:
         """Get System configuration from remote. User supplied remote name."""
-        async with self.client() as session, session.get(self.url("cfg")) as response:
+        async with self.client() as session, session.get(
+            self.url("cfg")
+        ) as response:
             await self.raise_on_error(response)
             information = await response.json()
             self._name = information.get("device").get("name")
@@ -693,7 +695,9 @@ class Remote:
             for activity in await response.json():
                 new_activity = Activity(activity=activity, remote=self)
                 self.activities.append(new_activity)
-                response2 = await session.get(self.url("activities/" + new_activity.id))
+                response2 = await session.get(
+                    self.url("activities/" + new_activity.id)
+                )
                 data = await response2.json()
                 try:
                     self.update_activity_entities(
@@ -743,7 +747,9 @@ class Remote:
             for updated_activity in updated_activities:
                 for activity in self.activities:
                     if activity._id == updated_activity["entity_id"]:
-                        activity._state = updated_activity["attributes"]["state"]
+                        activity._state = updated_activity["attributes"][
+                            "state"
+                        ]
 
     async def get_activity_groups(self) -> json:
         """Return activity groups with the list of activity IDs from Unfolded Circle Remote."""
@@ -767,7 +773,9 @@ class Remote:
                     state=activity_group_data.get("state"),
                 )
                 response2 = await session.get(
-                    self.url("activity_groups/" + activity_group_data.get("group_id"))
+                    self.url(
+                        "activity_groups/" + activity_group_data.get("group_id")
+                    )
                 )
                 await self.raise_on_error(response2)
                 activity_group_definition = await response2.json()
@@ -800,17 +808,21 @@ class Remote:
         ):
             await self.raise_on_error(response)
             status = await response.json()
-            self._memory_total = status.get("memory").get("total_memory") / 1048576
+            self._memory_total = (
+                status.get("memory").get("total_memory") / 1048576
+            )
             self._memory_available = (
                 status.get("memory").get("available_memory") / 1048576
             )
 
             self._storage_total = (
                 status.get("filesystem").get("user_data").get("used")
-                + status.get("filesystem").get("user_data").get("available") / 1048576
+                + status.get("filesystem").get("user_data").get("available")
+                / 1048576
             )
             self._storage_available = (
-                status.get("filesystem").get("user_data").get("available") / 1048576
+                status.get("filesystem").get("user_data").get("available")
+                / 1048576
             )
 
             self._cpu_load = status.get("load_avg")
@@ -852,7 +864,9 @@ class Remote:
 
         async with (
             self.client() as session,
-            session.patch(self.url("cfg/display"), json=display_settings) as response,
+            session.patch(
+                self.url("cfg/display"), json=display_settings
+            ) as response,
         ):
             await self.raise_on_error(response)
             response = await response.json()
@@ -882,7 +896,9 @@ class Remote:
 
         async with (
             self.client() as session,
-            session.patch(self.url("cfg/button"), json=button_settings) as response,
+            session.patch(
+                self.url("cfg/button"), json=button_settings
+            ) as response,
         ):
             await self.raise_on_error(response)
             response = await response.json()
@@ -912,7 +928,9 @@ class Remote:
 
         async with (
             self.client() as session,
-            session.patch(self.url("cfg/sound"), json=sound_settings) as response,
+            session.patch(
+                self.url("cfg/sound"), json=sound_settings
+            ) as response,
         ):
             await self.raise_on_error(response)
             response = await response.json()
@@ -937,7 +955,9 @@ class Remote:
 
         async with (
             self.client() as session,
-            session.patch(self.url("cfg/haptic"), json=haptic_settings) as response,
+            session.patch(
+                self.url("cfg/haptic"), json=haptic_settings
+            ) as response,
         ):
             await self.raise_on_error(response)
             response = await response.json()
@@ -1011,9 +1031,13 @@ class Remote:
                             self._latest_sw_version == ""
                             or self._latest_sw_version < update.get("version")
                         ):
-                            self._release_notes_url = update.get("release_notes_url")
+                            self._release_notes_url = update.get(
+                                "release_notes_url"
+                            )
                             self._latest_sw_version = update.get("version")
-                            self._release_notes = update.get("description").get("en")
+                            self._release_notes = update.get("description").get(
+                                "en"
+                            )
                             download_status = update.get("download")
                     else:
                         self._latest_sw_version = self._sw_version
@@ -1048,9 +1072,13 @@ class Remote:
                             self._latest_sw_version == ""
                             or self._latest_sw_version < update.get("version")
                         ):
-                            self._release_notes_url = update.get("release_notes_url")
+                            self._release_notes_url = update.get(
+                                "release_notes_url"
+                            )
                             self._latest_sw_version = update.get("version")
-                            self._release_notes = update.get("description").get("en")
+                            self._release_notes = update.get("description").get(
+                                "en"
+                            )
                             download_status = update.get("download")
                     else:
                         self._latest_sw_version = self._sw_version
@@ -1261,12 +1289,18 @@ class Remote:
         if device != "" and command != "":
             # Send a predefined code
             ir_code = next(
-                (code for code in self._ir_codesets if code.get("name") == device),
+                (
+                    code
+                    for code in self._ir_codesets
+                    if code.get("name") == device
+                ),
                 dict,
             )
             body = {"codeset_id": ir_code.get("device_id"), "cmd_id": command}
         else:
-            raise InvalidIRFormat("Supply (code and format) or (device and command)")
+            raise InvalidIRFormat(
+                "Supply (code and format) or (device and command)"
+            )
 
         if repeat > 0:
             body_repeat = {"repeat": repeat}
@@ -1277,14 +1311,20 @@ class Remote:
         if "dock" in kwargs:
             dock_name = kwargs.get("dock")
             emitter = next(
-                (dock for dock in self._ir_emitters if dock.get("name") == dock_name),
+                (
+                    dock
+                    for dock in self._ir_emitters
+                    if dock.get("name") == dock_name
+                ),
                 None,
             )
         else:
             emitter = self._ir_emitters[0].get("device_id")
 
         if emitter is None:
-            raise NoEmitterFound("No emitter could be found with the supplied criteria")
+            raise NoEmitterFound(
+                "No emitter could be found with the supplied criteria"
+            )
 
         body_merged = {**body, **body_repeat, **body_port}
 
@@ -1347,7 +1387,8 @@ class Remote:
                         case "PROGRESS":
                             step_offset = offset * (current_step - 1)
                             self._update_percent = (
-                                percentage_offset * progress.get("current_percent")
+                                percentage_offset
+                                * progress.get("current_percent")
                             ) + step_offset
                         case "SUCCESS":
                             self._update_percent = 100
@@ -1369,15 +1410,21 @@ class Remote:
                     self._display_auto_brightness = state.get("display").get(
                         "auto_brightness"
                     )
-                    self._display_brightness = state.get("display").get("brightness")
+                    self._display_brightness = state.get("display").get(
+                        "brightness"
+                    )
                 if state.get("button") is not None:
-                    self._button_backlight = state.get("button").get("auto_brightness")
+                    self._button_backlight = state.get("button").get(
+                        "auto_brightness"
+                    )
                     self._button_backlight_brightness = state.get("button").get(
                         "brightness"
                     )
                 if state.get("sound") is not None:
                     self._sound_effects = state.get("sound").get("enabled")
-                    self._sound_effects_volume = state.get("sound").get("volume")
+                    self._sound_effects_volume = state.get("sound").get(
+                        "volume"
+                    )
                 if state.get("haptic") is not None:
                     self._haptic_feedback = state.get("haptic").get("enabled")
                 if state.get("software_update") is not None:
@@ -1394,7 +1441,9 @@ class Remote:
                     self._wakeup_sensitivity = state.get("power_saving").get(
                         "wakeup_sensitivity"
                     )
-                    self._sleep_timeout = state.get("power_saving").get("standby_sec")
+                    self._sleep_timeout = state.get("power_saving").get(
+                        "standby_sec"
+                    )
                 self._last_update_type = RemoteUpdateType.CONFIGURATION
             if data["msg"] == "power_mode_change":
                 _LOGGER.debug("Unfoldded circle Power Mode change")
@@ -1428,14 +1477,15 @@ class Remote:
             #  ["msg_data"]["new_state"]["attributes"]["step"]["command"] = { "cmd_id": "media_player.on", "entity_id": "<media player entity id>"...}
             if (
                 data["msg_data"]["entity_type"] == "activity"
-                and data["msg_data"]["new_state"]["attributes"]["state"] == "RUNNING"
-                and data["msg_data"]["new_state"]["attributes"]["step"]["entity"][
-                    "type"
-                ]
+                and data["msg_data"]["new_state"]["attributes"]["state"]
+                == "RUNNING"
+                and data["msg_data"]["new_state"]["attributes"]["step"][
+                    "entity"
+                ]["type"]
                 == "media_player"
-                and data["msg_data"]["new_state"]["attributes"]["step"]["command"][
-                    "cmd_id"
-                ]
+                and data["msg_data"]["new_state"]["attributes"]["step"][
+                    "command"
+                ]["cmd_id"]
                 == "media_player.on"
             ):
                 _LOGGER.debug(
@@ -1445,9 +1495,9 @@ class Remote:
                 entity_id = data["msg_data"]["new_state"]["attributes"]["step"][
                     "command"
                 ]["entity_id"]
-                entity_data = data["msg_data"]["new_state"]["attributes"]["step"][
-                    "entity"
-                ]
+                entity_data = data["msg_data"]["new_state"]["attributes"][
+                    "step"
+                ]["entity"]
                 entity_data["entity_id"] = entity_id
                 for activity in self.activities:
                     if activity._id == activity_id:
@@ -1469,20 +1519,26 @@ class Remote:
                     if activity._id == activity_id:
                         activity._state = new_state
                         # Check after included entities in activity
-                        if data["msg_data"]["new_state"].get("options") and data[
-                            "msg_data"
-                        ]["new_state"]["options"].get("included_entities"):
+                        if data["msg_data"]["new_state"].get(
+                            "options"
+                        ) and data["msg_data"]["new_state"]["options"].get(
+                            "included_entities"
+                        ):
                             included_entities = data["msg_data"]["new_state"][
                                 "options"
                             ]["included_entities"]
-                            self.update_activity_entities(activity, included_entities)
+                            self.update_activity_entities(
+                                activity, included_entities
+                            )
 
                 for activity_group in self.activity_groups:
                     if activity_group.is_activity_in_group(activity_id):
                         group_state = "OFF"
                         for activity in self.activities:
                             if (
-                                activity_group.is_activity_in_group(activity._id)
+                                activity_group.is_activity_in_group(
+                                    activity._id
+                                )
                                 and activity.is_on()
                             ):
                                 group_state = "ON"
@@ -1522,7 +1578,9 @@ class Remote:
                 entity_type = included_entity.get("type", None)
             if entity_type != "media_player":
                 continue
-            entity: UCMediaPlayerEntity = self.get_entity(included_entity["entity_id"])
+            entity: UCMediaPlayerEntity = self.get_entity(
+                included_entity["entity_id"]
+            )
             entity._activity = activity
             if included_entity.get("name", None) is not None:
                 entity._name = next(iter(included_entity["name"].values()))
@@ -1623,7 +1681,9 @@ class UCMediaPlayerEntity:
 
     async def update_data(self, force=False):
         """Update entity data from remote"""
-        _LOGGER.debug("RC2 update media player entity from remote %s", self.name)
+        _LOGGER.debug(
+            "RC2 update media player entity from remote %s", self.name
+        )
         if self._initialized and not force:
             return
         data = await self._remote.get_entity_data(self._id)
@@ -1741,9 +1801,14 @@ class UCMediaPlayerEntity:
             attributes_changed["media_title"] = self._media_title
         if attributes.get("media_position", None):
             self._media_position = attributes.get("media_position", 0)
-            self._media_position_updated_at = datetime.datetime.now(datetime.UTC)
+            self._media_position_updated_at = datetime.datetime.now(
+                datetime.UTC
+            )
             attributes_changed["media_position"] = self._media_position
-        if attributes.get("muted", None) or attributes.get("muted", None) is False:
+        if (
+            attributes.get("muted", None)
+            or attributes.get("muted", None) is False
+        ):
             self._muted = attributes.get("muted")
             attributes_changed["muted"] = self._muted
         if attributes.get("media_type", None):
@@ -1764,7 +1829,8 @@ class UCMediaPlayerEntity:
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + entity_id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"),
+                json=body,
             ) as response,
         ):
             await self._remote.raise_on_error(response)
@@ -1780,7 +1846,8 @@ class UCMediaPlayerEntity:
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + entity_id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"),
+                json=body,
             ) as response,
         ):
             await self._remote.raise_on_error(response)
@@ -1812,7 +1879,8 @@ class UCMediaPlayerEntity:
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + entity_id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"),
+                json=body,
             ) as response,
         ):
             await self._remote.raise_on_error(response)
@@ -1827,7 +1895,8 @@ class UCMediaPlayerEntity:
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + entity_id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"),
+                json=body,
             ) as response,
         ):
             await self._remote.raise_on_error(response)
@@ -1842,7 +1911,8 @@ class UCMediaPlayerEntity:
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + entity_id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"),
+                json=body,
             ) as response,
         ):
             await self._remote.raise_on_error(response)
@@ -1867,7 +1937,8 @@ class UCMediaPlayerEntity:
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + entity_id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"),
+                json=body,
             ) as response,
         ):
             await self._remote.raise_on_error(response)
@@ -1882,7 +1953,8 @@ class UCMediaPlayerEntity:
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + entity_id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"),
+                json=body,
             ) as response,
         ):
             await self._remote.raise_on_error(response)
@@ -1897,7 +1969,8 @@ class UCMediaPlayerEntity:
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + entity_id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"),
+                json=body,
             ) as response,
         ):
             await self._remote.raise_on_error(response)
@@ -1912,7 +1985,8 @@ class UCMediaPlayerEntity:
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + entity_id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"),
+                json=body,
             ) as response,
         ):
             await self._remote.raise_on_error(response)
@@ -1927,7 +2001,8 @@ class UCMediaPlayerEntity:
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + entity_id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"),
+                json=body,
             ) as response,
         ):
             await self._remote.raise_on_error(response)
@@ -1946,7 +2021,8 @@ class UCMediaPlayerEntity:
         async with (
             self._remote.client() as session,
             session.put(
-                self._remote.url("entities/" + entity_id + "/command"), json=body
+                self._remote.url("entities/" + entity_id + "/command"),
+                json=body,
             ) as response,
         ):
             await self._remote.raise_on_error(response)
@@ -1955,7 +2031,9 @@ class UCMediaPlayerEntity:
 class ActivityGroup:
     """Class representing a Unfolded Circle Remote Activity Group."""
 
-    def __init__(self, group_id: str, name: str, remote: Remote, state: str) -> None:
+    def __init__(
+        self, group_id: str, name: str, remote: Remote, state: str
+    ) -> None:
         self._id = group_id
         self._remote = remote
         self._state = state
