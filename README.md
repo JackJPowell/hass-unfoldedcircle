@@ -120,8 +120,8 @@ target:
 
 > [!TIP] > **device:** will match the case-sensitive name of your remote defined in the web configurator on the remote page. **command** will match the case-senstitive name of the pre-defined (custom or codeset) command defined for that remote. **num_repeats** is optional.
 
-## Additional Services
-There is now a service to update defined activities. This will be initially released with the option to enable/disable the 'prevent sleep' option within the selected activity. 
+## Additional Actions
+There is now an action to update defined activities. This will be initially released with the option to enable/disable the 'prevent sleep' option within the selected activity. 
 ```
 service: unfoldedcircle.update_activity
 target:
@@ -130,7 +130,39 @@ data:
   prevent_sleep: true
 ```
 
-**Update Activity**
+## IR Learning
+***BETA: This will be available in the wide release soon***
+
+You can now rapidly learn IR commands through your dock. To get started, go to your developer tools and then to the services tab and recreate the example below with your data. Start by providing a remote entity of the dock you want to learn through. Then add information about the remote to be created in the Unfolded Circle Software (name, icon, and description). Follow that with your IR dataset. Give it a name and a list of commands you would like to learn. 
+```
+service: unfoldedcircle.learn_ir_command
+target:
+  entity_id: remote.remote_dock_remote
+data:
+  remote:
+    name: Sony TV
+    icon: uc:tv
+    description: My Sony TV Remote
+  ir_dataset:
+    name: Sony A95L
+    command:
+      - direction_up
+      - direction_right
+      - direction_down
+      - direction_left
+      - menu
+      - back
+      - home
+```
+Finally, run this by clicking call service. This will start the dock listening for your commands. If you check your home assistant notifications, you'll get feedback on which step you are on. Continue by clicking the button on your remote that is shown in the notification while pointing at your dock. 
+
+![Screenshot 2024-08-02 at 6 44 12 PM](https://github.com/user-attachments/assets/7b312f16-4c76-4d67-81bc-901f3e07e095)
+
+If you run the above you will end up with the following in your Unfolded Circle Remote's web configurator that you can then assign to virtual or physical buttons:
+
+![Screenshot 2024-08-02 at 6 27 48 PM](https://github.com/user-attachments/assets/c1b37321-3a61-4e22-b0c1-aeef94379e77)
+
+![Screenshot 2024-08-02 at 6 34 13 PM](https://github.com/user-attachments/assets/2722b8ff-9d9d-4e22-a809-f75091372b5d)
 
 ## Options
 
