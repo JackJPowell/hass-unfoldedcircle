@@ -27,7 +27,9 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Use to setup entity."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
+    coordinator = hass.data[DOMAIN][config_entry.entry_id][
+        UNFOLDED_CIRCLE_COORDINATOR
+    ]
     # IF the option to suppress activity groups is true, skip adding activity groups
     if config_entry.options.get(CONF_SUPPRESS_ACTIVITIY_GROUPS, False) is False:
         async_add_entities(

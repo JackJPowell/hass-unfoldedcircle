@@ -341,11 +341,6 @@ class Dock:
             return aiohttp.ClientSession(
                 headers=headers, timeout=aiohttp.ClientTimeout(total=5)
             )
-        # if self.pin:
-        #     auth = aiohttp.BasicAuth(AUTH_USERNAME, self.pin)
-        #     return aiohttp.ClientSession(
-        #         auth=auth, timeout=aiohttp.ClientTimeout(total=2)
-        #     )
 
     async def can_connect(self) -> bool:
         """Validate we can communicate with the remote given the supplied information."""
@@ -380,7 +375,9 @@ class Dock:
             self._hardware_revision = information.get("revision")
             self._serial_number = information.get("serial")
             self._led_brightness = information.get("led_brightness")
-            self._ethernet_led_brightness = information.get("eth_led_brightness")
+            self._ethernet_led_brightness = information.get(
+                "eth_led_brightness"
+            )
             self._software_version = information.get("version")
             self._state = information.get("state")
             self._is_learning_active = information.get("learning_active")
@@ -391,7 +388,9 @@ class Dock:
         """Get dock update information"""
         async with (
             self.client() as session,
-            session.get(self.url(f"docks/devices/{self.id}/update")) as response,
+            session.get(
+                self.url(f"docks/devices/{self.id}/update")
+            ) as response,
         ):
             await self.raise_on_error(response)
             information = await response.json()
@@ -416,7 +415,9 @@ class Dock:
         """Stop an IR learning session"""
         async with (
             self.client() as session,
-            session.delete(self.url(f"ir/emitters/{self.id}/learn")) as response,
+            session.delete(
+                self.url(f"ir/emitters/{self.id}/learn")
+            ) as response,
         ):
             await self.raise_on_error(response)
             information = await response.json()
