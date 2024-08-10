@@ -34,15 +34,17 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-STEP_USER_DATA_SCHEMA = vol.Schema({
-    vol.Required("host"): str,
-    vol.Required("pin"): str,
-})
+STEP_USER_DATA_SCHEMA = vol.Schema(
+    {
+        vol.Required("host"): str,
+        vol.Required("pin"): str,
+    }
+)
 
 STEP_ZEROCONF_DATA_SCHEMA = vol.Schema({vol.Required("pin"): str})
 
 
-async def generateToken(hass: HomeAssistant, name):
+async def generate_token(hass: HomeAssistant, name):
     """Generate a token for Unfolded Circle to use with HA API"""
     user = await hass.auth.async_get_owner()
     try:
@@ -54,15 +56,14 @@ async def generateToken(hass: HomeAssistant, name):
             access_token_expiration=timedelta(days=3652),
         )
     except ValueError:
-        _LOGGER.warning(
-            "There is already a long lived token with %s name", name
-        )
+        _LOGGER.warning("There is already a long lived token with %s name", name)
         return None
 
     return hass.auth.async_create_access_token(token)
 
 
-async def removeToken(hass: HomeAssistant, token):
+async def remove_token(hass: HomeAssistant, token):
+    """Remove api token from remote"""
     _LOGGER.debug("Removing refresh token")
     refresh_token = await hass.auth.async_get_refresh_token_by_token(token)
     await hass.auth.async_remove_refresh_token(refresh_token)
@@ -96,7 +97,8 @@ async def validate_input(
     await remote.get_remote_information()
     await remote.get_remote_configuration()
     await remote.get_remote_wifi_info()
-    token = await generateToken(hass, remote.name)
+    await remote.get_docks()
+    token = await generate_token(hass, remote.name)
     token_id = await remote.set_token_for_external_system(
         "hass",
         "hass_id",
@@ -114,6 +116,10 @@ async def validate_input(
     if remote.mac_address:
         mac_address = remote.mac_address.replace(":", "").lower()
 
+    docks = []
+    for dock in remote._docks:
+        docks.append({"id": dock.id, "name": dock.name, "password": ""})
+
     # Return info that you want to store in the config entry.
     return {
         "title": remote.name,
@@ -126,6 +132,7 @@ async def validate_input(
         "token_id": token_id,
         CONF_SERIAL: remote.serial_number,
         CONF_MAC: mac_address,
+        "docks": docks,
     }
 
 
@@ -157,32 +164,29 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         port = discovery_info.port
         hostname = discovery_info.hostname
         name = discovery_info.name
+        model = discovery_info.properties.get("model")
         endpoint = f"http://{host}:{port}/api/"
 
         mac_address = None
-        is_simulator = False
         try:
-            mac_address = (
-                re.match(r"RemoteTwo-(.*?)\.", hostname).group(1).lower()
-            )
+            mac_address = re.match(r"RemoteTwo-(.*?)\.", hostname).group(1).lower()
         except Exception:
             try:
-                mac_address = (
-                    re.match(r"RemoteTwo-(.*?)\.", name).group(1).lower()
-                )
+                mac_address = re.match(r"RemoteTwo-(.*?)\.", name).group(1).lower()
             except Exception:
-                if discovery_info.properties.get("model") != "UCR2-simulator":
+                if model != "UCR2-simulator":
                     return self.async_abort(reason="no_mac")
                 _LOGGER.debug("Zeroconf from the Simulator %s", discovery_info)
-                is_simulator = True
                 mac_address = SIMULATOR_MAC_ADDRESS.replace(":", "").lower()
 
-        self.discovery_info.update({
-            CONF_HOST: host,
-            CONF_PORT: port,
-            CONF_NAME: "Remote Two (" + host + ")",
-            CONF_MAC: mac_address,
-        })
+        self.discovery_info.update(
+            {
+                CONF_HOST: host,
+                CONF_PORT: port,
+                CONF_NAME: f"Remote Two ({host})",
+                CONF_MAC: mac_address,
+            }
+        )
 
         _LOGGER.debug(
             "Unfolded circle remote found %s %s %s :",
@@ -194,30 +198,38 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         # Use mac address as unique id as this is the only common
         # information between zeroconf and user conf
         if mac_address:
-            await self._async_set_unique_id_and_abort_if_already_configured(
-                mac_address
-            )
+            await self._async_set_unique_id_and_abort_if_already_configured(mac_address)
 
         # Retrieve device friendly name set by the user
-        device_name = "Remote Two"
-        try:
-            response = await Remote.get_version_information(endpoint)
-            device_name = response.get("device_name", None)
-            if not device_name:
+
+        configuration_url = ""
+        device_name = ""
+        match model:
+            case "UCR2":
                 device_name = "Remote Two"
-        except Exception:
-            pass
+                configuration_url = (
+                    f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
+                )
+                try:
+                    response = await Remote.get_version_information(endpoint)
+                    device_name = response.get("device_name", None)
+                    if not device_name:
+                        device_name = "Remote Two"
+                except Exception:
+                    pass
+            case "UCR2-simulator":
+                device_name = "Remote Two Simulator"
+                configuration_url = (
+                    f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
+                )
 
-        if is_simulator:
-            device_name = f"{device_name} Simulator"
-
-        self.context.update({
-            "title_placeholders": {"name": device_name},
-            "configuration_url": (
-                f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
-            ),
-            "product": "Product",
-        })
+        self.context.update(
+            {
+                "title_placeholders": {"name": device_name},
+                "configuration_url": configuration_url,
+                "product": "Product",
+            }
+        )
 
         _LOGGER.debug(
             "Unfolded Circle Zeroconf Creating: %s %s",
@@ -269,7 +281,10 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is None or user_input == {}:
             return self.async_show_form(
-                step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
+                step_id="user",
+                data_schema=STEP_USER_DATA_SCHEMA,
+                errors=errors,
+                last_step=False,
             )
 
         try:
@@ -287,10 +302,66 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.exception("Unexpected exception")
             errors["base"] = "unknown"
         else:
+            if info["docks"]:
+                return await self.async_step_dock(info=info)
+
             return self.async_create_entry(title=info["title"], data=info)
 
         return self.async_show_form(
-            step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
+            step_id="user",
+            data_schema=STEP_USER_DATA_SCHEMA,
+            errors=errors,
+            last_step=False,
+        )
+
+    async def async_step_dock(
+        self,
+        user_input: dict[str, Any] | None = None,
+        info: dict[str, any] = None,
+    ) -> FlowResult:
+        """Called if there are docks associated with the remote"""
+        schema = {}
+        if info:
+            self.info = info
+
+        for dock in self.info["docks"]:
+            schema[vol.Optional("password")] = str
+
+        schema = {vol.Optional("password"): str}
+        pl = {"name": "Dock Two"}
+
+        errors: dict[str, str] = {}
+        if user_input is None or user_input == {}:
+            return self.async_show_form(
+                step_id="dock",
+                data_schema=vol.Schema(schema),
+                description_placeholders=pl,
+                errors=errors,
+                last_step=True,
+            )
+
+        try:
+            docks = []
+            for dock in self.info["docks"]:
+                dock["password"] = user_input["password"]
+                docks.append(dock)
+
+            self.info["docks"] = docks
+            # Validate the password
+        except CannotConnect:
+            errors["base"] = "cannot_connect"
+        except InvalidAuth:
+            errors["base"] = "invalid_auth"
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.exception("Unexpected exception")
+            errors["base"] = "unknown"
+        else:
+            return self.async_create_entry(title=self.info["title"], data=self.info)
+
+        return self.async_show_form(
+            step_id="dock",
+            data_schema=vol.Schema(schema),
+            last_step=True,
         )
 
     async def _async_set_unique_id_and_abort_if_already_configured(
@@ -351,13 +422,9 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 self.reauth_entry.unique_id, raise_on_progress=False
             )
             if existing_entry:
-                self.hass.config_entries.async_update_entry(
-                    existing_entry, data=info
-                )
-                await self.hass.config_entries.async_reload(
-                    existing_entry.entry_id
-                )
-                return self.async_abort(reason="reauth_successful")
+                self.hass.config_entries.async_update_entry(existing_entry, data=info)
+                await self.hass.config_entries.async_reload(existing_entry.entry_id)
+                return self.async_abort(reason="Reauthentication was successful")
 
             return self.async_create_entry(
                 title=info["title"],
@@ -390,20 +457,22 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="activities",
-            data_schema=vol.Schema({
-                vol.Optional(
-                    CONF_ACTIVITIES_AS_SWITCHES,
-                    default=self.config_entry.options.get(
-                        CONF_ACTIVITIES_AS_SWITCHES, False
-                    ),
-                ): bool,
-                vol.Optional(
-                    CONF_SUPPRESS_ACTIVITIY_GROUPS,
-                    default=self.config_entry.options.get(
-                        CONF_SUPPRESS_ACTIVITIY_GROUPS, False
-                    ),
-                ): bool,
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_ACTIVITIES_AS_SWITCHES,
+                        default=self.config_entry.options.get(
+                            CONF_ACTIVITIES_AS_SWITCHES, False
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_SUPPRESS_ACTIVITIY_GROUPS,
+                        default=self.config_entry.options.get(
+                            CONF_SUPPRESS_ACTIVITIY_GROUPS, False
+                        ),
+                    ): bool,
+                }
+            ),
             last_step=False,
         )
 
@@ -415,26 +484,28 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="media_player",
-            data_schema=vol.Schema({
-                vol.Optional(
-                    CONF_GLOBAL_MEDIA_ENTITY,
-                    default=self.config_entry.options.get(
-                        CONF_GLOBAL_MEDIA_ENTITY, True
-                    ),
-                ): bool,
-                vol.Optional(
-                    CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
-                    default=self.config_entry.options.get(
-                        CONF_ACTIVITY_GROUP_MEDIA_ENTITIES, False
-                    ),
-                ): bool,
-                vol.Optional(
-                    CONF_ACTIVITY_MEDIA_ENTITIES,
-                    default=self.config_entry.options.get(
-                        CONF_ACTIVITY_MEDIA_ENTITIES, False
-                    ),
-                ): bool,
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_GLOBAL_MEDIA_ENTITY,
+                        default=self.config_entry.options.get(
+                            CONF_GLOBAL_MEDIA_ENTITY, True
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
+                        default=self.config_entry.options.get(
+                            CONF_ACTIVITY_GROUP_MEDIA_ENTITIES, False
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_ACTIVITY_MEDIA_ENTITIES,
+                        default=self.config_entry.options.get(
+                            CONF_ACTIVITY_MEDIA_ENTITIES, False
+                        ),
+                    ): bool,
+                }
+            ),
             last_step=True,
         )
 

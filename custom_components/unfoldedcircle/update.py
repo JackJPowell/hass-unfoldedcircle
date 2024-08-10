@@ -28,9 +28,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up platform."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][
-        UNFOLDED_CIRCLE_COORDINATOR
-    ]
+    coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
     async_add_entities([Update(coordinator)])
 
 
@@ -87,9 +85,7 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
                 )
                 return
 
-            while (
-                update_information.get("state") != "START" and retry_count < 6
-            ):
+            while update_information.get("state") != "START" and retry_count < 6:
                 self._is_downloading = True
                 await asyncio.sleep(5)
                 download_percentage = await self.update_download_status()
@@ -111,9 +107,7 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
                 # If we previously needed to download the firmware, preserve download
                 # percentage so we don't show negative progress.
                 self._is_downloading = False
-                self._attr_in_progress = (
-                    "0"  # Starts progress bar unlike when True
-                )
+                self._attr_in_progress = "0"  # Starts progress bar unlike when True
                 if self._download_progress > 0:
                     self._attr_in_progress = self._download_progress
 

@@ -17,6 +17,13 @@
           "pin": "PIN Code"
         }
       },
+      "dock": {
+        "title": "Import Docks (Optional)",
+        "description": "Associated Docks",
+        "data": {
+          "password": "Dock Two Password"
+        }
+      },
       "zeroconf_confirm": {
         "data": {
           "pin": "PIN Code"
