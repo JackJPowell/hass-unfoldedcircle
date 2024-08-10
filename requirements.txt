@@ -1,6 +1,6 @@
 # Home Assistant
-homeassistant>=2024.7.2
-home-assistant-frontend==20240719.0
+homeassistant>=2024.8
+home-assistant-frontend==20240806.1
 
 # Development
 colorlog==6.7.0
