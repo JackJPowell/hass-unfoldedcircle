@@ -109,6 +109,7 @@ class Dock:
         self._ws_endpoint = ws_url
         self._id = dock_id
         self._name = name
+        self._password = ""
         self._host_name = ""
         self._software_version = software_version
         self._serial_number = serial_number
@@ -116,7 +117,7 @@ class Dock:
         self._hardware_revision = hardware_revision
         self._model_number = ""
         self._manufacturer = "Unfolded Circle"
-        self._mac_address = ""
+        self._mac_address = dock_id.lower().removeprefix("uc-dock-")
         self._ip_address = ""
         self._is_active = is_active
         self._led_brightness = led_brightness
@@ -287,6 +288,21 @@ class Dock:
         """remote_configuration_url of the dock."""
         return self._remote_configuration_url
 
+    @property
+    def ws_endpoint(self):
+        """ws_endpoint of the dock."""
+        return self._ws_endpoint
+
+    @property
+    def password(self):
+        """password of the dock."""
+        return self._password
+
+    @property
+    def has_password(self):
+        """returns true if password of the dock is set."""
+        return self._password != ""
+
     ### URL Helpers ###
     def validate_url(self, uri):
         """Validate passed in URL and attempts to correct api endpoint if path isn't supplied."""
@@ -375,9 +391,7 @@ class Dock:
             self._hardware_revision = information.get("revision")
             self._serial_number = information.get("serial")
             self._led_brightness = information.get("led_brightness")
-            self._ethernet_led_brightness = information.get(
-                "eth_led_brightness"
-            )
+            self._ethernet_led_brightness = information.get("eth_led_brightness")
             self._software_version = information.get("version")
             self._state = information.get("state")
             self._is_learning_active = information.get("learning_active")
@@ -388,9 +402,7 @@ class Dock:
         """Get dock update information"""
         async with (
             self.client() as session,
-            session.get(
-                self.url(f"docks/devices/{self.id}/update")
-            ) as response,
+            session.get(self.url(f"docks/devices/{self.id}/update")) as response,
         ):
             await self.raise_on_error(response)
             information = await response.json()
@@ -415,9 +427,7 @@ class Dock:
         """Stop an IR learning session"""
         async with (
             self.client() as session,
-            session.delete(
-                self.url(f"ir/emitters/{self.id}/learn")
-            ) as response,
+            session.delete(self.url(f"ir/emitters/{self.id}/learn")) as response,
         ):
             await self.raise_on_error(response)
             information = await response.json()
