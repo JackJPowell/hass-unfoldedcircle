@@ -32,6 +32,7 @@ class DockWebsocket(Websocket):
     ) -> None:
         super().__init__(api_url, api_key, dock_password)
         self.endpoint = api_url
+        self.awaits_password = True
 
     async def init_websocket(
         self,
@@ -49,7 +50,6 @@ class DockWebsocket(Websocket):
             first = True
             async for websocket in websockets.connect(
                 self.endpoint,
-                # logger=LoggerAdapter(logger, None),
                 ping_interval=30,
                 ping_timeout=30,
                 close_timeout=20,
@@ -80,7 +80,7 @@ class DockWebsocket(Websocket):
                                             }
                                         )
                                     )
-                                asyncio.ensure_future(receive_callback(message))
+                                asyncio.ensure_future(receive_callback(self, message))
                             except Exception as ex:
                                 _LOGGER.debug(
                                     "UnfoldedCircleRemote exception in websocket receive callback %s",
@@ -96,3 +96,61 @@ class DockWebsocket(Websocket):
             _LOGGER.error(
                 "UnfoldedCircleRemote exiting init_websocket, this is not normal"
             )
+
+    async def is_password_valid(
+        self,
+    ):
+        """Initialize websocket connection with the dock password."""
+        if self.dock_password:
+            await self.close_websocket()
+            _LOGGER.debug(
+                "UnfoldedCircleDock websocket init connection to %s",
+                self.endpoint,
+            )
+
+            async for websocket in websockets.connect(
+                self.endpoint,
+                ping_interval=30,
+                ping_timeout=30,
+                close_timeout=20,
+            ):
+                try:
+                    _LOGGER.debug("UnfoldedCircleDock websocket connection initialized")
+                    self.websocket = websocket
+
+                    while self.awaits_password:
+                        async for message in websocket:
+                            try:
+                                data = json.loads(message)
+                                _LOGGER.debug("RC2 received websocket message %s", data)
+                                if data["type"] == "auth_required":
+                                    asyncio.ensure_future(
+                                        self.send_message(
+                                            {
+                                                "type": "auth",
+                                                "token": f"{self.dock_password}",
+                                            }
+                                        )
+                                    )
+                                if data["type"] == "authentication":
+                                    await self.close_websocket()
+                                    if data["code"] == 200:
+                                        return True
+                                    return False
+
+                            except Exception as ex:
+                                _LOGGER.debug(
+                                    "UnfoldedCircleRemote exception in websocket receive callback %s",
+                                    ex,
+                                )
+                except websockets.ConnectionClosed as error:
+                    _LOGGER.debug(
+                        "UnfoldedCircleRemote websocket closed. Waiting before reconnecting... %s",
+                        error,
+                    )
+                    await asyncio.sleep(WS_RECONNECTION_DELAY)
+                    continue
+            _LOGGER.error(
+                "UnfoldedCircleRemote exiting init_websocket, this is not normal"
+            )
+        return False

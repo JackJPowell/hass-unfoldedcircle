@@ -2,8 +2,8 @@
 ![GitHub Release](https://img.shields.io/github/v/release/jackjpowell/hass-unfoldedcircle)
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/jackjpowell/hass-unfoldedcircle/total)
 <a href="#"><img src="https://img.shields.io/maintenance/yes/2024.svg"></a>
-<!--[![Buy Me A Coffee/Beer](https://img.shields.io/badge/Buy_Me_A_☕/🍺-F16061?logo=ko-fi&logoColor=white&labelColor=grey)](https://ko-fi.com/jackjpowell)-->
 
+<!--[![Buy Me A Coffee/Beer](https://img.shields.io/badge/Buy_Me_A_☕/🍺-F16061?logo=ko-fi&logoColor=white&labelColor=grey)](https://ko-fi.com/jackjpowell)-->
 
 ## hass-unfoldedcircle
 
@@ -22,10 +22,10 @@ There are two main ways to install this custom component within your Home Assist
 
 1. Using HACS (see https://hacs.xyz/ for installation instructions if you do not already have it installed):
 
-    [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=JackJPowell&repository=hass-unfoldedcircle&category=Integration)
+   [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=JackJPowell&repository=hass-unfoldedcircle&category=Integration)
 
    Or
-   
+
    1. From within Home Assistant, click on the link to **HACS**
    2. Click on **Integrations**
    3. Click on the vertical ellipsis in the top right and select **Custom repositories**
@@ -33,10 +33,10 @@ There are two main ways to install this custom component within your Home Assist
    5. Click the **ADD** button
    6. Close the _Custom repositories_ window
    7. You should now be able to see the _Unfolde Circle_ card on the HACS Integrations page. Click on **INSTALL** and proceed with the installation instructions.
- 
+
    Restart your Home Assistant instance and then proceed to the _Configuration_ section below.
 
-3. Manual Installation:
+2. Manual Installation:
    1. Download or clone this repository
    2. Copy the contents of the folder **custom_components/unfoldedcircle** into the same file structure on your Home Assistant instance
    3. Restart your Home Assistant instance and then proceed to the _Configuration_ section below.
@@ -98,11 +98,29 @@ After the device is configured, the integration will expose 22 entities plus the
   - A media player entity is created providing controls and information about currently playing media. If multiple media player entities are active, the integration attempts to select the most appropriate based on activity and recency.
     - You can override this behavior by selecting a different media source from the sound mode menu in the Media Player control
     - Options exist to create a media player per activity group or per activity.
-  - **Update** The media player controls are now mapped to the selected activity's button mapping on the remote. The default is still the active media player, but if you have defined custom volume, next, previous, or power button commands, those will be executed when interacting with the control within home assistant. 
+  - **Update** The media player controls are now mapped to the selected activity's button mapping on the remote. The default is still the active media player, but if you have defined custom volume, next, previous, or power button commands, those will be executed when interacting with the control within home assistant.
 - Number
+
   - Configuration Controls: All numerical settings are now controllable via the integration.
 
   \*\* Disabled by default to avoid polling the remote every thirty seconds to read data. If one of these sensors is enabled, polling only for that specific data will also be enabled.
+
+## Dock Support
+
+Dock support has now been added. If you have an existing remote configured, you will be prompted with a repair for each dock associated with your remote. You can also add docks via a configuration flow when adding a remote. Each Dock exposes 4 entities:
+
+- Buttons
+
+  - Reboot Dock: Allows you to remotely reboot the dock
+  - Identity: Causes the LED to flash to help you identify which dock is which
+
+- Number
+  - LED Brightness: Allows you to set the LED brightness level
+  - Ethernet Brightness: Allows you to set the Ethernet LED brightness level
+
+During a config flow, if you are unsure of your password, you can skip adding that dock for the moment by submitting the form without a password supplied. This will cause a repair to be created so you can set it at your leasure.
+
+If you are unsure of the password you set, you can change it via the web configurator. Click on the Integrations and Dock menu and then select the dock you need to change the password for. Once changed, come back to the repair and let home assistant know what you set it to.
 
 ## IR Remote Commands
 
@@ -121,7 +139,9 @@ target:
 > [!TIP] > **device:** will match the case-sensitive name of your remote defined in the web configurator on the remote page. **command** will match the case-senstitive name of the pre-defined (custom or codeset) command defined for that remote. **num_repeats** is optional.
 
 ## Additional Actions
-There is now an action to update defined activities. This will be initially released with the option to enable/disable the 'prevent sleep' option within the selected activity. 
+
+There is now an action to update defined activities. This will be initially released with the option to enable/disable the 'prevent sleep' option within the selected activity.
+
 ```
 service: unfoldedcircle.update_activity
 target:
@@ -131,9 +151,11 @@ data:
 ```
 
 ## IR Learning
-***BETA: This will be available in the wide release soon***
 
-You can now rapidly learn IR commands through your dock. To get started, go to your developer tools and then to the services tab and recreate the example below with your data. Start by providing a remote entity of the dock you want to learn through. Then add information about the remote to be created in the Unfolded Circle Software (name, icon, and description). Follow that with your IR dataset. Give it a name and a list of commands you would like to learn. 
+**_BETA: This will be available in the wide release soon_**
+
+You can now rapidly learn IR commands through your dock. To get started, go to your developer tools and then to the services tab and recreate the example below with your data. Start by providing a remote entity of the dock you want to learn through. Then add information about the remote to be created in the Unfolded Circle Software (name, icon, and description). Follow that with your IR dataset. Give it a name and a list of commands you would like to learn.
+
 ```
 service: unfoldedcircle.learn_ir_command
 target:
@@ -154,7 +176,8 @@ data:
       - back
       - home
 ```
-Finally, run this by clicking call service. This will start the dock listening for your commands. If you check your home assistant notifications, you'll get feedback on which step you are on. Continue by clicking the button on your remote that is shown in the notification while pointing at your dock. 
+
+Finally, run this by clicking call service. This will start the dock listening for your commands. If you check your home assistant notifications, you'll get feedback on which step you are on. Continue by clicking the button on your remote that is shown in the notification while pointing at your dock.
 
 ![Screenshot 2024-08-02 at 6 44 12 PM](https://github.com/user-attachments/assets/7b312f16-4c76-4d67-81bc-901f3e07e095)
 

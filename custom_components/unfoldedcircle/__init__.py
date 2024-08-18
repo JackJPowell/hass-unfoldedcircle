@@ -9,9 +9,9 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import entity_registry as er, issue_registry
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
+from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 from .const import (
     DOMAIN,
@@ -74,6 +74,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await dock_coordinator.api.update()
             await dock_coordinator.async_config_entry_first_refresh()
             await dock_coordinator.init_websocket()
+        else:
+            issue_registry.async_create_issue(
+                hass,
+                DOMAIN,
+                f"dock_password_{dock.id}",
+                breaks_in_ha_version=None,
+                data={
+                    "id": dock.id,
+                    "name": dock.name,
+                    "config_entry_id": entry.entry_id,
+                },
+                is_fixable=True,
+                is_persistent=False,
+                learn_more_url="https://github.com/jackjpowell/hass-unfoldedcircle",
+                severity=issue_registry.IssueSeverity.WARNING,
+                translation_key="dock_password",
+                translation_placeholders={"name": dock.name},
+            )
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         UNFOLDED_CIRCLE_COORDINATOR: coordinator,
@@ -138,10 +156,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     try:
-        coordinator: UnfoldedCircleRemoteCoordinator = hass.data[DOMAIN][
-            entry.entry_id
-        ][UNFOLDED_CIRCLE_COORDINATOR]
+        coordinator: UnfoldedCircleRemoteCoordinator = hass.data[DOMAIN][entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
         await coordinator.close_websocket()
+
+        for dock in coordinator.api._docks:
+            issue_registry.async_delete_issue(hass, DOMAIN, f"dock_password_{dock.id}")
     except Exception as ex:
         _LOGGER.error("Unfolded Circle Remote async_unload_entry error: %s", ex)
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
@@ -163,18 +182,13 @@ async def async_migrate_entry(hass: HomeAssistant, self):
     return True
 
 
-def _migrate_device_identifiers(
-    hass: HomeAssistant, entry_id: str, coordinator
-) -> None:
+def _migrate_device_identifiers(hass: HomeAssistant, entry_id: str, coordinator) -> None:
     """Migrate old device identifiers."""
     dev_reg = dr.async_get(hass)
     devices: list[dr.DeviceEntry] = dr.async_entries_for_config_entry(dev_reg, entry_id)
     for device in devices:
         old_identifier = list(next(iter(device.identifiers)))
-        if (
-            "ucr" not in old_identifier[1].lower()
-            and "ucd" not in old_identifier[1].lower()
-        ):
+        if "ucr" not in old_identifier[1].lower() and "ucd" not in old_identifier[1].lower():
             new_identifier = {
                 (
                     DOMAIN,

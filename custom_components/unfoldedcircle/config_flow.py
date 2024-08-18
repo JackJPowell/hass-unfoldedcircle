@@ -15,11 +15,12 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.network import get_url
-from pyUnfoldedCircleRemote.const import (
+from .pyUnfoldedCircleRemote.const import (
     AUTH_APIKEY_NAME,
     SIMULATOR_MAC_ADDRESS,
 )
-from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
+from .helpers import validate_dock_password
+from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 from .const import (
     CONF_ACTIVITIES_AS_SWITCHES,
@@ -34,12 +35,10 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-STEP_USER_DATA_SCHEMA = vol.Schema(
-    {
-        vol.Required("host"): str,
-        vol.Required("pin"): str,
-    }
-)
+STEP_USER_DATA_SCHEMA = vol.Schema({
+    vol.Required("host"): str,
+    vol.Required("pin"): str,
+})
 
 STEP_ZEROCONF_DATA_SCHEMA = vol.Schema({vol.Required("pin"): str})
 
@@ -69,9 +68,7 @@ async def remove_token(hass: HomeAssistant, token):
     await hass.auth.async_remove_refresh_token(refresh_token)
 
 
-async def validate_input(
-    hass: HomeAssistant, data: dict[str, Any], host: str = ""
-) -> dict[str, Any]:
+async def validate_input(hass: HomeAssistant, data: dict[str, Any], host: str = "") -> dict[str, Any]:
     """Validate the user input allows us to connect.
 
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
@@ -133,7 +130,7 @@ async def validate_input(
         CONF_SERIAL: remote.serial_number,
         CONF_MAC: mac_address,
         "docks": docks,
-    }
+    }, remote
 
 
 class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -149,6 +146,8 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self.api: Remote = None
         self.api_keyname: str = None
         self.discovery_info: dict[str, Any] = {}
+        self.dock_count: int = 0
+        self.info: dict[str, any] = {}
 
     @staticmethod
     @callback
@@ -179,14 +178,12 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.debug("Zeroconf from the Simulator %s", discovery_info)
                 mac_address = SIMULATOR_MAC_ADDRESS.replace(":", "").lower()
 
-        self.discovery_info.update(
-            {
-                CONF_HOST: host,
-                CONF_PORT: port,
-                CONF_NAME: f"Remote Two ({host})",
-                CONF_MAC: mac_address,
-            }
-        )
+        self.discovery_info.update({
+            CONF_HOST: host,
+            CONF_PORT: port,
+            CONF_NAME: f"Remote Two ({host})",
+            CONF_MAC: mac_address,
+        })
 
         _LOGGER.debug(
             "Unfolded circle remote found %s %s %s :",
@@ -207,9 +204,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         match model:
             case "UCR2":
                 device_name = "Remote Two"
-                configuration_url = (
-                    f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
-                )
+                configuration_url = f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
                 try:
                     response = await Remote.get_version_information(endpoint)
                     device_name = response.get("device_name", None)
@@ -219,17 +214,13 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                     pass
             case "UCR2-simulator":
                 device_name = "Remote Two Simulator"
-                configuration_url = (
-                    f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
-                )
+                configuration_url = f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
 
-        self.context.update(
-            {
-                "title_placeholders": {"name": device_name},
-                "configuration_url": configuration_url,
-                "product": "Product",
-            }
-        )
+        self.context.update({
+            "title_placeholders": {"name": device_name},
+            "configuration_url": configuration_url,
+            "product": "Product",
+        })
 
         _LOGGER.debug(
             "Unfolded Circle Zeroconf Creating: %s %s",
@@ -238,9 +229,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         )
         return await self.async_step_zeroconf_confirm()
 
-    async def async_step_zeroconf_confirm(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_zeroconf_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Confirm discovery."""
         errors: dict[str, str] = {}
         if user_input is None or user_input == {}:
@@ -251,22 +240,20 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             )
         try:
             host = f"{self.discovery_info[CONF_HOST]}:{self.discovery_info[CONF_PORT]}"
-            info = await validate_input(self.hass, user_input, host)
+            info, self.api = await validate_input(self.hass, user_input, host)
             self.discovery_info.update({CONF_MAC: info[CONF_MAC]})
             # Check unique ID here based on serial number
-            await self._async_set_unique_id_and_abort_if_already_configured(
-                info[CONF_MAC]
-            )
+            await self._async_set_unique_id_and_abort_if_already_configured(info[CONF_MAC])
 
         except CannotConnect:
             errors["base"] = "cannot_connect"
         except InvalidAuth:
             errors["base"] = "invalid_auth"
         else:
-            return self.async_create_entry(
-                title=info.get("title"),
-                data=info,
-            )
+            if info["docks"]:
+                return await self.async_step_dock(info=info, first_call=True)
+
+            return self.async_create_entry(title=info["title"], data=info)
 
         return self.async_show_form(
             step_id="zeroconf_confirm",
@@ -274,9 +261,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle the initial step."""
         errors: dict[str, str] = {}
         if user_input is None or user_input == {}:
@@ -288,12 +273,9 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             )
 
         try:
-            info = await validate_input(self.hass, user_input, "")
+            info, self.api = await validate_input(self.hass, user_input, "")
             self.discovery_info.update({CONF_MAC: info[CONF_MAC]})
-            # Check unique ID here based on serial number
-            await self._async_set_unique_id_and_abort_if_already_configured(
-                info[CONF_MAC]
-            )
+            await self._async_set_unique_id_and_abort_if_already_configured(info[CONF_MAC])
         except CannotConnect:
             errors["base"] = "cannot_connect"
         except InvalidAuth:
@@ -303,7 +285,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             errors["base"] = "unknown"
         else:
             if info["docks"]:
-                return await self.async_step_dock(info=info)
+                return await self.async_step_dock(info=info, first_call=True)
 
             return self.async_create_entry(title=info["title"], data=info)
 
@@ -318,96 +300,96 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self,
         user_input: dict[str, Any] | None = None,
         info: dict[str, any] = None,
+        first_call: bool = False,
     ) -> FlowResult:
         """Called if there are docks associated with the remote"""
         schema = {}
+        errors: dict[str, str] = {}
         if info:
             self.info = info
 
-        for dock in self.info["docks"]:
+        dock_total = len(self.info["docks"])
+        if dock_total >= self.dock_count:
+            dock_info = self.info["docks"][self.dock_count]
+
             schema[vol.Optional("password")] = str
+            placeholder = {
+                "name": dock_info.get("name"),
+                "count": f"({self.dock_count + 1}/{dock_total})",
+            }
 
-        schema = {vol.Optional("password"): str}
-        pl = {"name": "Dock Two"}
-
-        errors: dict[str, str] = {}
-        if user_input is None or user_input == {}:
-            return self.async_show_form(
-                step_id="dock",
-                data_schema=vol.Schema(schema),
-                description_placeholders=pl,
-                errors=errors,
-                last_step=True,
-            )
+            if user_input is None or user_input == {}:
+                if first_call is False:
+                    self.dock_count += 1
+                    if dock_total == self.dock_count:
+                        return self.async_create_entry(title=self.info["title"], data=self.info)
+                return self.async_show_form(
+                    step_id="dock",
+                    data_schema=vol.Schema(schema),
+                    description_placeholders=placeholder,
+                    errors=errors,
+                    last_step=True,
+                )
 
         try:
-            docks = []
-            for dock in self.info["docks"]:
-                dock["password"] = user_input["password"]
-                docks.append(dock)
+            self.info["docks"][self.dock_count]["password"] = user_input["password"]
+            is_valid = await validate_dock_password(self.api, dock_info)
+            if is_valid:
+                self.dock_count += 1
+            else:
+                self.info["docks"][self.dock_count]["password"] = ""
+                raise InvalidDockPassword
 
-            self.info["docks"] = docks
-            # Validate the password
         except CannotConnect:
             errors["base"] = "cannot_connect"
-        except InvalidAuth:
-            errors["base"] = "invalid_auth"
+        except InvalidDockPassword:
+            errors["base"] = "invalid_dock_password"
         except Exception:  # pylint: disable=broad-except
             _LOGGER.exception("Unexpected exception")
             errors["base"] = "unknown"
-        else:
+
+        if dock_total == self.dock_count:
             return self.async_create_entry(title=self.info["title"], data=self.info)
 
         return self.async_show_form(
             step_id="dock",
+            errors=errors,
+            description_placeholders=placeholder,
             data_schema=vol.Schema(schema),
             last_step=True,
+            first_call=True,
         )
 
-    async def _async_set_unique_id_and_abort_if_already_configured(
-        self, unique_id: str
-    ) -> None:
+    async def _async_set_unique_id_and_abort_if_already_configured(self, unique_id: str) -> None:
         """Set the unique ID and abort if already configured."""
         await self.async_set_unique_id(unique_id, raise_on_progress=False)
         self._abort_if_unique_id_configured(
             updates={CONF_MAC: self.discovery_info[CONF_MAC]},
         )
 
-    async def async_step_reauth(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_reauth(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Perform reauth upon an API authentication error."""
         user_input["pin"] = None
         user_input["apiKey"] = None
         return await self.async_step_reauth_confirm(user_input)
 
-    async def async_step_reauth_confirm(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_reauth_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Dialog that informs the user that reauth is required."""
         errors = {}
         if user_input is None:
             user_input = {}
 
-        self.reauth_entry = self.hass.config_entries.async_get_entry(
-            self.context["entry_id"]
-        )
+        self.reauth_entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
 
         _LOGGER.debug("RC2 async_step_reauth_confirm %s", self.reauth_entry)
 
         if user_input.get("pin") is None:
-            return self.async_show_form(
-                step_id="reauth_confirm", data_schema=STEP_ZEROCONF_DATA_SCHEMA
-            )
+            return self.async_show_form(step_id="reauth_confirm", data_schema=STEP_ZEROCONF_DATA_SCHEMA)
 
         try:
-            existing_entry = await self.async_set_unique_id(
-                self.reauth_entry.unique_id, raise_on_progress=False
-            )
+            existing_entry = await self.async_set_unique_id(self.reauth_entry.unique_id, raise_on_progress=False)
             _LOGGER.debug("RC2 existing_entry %s", existing_entry)
-            info = await validate_input(
-                self.hass, user_input, self.reauth_entry.data[CONF_HOST]
-            )
+            info, self.api = await validate_input(self.hass, user_input, self.reauth_entry.data[CONF_HOST])
         except CannotConnect:
             _LOGGER.exception("Cannot Connect")
             errors["base"] = "Cannot Connect"
@@ -418,13 +400,11 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.exception(ex)
             errors["base"] = "unknown"
         else:
-            existing_entry = await self.async_set_unique_id(
-                self.reauth_entry.unique_id, raise_on_progress=False
-            )
+            existing_entry = await self.async_set_unique_id(self.reauth_entry.unique_id, raise_on_progress=False)
             if existing_entry:
                 self.hass.config_entries.async_update_entry(existing_entry, data=info)
                 await self.hass.config_entries.async_reload(existing_entry.entry_id)
-                return self.async_abort(reason="Reauthentication was successful")
+                return self.async_abort(reason="reauth_successful")
 
             return self.async_create_entry(
                 title=info["title"],
@@ -457,22 +437,16 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="activities",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_ACTIVITIES_AS_SWITCHES,
-                        default=self.config_entry.options.get(
-                            CONF_ACTIVITIES_AS_SWITCHES, False
-                        ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_SUPPRESS_ACTIVITIY_GROUPS,
-                        default=self.config_entry.options.get(
-                            CONF_SUPPRESS_ACTIVITIY_GROUPS, False
-                        ),
-                    ): bool,
-                }
-            ),
+            data_schema=vol.Schema({
+                vol.Optional(
+                    CONF_ACTIVITIES_AS_SWITCHES,
+                    default=self.config_entry.options.get(CONF_ACTIVITIES_AS_SWITCHES, False),
+                ): bool,
+                vol.Optional(
+                    CONF_SUPPRESS_ACTIVITIY_GROUPS,
+                    default=self.config_entry.options.get(CONF_SUPPRESS_ACTIVITIY_GROUPS, False),
+                ): bool,
+            }),
             last_step=False,
         )
 
@@ -484,28 +458,20 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="media_player",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_GLOBAL_MEDIA_ENTITY,
-                        default=self.config_entry.options.get(
-                            CONF_GLOBAL_MEDIA_ENTITY, True
-                        ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
-                        default=self.config_entry.options.get(
-                            CONF_ACTIVITY_GROUP_MEDIA_ENTITIES, False
-                        ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_ACTIVITY_MEDIA_ENTITIES,
-                        default=self.config_entry.options.get(
-                            CONF_ACTIVITY_MEDIA_ENTITIES, False
-                        ),
-                    ): bool,
-                }
-            ),
+            data_schema=vol.Schema({
+                vol.Optional(
+                    CONF_GLOBAL_MEDIA_ENTITY,
+                    default=self.config_entry.options.get(CONF_GLOBAL_MEDIA_ENTITY, True),
+                ): bool,
+                vol.Optional(
+                    CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
+                    default=self.config_entry.options.get(CONF_ACTIVITY_GROUP_MEDIA_ENTITIES, False),
+                ): bool,
+                vol.Optional(
+                    CONF_ACTIVITY_MEDIA_ENTITIES,
+                    default=self.config_entry.options.get(CONF_ACTIVITY_MEDIA_ENTITIES, False),
+                ): bool,
+            }),
             last_step=True,
         )
 
@@ -520,3 +486,7 @@ class CannotConnect(HomeAssistantError):
 
 class InvalidAuth(HomeAssistantError):
     """Error to indicate there is invalid auth."""
+
+
+class InvalidDockPassword(HomeAssistantError):
+    """Error to indicate an invalid dock password was supplied"""
