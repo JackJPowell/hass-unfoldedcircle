@@ -19,7 +19,6 @@ from homeassistant.helpers.typing import StateType
 from .const import (
     DOMAIN,
     UNFOLDED_CIRCLE_COORDINATOR,
-    UNFOLDED_CIRCLE_DOCK_COORDINATORS,
 )
 from .entity import UnfoldedCircleEntity
 
@@ -103,10 +102,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
     """Add sensors for passed config_entry in HA."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
 
-    async_add_entities(
-        UnfoldedCircleSensor(coordinator, description)
-        for description in UNFOLDED_CIRCLE_SENSOR
-    )
+    async_add_entities(UnfoldedCircleSensor(coordinator, description) for description in UNFOLDED_CIRCLE_SENSOR)
 
 
 class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
@@ -121,7 +117,9 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
     ) -> None:
         """Initialize Unfolded Circle Sensor."""
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_{description.unique_id}"
+        self._attr_unique_id = (
+            f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_{description.unique_id}"
+        )
         self._attr_has_entity_name = True
         self._attr_name = f"{description.name}"
         self._attr_unit_of_measurement = description.unit_of_measurement
