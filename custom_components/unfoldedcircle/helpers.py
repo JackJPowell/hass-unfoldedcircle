@@ -2,8 +2,8 @@
 
 import asyncio
 import logging
-from .pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
-from .pyUnfoldedCircleRemote.remote import Remote
+from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
+from pyUnfoldedCircleRemote.remote import Remote
 
 _LOGGER = logging.getLogger(__name__)
 
