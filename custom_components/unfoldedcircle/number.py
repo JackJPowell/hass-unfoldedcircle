@@ -35,39 +35,27 @@ class UnfoldedCircleNumberEntityDescription(NumberEntityDescription):
     control_fn: Callable = None
 
 
-async def update_remote_display_settings(
-    coordinator: UnfoldedCircleRemoteCoordinator, value: int
-) -> None:
+async def update_remote_display_settings(coordinator: UnfoldedCircleRemoteCoordinator, value: int) -> None:
     await coordinator.api.patch_remote_display_settings(brightness=value)
 
 
-async def update_remote_button_settings(
-    coordinator: UnfoldedCircleRemoteCoordinator, value: int
-) -> None:
+async def update_remote_button_settings(coordinator: UnfoldedCircleRemoteCoordinator, value: int) -> None:
     await coordinator.api.patch_remote_button_settings(brightness=value)
 
 
-async def update_remote_sound_settings(
-    coordinator: UnfoldedCircleRemoteCoordinator, value: int
-) -> None:
+async def update_remote_sound_settings(coordinator: UnfoldedCircleRemoteCoordinator, value: int) -> None:
     await coordinator.api.patch_remote_sound_settings(sound_effects_volume=value)
 
 
-async def update_remote_display_timeout_settings(
-    coordinator: UnfoldedCircleRemoteCoordinator, value: int
-) -> None:
+async def update_remote_display_timeout_settings(coordinator: UnfoldedCircleRemoteCoordinator, value: int) -> None:
     await coordinator.api.patch_remote_power_saving_settings(display_timeout=value)
 
 
-async def update_remote_wakeup_sensitivity_settings(
-    coordinator: UnfoldedCircleRemoteCoordinator, value: int
-) -> None:
+async def update_remote_wakeup_sensitivity_settings(coordinator: UnfoldedCircleRemoteCoordinator, value: int) -> None:
     await coordinator.api.patch_remote_power_saving_settings(wakeup_sensitivity=value)
 
 
-async def update_remote_sleep_timeout_settings(
-    coordinator: UnfoldedCircleRemoteCoordinator, value: int
-) -> None:
+async def update_remote_sleep_timeout_settings(coordinator: UnfoldedCircleRemoteCoordinator, value: int) -> None:
     await coordinator.api.patch_remote_power_saving_settings(sleep_timeout=value)
 
 
@@ -149,18 +137,11 @@ async def async_setup_entry(
     """Set up the Number platform."""
     # Setup connection with devices
     coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
-    dock_coordinators = hass.data[DOMAIN][config_entry.entry_id][
-        UNFOLDED_CIRCLE_DOCK_COORDINATORS
-    ]
-    async_add_entities(
-        UCRemoteNumber(coordinator, Number) for Number in UNFOLDED_CIRCLE_NUMBER
-    )
+    dock_coordinators = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_DOCK_COORDINATORS]
+    async_add_entities(UCRemoteNumber(coordinator, Number) for Number in UNFOLDED_CIRCLE_NUMBER)
 
     for dock_coordinator in dock_coordinators:
-        async_add_entities(
-            UCDockNumber(dock_coordinator, description)
-            for description in UNFOLDED_CIRCLE_DOCK_NUMBER
-        )
+        async_add_entities(UCDockNumber(dock_coordinator, description) for description in UNFOLDED_CIRCLE_DOCK_NUMBER)
 
 
 class UCRemoteNumber(UnfoldedCircleEntity, NumberEntity):
@@ -168,16 +149,16 @@ class UCRemoteNumber(UnfoldedCircleEntity, NumberEntity):
 
     entity_description = UNFOLDED_CIRCLE_NUMBER
 
-    def __init__(
-        self, coordinator, description: UnfoldedCircleNumberEntityDescription
-    ) -> None:
+    def __init__(self, coordinator, description: UnfoldedCircleNumberEntityDescription) -> None:
         """Initialize a Number."""
         super().__init__(coordinator)
         self._description = description
         self.coordinator = coordinator
         self.entity_description = description
         self._attr_has_entity_name = True
-        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_{description.unique_id}"
+        self._attr_unique_id = (
+            f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_{description.unique_id}"
+        )
         self._attr_name = f"{description.name}"
         key = "_" + description.key
         self._attr_native_value = coordinator.data.get(key)
@@ -202,24 +183,16 @@ class UCRemoteNumber(UnfoldedCircleEntity, NumberEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        self._attr_native_value = getattr(
-            self.coordinator.api, self.entity_description.key
-        )
+        self._attr_native_value = getattr(self.coordinator.api, self.entity_description.key)
         self.async_write_ha_state()
 
 
-async def update_dock_led_brightness(
-    coordinator: UnfoldedCircleDockCoordinator, value: int
-) -> None:
+async def update_dock_led_brightness(coordinator: UnfoldedCircleDockCoordinator, value: int) -> None:
     await coordinator.api.send_command(command="SET_LED_BRIGHNESS", command_value=value)
 
 
-async def update_dock_ethernet_led_brightness(
-    coordinator: UnfoldedCircleDockCoordinator, value: int
-) -> None:
-    await coordinator.api.patch_remote_button_settings(
-        command="SET_ETHERNET_LED_BRIGHTNESS", command_value=value
-    )
+async def update_dock_ethernet_led_brightness(coordinator: UnfoldedCircleDockCoordinator, value: int) -> None:
+    await coordinator.api.patch_remote_button_settings(command="SET_ETHERNET_LED_BRIGHTNESS", command_value=value)
 
 
 UNFOLDED_CIRCLE_DOCK_NUMBER: tuple[UnfoldedCircleNumberEntityDescription, ...] = (
@@ -244,6 +217,8 @@ UNFOLDED_CIRCLE_DOCK_NUMBER: tuple[UnfoldedCircleNumberEntityDescription, ...] =
         control_fn=update_dock_ethernet_led_brightness,
         native_min_value=0,
         native_max_value=100,
+        entity_registry_enabled_default=False,
+        entity_registry_visible_default=False,
     ),
 )
 
@@ -253,15 +228,15 @@ class UCDockNumber(UnfoldedCircleDockEntity, NumberEntity):
 
     entity_description = UNFOLDED_CIRCLE_NUMBER
 
-    def __init__(
-        self, coordinator, description: UnfoldedCircleNumberEntityDescription
-    ) -> None:
+    def __init__(self, coordinator, description: UnfoldedCircleNumberEntityDescription) -> None:
         """Initialize a Number."""
         super().__init__(coordinator)
         self._description = description
         self.coordinator = coordinator
         self.entity_description = description
-        self._attr_unique_id = f"{self.coordinator.api.model_number}_{self.coordinator.api.serial_number}_{description.unique_id}"
+        self._attr_unique_id = (
+            f"{self.coordinator.api.model_number}_{self.coordinator.api.serial_number}_{description.unique_id}"
+        )
         self._attr_has_entity_name = True
         self._attr_name = description.name
         key = "_" + description.key
@@ -287,7 +262,5 @@ class UCDockNumber(UnfoldedCircleDockEntity, NumberEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        self._attr_native_value = getattr(
-            self.coordinator.api, self.entity_description.key
-        )
+        self._attr_native_value = getattr(self.coordinator.api, self.entity_description.key)
         self.async_write_ha_state()
