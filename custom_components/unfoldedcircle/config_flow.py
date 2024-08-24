@@ -357,7 +357,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders=placeholder,
             data_schema=vol.Schema(schema),
             last_step=True,
-            first_call=True,
         )
 
     async def _async_set_unique_id_and_abort_if_already_configured(self, unique_id: str) -> None:
