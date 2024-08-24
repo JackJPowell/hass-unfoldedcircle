@@ -61,46 +61,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Extract activities and activity groups
     await coordinator.api.init()
 
-    # Retrieve info from Remote
-    # Get Basic Device Information
-    for dock in remote_api._docks:
-        for config_entry in entry.data["docks"]:
-            if config_entry.get("id") == dock.id:
-                dock._password = config_entry.get("password")
-                break
-        if dock.has_password:
-            dock_coordinator = UnfoldedCircleDockCoordinator(hass, dock)
-            dock_coordinators.append(dock_coordinator)
-            await dock_coordinator.api.update()
-            await dock_coordinator.async_config_entry_first_refresh()
-            await dock_coordinator.init_websocket()
-        else:
-            issue_registry.async_create_issue(
-                hass,
-                DOMAIN,
-                f"dock_password_{dock.id}",
-                breaks_in_ha_version=None,
-                data={
-                    "id": dock.id,
-                    "name": dock.name,
-                    "config_entry_id": entry.entry_id,
-                },
-                is_fixable=True,
-                is_persistent=False,
-                learn_more_url="https://github.com/jackjpowell/hass-unfoldedcircle",
-                severity=issue_registry.IssueSeverity.WARNING,
-                translation_key="dock_password",
-                translation_placeholders={"name": dock.name},
-            )
-
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
-        UNFOLDED_CIRCLE_COORDINATOR: coordinator,
-        UNFOLDED_CIRCLE_API: remote_api,
-        UNFOLDED_CIRCLE_DOCK_COORDINATORS: dock_coordinators,
-    }
-
-    await coordinator.async_config_entry_first_refresh()
-
     @callback
     def async_migrate_entity_entry(
         entry: er.RegistryEntry,
@@ -144,7 +104,48 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if entry.version == 1:
         await er.async_migrate_entries(hass, entry.entry_id, async_migrate_entity_entry)
         _migrate_device_identifiers(hass, entry.entry_id, coordinator)
-        # hass.config_entries.async_update_entry(entry, version=2)
+        _update_config_entry(hass, entry, coordinator)
+        hass.config_entries.async_update_entry(entry, version=2)
+
+    # Retrieve info from Remote
+    # Get Basic Device Information
+    for dock in remote_api._docks:
+        for config_entry in entry.data["docks"]:
+            if config_entry.get("id") == dock.id:
+                dock._password = config_entry.get("password")
+                break
+        if dock.has_password:
+            dock_coordinator = UnfoldedCircleDockCoordinator(hass, dock)
+            dock_coordinators.append(dock_coordinator)
+            await dock_coordinator.api.update()
+            await dock_coordinator.async_config_entry_first_refresh()
+            await dock_coordinator.init_websocket()
+        else:
+            issue_registry.async_create_issue(
+                hass,
+                DOMAIN,
+                f"dock_password_{dock.id}",
+                breaks_in_ha_version=None,
+                data={
+                    "id": dock.id,
+                    "name": dock.name,
+                    "config_entry_id": entry.entry_id,
+                },
+                is_fixable=True,
+                is_persistent=False,
+                learn_more_url="https://github.com/jackjpowell/hass-unfoldedcircle",
+                severity=issue_registry.IssueSeverity.WARNING,
+                translation_key="dock_password",
+                translation_placeholders={"name": dock.name},
+            )
+
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+        UNFOLDED_CIRCLE_COORDINATOR: coordinator,
+        UNFOLDED_CIRCLE_API: remote_api,
+        UNFOLDED_CIRCLE_DOCK_COORDINATORS: dock_coordinators,
+    }
+
+    await coordinator.async_config_entry_first_refresh()
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(update_listener))
@@ -177,8 +178,23 @@ async def update_listener(hass: HomeAssistant, entry: ConfigEntry):
     await hass.config_entries.async_reload(entry.entry_id)
 
 
-async def async_migrate_entry(hass: HomeAssistant, self):
-    """Migrate Entry Support"""
+async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
+    return True
+
+
+def _update_config_entry(
+    hass: HomeAssistant, config_entry: ConfigEntry, coordinator: UnfoldedCircleRemoteCoordinator
+) -> bool:
+    """Update config entry with dock information"""
+    if "docks" not in config_entry.data:
+        docks = []
+        for dock in coordinator.api._docks:
+            docks.append({"id": dock.id, "name": dock.name, "password": ""})
+
+        updated_data = {**config_entry.data}
+        updated_data["docks"] = docks
+
+        hass.config_entries.async_update_entry(config_entry, data=updated_data)
     return True
 
 
