@@ -26,9 +26,7 @@ from .websocket import UCWebsocketClient
 _LOGGER = logging.getLogger(__name__)
 
 
-class UnfoldedCircleCoordinator(
-    DataUpdateCoordinator[dict[str, Any]]
-):
+class UnfoldedCircleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Base Unfolded Circle Coordinator Class"""
 
     subscribe_events: dict[str, bool]
@@ -161,8 +159,7 @@ class UnfoldedCircleCoordinator(
 
 
 class UnfoldedCircleRemoteCoordinator(
-    UnfoldedCircleCoordinator,
-    DataUpdateCoordinator[dict[str, Any]]
+    UnfoldedCircleCoordinator, DataUpdateCoordinator[dict[str, Any]]
 ):
     """Data update coordinator for an Unfolded Circle Remote device."""
 
@@ -186,8 +183,7 @@ class UnfoldedCircleRemoteCoordinator(
 
 
 class UnfoldedCircleDockCoordinator(
-    UnfoldedCircleCoordinator,
-    DataUpdateCoordinator[dict[str, Any]]
+    UnfoldedCircleCoordinator, DataUpdateCoordinator[dict[str, Any]]
 ):
     """Data update coordinator for an Unfolded Circle Remote device."""
 

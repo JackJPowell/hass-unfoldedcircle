@@ -29,6 +29,7 @@ STATES_SCHEMA = {
     vol.Optional("data", description="Any Dict"): dict[any, any],
 }
 
+
 @dataclass
 class SubscriptionEvent:
     """Subcription Event Data Class"""
@@ -50,14 +51,16 @@ def ws_get_info(
 ) -> None:
     """Handle get info command."""
     _LOGGER.debug("Unfolded Circle connect request %s", msg)
-    connection.send_message({
-        "id": msg.get("id"),
-        "type": "result",
-        "success": True,
-        "result": {"state": "CONNECTED", "cat": "DEVICE", "version": "1.0.0"},
-        "message": msg.get("message"),
-        "data": msg.get("data"),
-    })
+    connection.send_message(
+        {
+            "id": msg.get("id"),
+            "type": "result",
+            "success": True,
+            "result": {"state": "CONNECTED", "cat": "DEVICE", "version": "1.0.0"},
+            "message": msg.get("message"),
+            "data": msg.get("data"),
+        }
+    )
 
 
 @websocket_api.websocket_command(STATES_SCHEMA)
@@ -80,18 +83,22 @@ def ws_get_states(
             if state is not None:
                 entity_states.append(state)
     # Send requested entity states back to remote
-    connection.send_message({
-        "id": msg.get("id"),
-        "type": "result",
-        "success": True,
-        "result": entity_states,
-    })
+    connection.send_message(
+        {
+            "id": msg.get("id"),
+            "type": "result",
+            "success": True,
+            "result": entity_states,
+        }
+    )
 
 
-@websocket_api.websocket_command({
-    vol.Required("type"): f"{DOMAIN}/event/configure/subscribe",
-    vol.Optional("data"): dict[any, any],
-})
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/event/configure/subscribe",
+        vol.Optional("data"): dict[any, any],
+    }
+)
 @callback
 def ws_configure_event(
     hass: HomeAssistant,
@@ -104,10 +111,12 @@ def ws_configure_event(
     connection.send_result(msg["id"])
 
 
-@websocket_api.websocket_command({
-    vol.Required("type"): f"{DOMAIN}/event/configure/unsubscribe",
-    vol.Optional("data"): dict[any, any],
-})
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/event/configure/unsubscribe",
+        vol.Optional("data"): dict[any, any],
+    }
+)
 @callback
 def ws_configure_unsubscribe_event(
     hass: HomeAssistant,
@@ -118,15 +127,20 @@ def ws_configure_unsubscribe_event(
     subscription_id = msg.get("data", {}).get("subscription_id", "")
     cancel_callback = connection.subscriptions.get(subscription_id, None)
     if cancel_callback is not None:
-        _LOGGER.debug(f"Unsubscribe {DOMAIN}/event/configure/unsubscribe for id %s", subscription_id)
+        _LOGGER.debug(
+            f"Unsubscribe {DOMAIN}/event/configure/unsubscribe for id %s",
+            subscription_id,
+        )
         cancel_callback()
     connection.send_result(msg["id"])
 
 
-@websocket_api.websocket_command({
-    vol.Required("type"): f"{DOMAIN}/event/entities/unsubscribe",
-    vol.Optional("data"): dict[any, any],
-})
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/event/entities/unsubscribe",
+        vol.Optional("data"): dict[any, any],
+    }
+)
 @callback
 def ws_unsubscribe_entities_event(
     hass: HomeAssistant,
@@ -137,15 +151,20 @@ def ws_unsubscribe_entities_event(
     subscription_id = msg.get("data", {}).get("subscription_id", "")
     cancel_callback = connection.subscriptions.get(subscription_id, None)
     if cancel_callback is not None:
-        _LOGGER.debug(f"Unsubscribe {DOMAIN}/event/entities/unsubscribe for id %s", subscription_id)
+        _LOGGER.debug(
+            f"Unsubscribe {DOMAIN}/event/entities/unsubscribe for id %s",
+            subscription_id,
+        )
         cancel_callback()
     connection.send_result(msg["id"])
 
 
-@websocket_api.websocket_command({
-    vol.Required("type"): f"{DOMAIN}/event/entities/subscribe",
-    vol.Optional("data"): dict[any, any],
-})
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/event/entities/subscribe",
+        vol.Optional("data"): dict[any, any],
+    }
+)
 @callback
 def ws_subscribe_entities_event(
     hass: HomeAssistant,
@@ -277,13 +296,15 @@ class UCWebsocketClient(metaclass=Singleton):
             old_state = event.data["old_state"]
             new_state = event.data["new_state"]
             _LOGGER.debug("Received notification to send to UC remote %s", event)
-            subscription.notification_callback({
-                "data": {
-                    "entity_id": entity_id,
-                    "new_state": new_state,
-                    "old_state": old_state,  # TODO : old state useful ?
+            subscription.notification_callback(
+                {
+                    "data": {
+                        "entity_id": entity_id,
+                        "new_state": new_state,
+                        "old_state": old_state,  # TODO : old state useful ?
+                    }
                 }
-            })
+            )
 
         def remove_listener() -> None:
             """Remove the listener."""
