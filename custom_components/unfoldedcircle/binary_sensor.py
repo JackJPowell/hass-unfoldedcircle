@@ -69,7 +69,7 @@ class PollingBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
             self.coordinator.websocket_task is not None
         )
         self._extra_state_attributes["Websocket events"] = ", ".join(
-            self.coordinator.remote_websocket.events_to_subscribe
+            self.coordinator.websocket.events_to_subscribe
         )
         self.async_write_ha_state()
 
