@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 from urllib.error import HTTPError
 
 from homeassistant.core import HomeAssistant
@@ -22,29 +21,17 @@ from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
 from pyUnfoldedCircleRemote.dock import Dock
 
 from .const import DEVICE_SCAN_INTERVAL, DOMAIN
-from .websocket import UCClientInterface, async_register_websocket_commands
+from .websocket import UCWebsocketClient
 
 _LOGGER = logging.getLogger(__name__)
 
 
-@dataclass
-class SubscriptionEvent:
-    """Subcription Event Data Class"""
-
-    client_id: str
-    subscription_id: int
-    cancel_subscription_callback: Callable
-    notification_callback: Callable[[dict[any, any]], None]
-    entity_ids: list[str]
-
-
-class UnfoldedCircleCoordinator(
-    DataUpdateCoordinator[dict[str, Any]], UCClientInterface
-):
+class UnfoldedCircleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Base Unfolded Circle Coordinator Class"""
 
     subscribe_events: dict[str, bool]
     entities: list[CoordinatorEntity]
+    websocket_client: UCWebsocketClient
 
     def __init__(self, hass: HomeAssistant, unfolded_circle_device) -> None:
         super().__init__(
@@ -61,8 +48,8 @@ class UnfoldedCircleCoordinator(
         self.subscribe_events = {}
         self.polling_data = False
         self.entities = []
-        self._subscriptions: list[SubscriptionEvent] = []
         self.docks: list[Dock] = []
+        self.websocket_client = UCWebsocketClient(hass)
 
     async def init_websocket(self):
         """Initialize the Web Socket"""
@@ -172,9 +159,7 @@ class UnfoldedCircleCoordinator(
 
 
 class UnfoldedCircleRemoteCoordinator(
-    UnfoldedCircleCoordinator,
-    DataUpdateCoordinator[dict[str, Any]],
-    UCClientInterface,
+    UnfoldedCircleCoordinator, DataUpdateCoordinator[dict[str, Any]]
 ):
     """Data update coordinator for an Unfolded Circle Remote device."""
 
@@ -193,17 +178,12 @@ class UnfoldedCircleRemoteCoordinator(
         self.subscribe_events = {}
         self.polling_data = False
         self.entities = []
-        self._subscriptions: list[SubscriptionEvent] = []
         self.docks: list[Dock] = self.api._docks
-
-        async_register_websocket_commands(hass)
         _LOGGER.debug("Unfolded Circle websocket APIs registered")
 
 
 class UnfoldedCircleDockCoordinator(
-    UnfoldedCircleCoordinator,
-    DataUpdateCoordinator[dict[str, Any]],
-    UCClientInterface,
+    UnfoldedCircleCoordinator, DataUpdateCoordinator[dict[str, Any]]
 ):
     """Data update coordinator for an Unfolded Circle Remote device."""
 
@@ -226,9 +206,7 @@ class UnfoldedCircleDockCoordinator(
         self.subscribe_events = {}
         self.polling_data = False
         self.entities = []
-        self._subscriptions: list[SubscriptionEvent] = []
 
-        async_register_websocket_commands(hass)
         _LOGGER.debug("Unfolded Circle websocket APIs registered")
 
     async def init_websocket(self):
