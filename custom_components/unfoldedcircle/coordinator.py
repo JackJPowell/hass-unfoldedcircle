@@ -56,7 +56,7 @@ class UnfoldedCircleCoordinator(
         self.hass = hass
         self.api: Remote = unfolded_circle_device
         self.data = {}
-        self.websocket = DockWebsocket(self.api.endpoint, self.api.apikey)
+        self.websocket = None
         self.websocket_task = None
         self.subscribe_events = {}
         self.polling_data = False
@@ -116,52 +116,28 @@ class UnfoldedCircleCoordinator(
         debug_info = []
         for activity_group in self.api.activity_groups:
             debug_info.append(
-                "Activity group "
-                + activity_group.name
-                + " ("
-                + activity_group.id
-                + ") :"
+                f"Activity group {activity_group.name} ({activity_group.id}) :"
             )
             active_media_entity = None
             if active_media_entity is None:
                 debug_info.append("  No active media entity for this group")
             for activity in activity_group.activities:
                 debug_info.append(
-                    " - Activity "
-                    + activity.name
-                    + " ("
-                    + activity.id
-                    + ") : "
-                    + activity.state
+                    f" - Activity {activity.name} ({activity.id}) : {activity.state})"
                 )
                 for media_entity in activity.mediaplayer_entities:
                     if active_media_entity and active_media_entity == media_entity:
                         debug_info.append(
-                            "   > Media "
-                            + media_entity.name
-                            + " ("
-                            + media_entity.id
-                            + ") : "
-                            + media_entity.state
+                            f"   > Media {media_entity.name} ({media_entity.id}) : {media_entity.state}"
                         )
                     else:
                         debug_info.append(
-                            "   - Media "
-                            + media_entity.name
-                            + " ("
-                            + media_entity.id
-                            + ") : "
-                            + media_entity.state
+                            f"   - Media {media_entity.name}  ({media_entity.id}) : {media_entity.state}"
                         )
         debug_info.append("Media player entities from remote :")
         for media_entity in self.api._entities:
             debug_info.append(
-                " - Player "
-                + media_entity.name
-                + " ("
-                + media_entity.id
-                + ") : "
-                + media_entity.state
+                f" - Player {media_entity.name} ({media_entity.id}) : {media_entity.state}"
             )
         _LOGGER.debug("UC2 debug structure\n%s", "\n".join(debug_info))
 
