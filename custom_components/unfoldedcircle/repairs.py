@@ -23,7 +23,9 @@ class DockPasswordRepairFlow(RepairsFlow):
         self.data = data
         self.issue_id = issue_id
         self.hass = hass
-        self.coordinator = self.hass.data[DOMAIN][self.data.get("config_entry_id")][UNFOLDED_CIRCLE_COORDINATOR]
+        self.coordinator = self.hass.data[DOMAIN][self.data.get("config_entry_id")][
+            UNFOLDED_CIRCLE_COORDINATOR
+        ]
         self.config_entry = self.coordinator.config_entry
         self.dock_total = 0
         self.dock_count = 0
@@ -40,13 +42,17 @@ class DockPasswordRepairFlow(RepairsFlow):
 
         return await self.async_step_confirm()
 
-    async def async_step_confirm(self, user_input: dict[str, str] | None = None) -> data_entry_flow.FlowResult:
+    async def async_step_confirm(
+        self, user_input: dict[str, str] | None = None
+    ) -> data_entry_flow.FlowResult:
         """Handle the confirm step of a fix flow."""
         errors: dict[str, str] = {}
         if user_input is not None:
             try:
                 self.data["password"] = user_input.get("password")
-                coordinator = self.hass.data[DOMAIN][self.data.get("config_entry_id")][UNFOLDED_CIRCLE_COORDINATOR]
+                coordinator = self.hass.data[DOMAIN][self.data.get("config_entry_id")][
+                    UNFOLDED_CIRCLE_COORDINATOR
+                ]
                 existing_entry = coordinator.config_entry
                 is_valid = await validate_dock_password(coordinator.api, self.data)
                 if is_valid:
@@ -54,7 +60,9 @@ class DockPasswordRepairFlow(RepairsFlow):
                     for info in config_data.data["docks"]:
                         if info.get("id") == self.data.get("id"):
                             info["password"] = self.data["password"]
-                    self.hass.config_entries.async_update_entry(existing_entry, data=config_data.data)
+                    self.hass.config_entries.async_update_entry(
+                        existing_entry, data=config_data.data
+                    )
 
                     await self.hass.config_entries.async_reload(existing_entry.entry_id)
 

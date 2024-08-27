@@ -157,7 +157,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     try:
-        coordinator: UnfoldedCircleRemoteCoordinator = hass.data[DOMAIN][entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
+        coordinator: UnfoldedCircleRemoteCoordinator = hass.data[DOMAIN][
+            entry.entry_id
+        ][UNFOLDED_CIRCLE_COORDINATOR]
         await coordinator.close_websocket()
 
         for dock in coordinator.api._docks:
@@ -183,7 +185,9 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
 
 
 def _update_config_entry(
-    hass: HomeAssistant, config_entry: ConfigEntry, coordinator: UnfoldedCircleRemoteCoordinator
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    coordinator: UnfoldedCircleRemoteCoordinator,
 ) -> bool:
     """Update config entry with dock information"""
     if "docks" not in config_entry.data:
@@ -198,13 +202,18 @@ def _update_config_entry(
     return True
 
 
-def _migrate_device_identifiers(hass: HomeAssistant, entry_id: str, coordinator) -> None:
+def _migrate_device_identifiers(
+    hass: HomeAssistant, entry_id: str, coordinator
+) -> None:
     """Migrate old device identifiers."""
     dev_reg = dr.async_get(hass)
     devices: list[dr.DeviceEntry] = dr.async_entries_for_config_entry(dev_reg, entry_id)
     for device in devices:
         old_identifier = list(next(iter(device.identifiers)))
-        if "ucr" not in old_identifier[1].lower() and "ucd" not in old_identifier[1].lower():
+        if (
+            "ucr" not in old_identifier[1].lower()
+            and "ucd" not in old_identifier[1].lower()
+        ):
             new_identifier = {
                 (
                     DOMAIN,
