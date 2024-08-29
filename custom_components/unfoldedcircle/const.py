@@ -27,3 +27,4 @@ HA_SUPPORTED_DOMAINS = [
     "remote",
 ]
 UC_HA_TOKEN_ID="ws-ha-api"
+UC_HA_SYSTEM="hass"

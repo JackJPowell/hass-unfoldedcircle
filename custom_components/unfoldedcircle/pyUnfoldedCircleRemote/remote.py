@@ -499,7 +499,7 @@ class Remote:
         ):
             await self.raise_on_error(response)
 
-    async def get_registered_external_systems(self) -> str:
+    async def get_registered_external_systems(self) -> dict:
         """Returns an array of dict[system,name] representing
         the registered external systems on the remote"""
         async with (
@@ -545,10 +545,13 @@ class Remote:
                 "token_id": f"{token_id}",
                 "name": f"{name}",
                 "token": f"{token}",
-                "description": f"{description}",
-                "url": f"{url}",
-                "data": f"{data}",
             }
+            if description:
+                body["description"] = description
+            if url:
+                body["url"] = url
+            if data:
+                body["data"] = data
             async with (
                 self.client() as session,
                 session.post(
@@ -600,7 +603,7 @@ class Remote:
             ):
                 await self.raise_on_error(response)
                 return await response.json()
-        raise ExternalSystemNotRegistered
+        raise ExternalSystemNotRegistered("Error while submitting the HA token to the remote")
 
     async def delete_token_for_external_system(
         self,

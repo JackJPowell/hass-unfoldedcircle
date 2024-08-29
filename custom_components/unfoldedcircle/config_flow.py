@@ -8,7 +8,7 @@ from typing import Any, Awaitable, Callable
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN
+from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN, RefreshToken
 from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.config_entries import ConfigEntry, ConfigFlow
 from homeassistant.const import CONF_HOST, CONF_MAC, CONF_NAME, CONF_PORT
@@ -29,7 +29,7 @@ from .const import (
     CONF_SERIAL,
     CONF_SUPPRESS_ACTIVITIY_GROUPS,
     DOMAIN,
-    HA_SUPPORTED_DOMAINS, UC_HA_TOKEN_ID,
+    HA_SUPPORTED_DOMAINS, UC_HA_TOKEN_ID, UC_HA_SYSTEM,
 )
 from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
 from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
@@ -44,21 +44,27 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 STEP_ZEROCONF_DATA_SCHEMA = vol.Schema({vol.Required("pin"): str})
 
 
-async def generateToken(hass: HomeAssistant, name):
+async def generate_token(hass: HomeAssistant, name):
     """Generate a token for Unfolded Circle to use with HA API"""
     user = await hass.auth.async_get_owner()
     try:
-        token = await hass.auth.async_create_refresh_token(
-            user=user,
-            client_name=name,
-            client_icon="",
-            token_type=TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN,
-            access_token_expiration=timedelta(days=3652),
-        )
+        token: RefreshToken | None = None
+        if user.refresh_tokens:
+            for refresh_token in user.refresh_tokens.values():
+                if refresh_token.client_name == name:
+                    token = refresh_token
+                    break
+        if not token:
+            token = await hass.auth.async_create_refresh_token(
+                user=user,
+                client_name=name,
+                token_type=TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN,
+                access_token_expiration=timedelta(days=3652),
+            )
     except ValueError:
         _LOGGER.warning("There is already a long lived token with %s name", name)
-        return None
 
+        return None
     return hass.auth.async_create_access_token(token)
 
 
@@ -272,16 +278,11 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         await self._remote.get_remote_configuration()
         await self._remote.get_remote_wifi_info()
 
-        token = await generateToken(self.hass, self._remote.name)
-        token_id = UC_HA_TOKEN_ID
+        token = await generate_token(self.hass, f"{self._remote.name}  ({self._remote.serial_number})")
         await self._remote.set_token_for_external_system(
-            "homeassistant",
-            token_id,
-            token,
-            "Home Assistant Access token",
-            "URL and long lived access token for Home Assistant WebSocket API",
-            url,
-            "",
+            system=UC_HA_SYSTEM, token_id=UC_HA_TOKEN_ID,token=token, name="Home Assistant Access token",
+            description="URL and long lived access token for Home Assistant WebSocket API",
+            url=url, data=""
         )
 
         if not key:
@@ -300,7 +301,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             "mac_address": self._remote.mac_address,
             "ip_address": self._remote.ip_address,
             "token": token,
-            "token_id": token_id,
+            "token_id": UC_HA_TOKEN_ID,
             CONF_SERIAL: self._remote.serial_number,
             CONF_MAC: mac_address,
         }
