@@ -11,12 +11,7 @@ from homeassistant import config_entries
 from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN
 from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.config_entries import ConfigEntry, ConfigFlow
-from homeassistant.const import (
-    CONF_HOST,
-    CONF_MAC,
-    CONF_NAME,
-    CONF_PORT,
-)
+from homeassistant.const import CONF_HOST, CONF_MAC, CONF_NAME, CONF_PORT
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
@@ -42,10 +37,9 @@ from .websocket import SubscriptionEvent, UCWebsocketClient
 
 _LOGGER = logging.getLogger(__name__)
 
-STEP_USER_DATA_SCHEMA = vol.Schema({
-    vol.Required("host"): str,
-    vol.Required("pin"): str,
-})
+STEP_USER_DATA_SCHEMA = vol.Schema(
+    {vol.Required("host"): str, vol.Required("pin"): str}
+)
 
 STEP_ZEROCONF_DATA_SCHEMA = vol.Schema({vol.Required("pin"): str})
 
@@ -250,9 +244,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self._remote: Remote | None = None
         self._websocket_client: UCWebsocketClient | None
 
-    async def validate_input(
-        self, data: dict[str, Any], host: str = ""
-    ) -> dict[str, Any]:
+    async def validate_input(self, data: dict[str, Any], host: str = "") -> dict[str, Any]:
         """Validate the user input allows us to connect.
 
         Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.

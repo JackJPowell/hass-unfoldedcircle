@@ -1525,7 +1525,7 @@ class Remote:
                 ]
                 == "media_player"
                 and data["msg_data"]["new_state"]["attributes"]["step"]["command"][
-                    "cmd_id"
+                "cmd_id"
                 ]
                 == "media_player.on"
             ):
