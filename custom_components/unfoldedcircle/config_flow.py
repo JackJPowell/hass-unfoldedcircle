@@ -29,7 +29,7 @@ from .const import (
     CONF_SERIAL,
     CONF_SUPPRESS_ACTIVITIY_GROUPS,
     DOMAIN,
-    HA_SUPPORTED_DOMAINS,
+    HA_SUPPORTED_DOMAINS, UC_HA_TOKEN_ID,
 )
 from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
 from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
@@ -273,15 +273,15 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         await self._remote.get_remote_wifi_info()
 
         token = await generateToken(self.hass, self._remote.name)
-        token_id = f"{self._remote.name} id"
+        token_id = UC_HA_TOKEN_ID
         await self._remote.set_token_for_external_system(
             "homeassistant",
-            f"{self._remote.name} id",
+            token_id,
             token,
-            "Home Assistant",
-            "Home Assistant Long Lived Access Token",
+            "Home Assistant Access token",
+            "URL and long lived access token for Home Assistant WebSocket API",
             url,
-            "data",
+            "",
         )
 
         if not key:

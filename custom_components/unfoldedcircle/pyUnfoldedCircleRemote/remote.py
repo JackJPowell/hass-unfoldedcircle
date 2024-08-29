@@ -459,7 +459,7 @@ class Remote:
         return response
 
     ### Unfolded Circle API Keys ###
-    async def get_api_keys(self) -> str:
+    async def get_api_keys(self) -> list[dict]:
         """Get all api Keys."""
         async with (
             self.client() as session,
@@ -629,7 +629,7 @@ class Remote:
                 return True
 
     @staticmethod
-    async def get_version_information(base_url) -> str:
+    async def get_version_information(base_url) -> dict[str]:
         """Get remote version information /pub/version"""
         headers = {
             "Accept": "application/json",
