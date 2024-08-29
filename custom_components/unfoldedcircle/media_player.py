@@ -19,6 +19,12 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import UndefinedType
 from homeassistant.util import utcnow
+from pyUnfoldedCircleRemote.const import RemoteUpdateType
+from pyUnfoldedCircleRemote.remote import (
+    Activity,
+    ActivityGroup,
+    UCMediaPlayerEntity,
+)
 
 from .const import (
     CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
@@ -28,8 +34,6 @@ from .const import (
     UNFOLDED_CIRCLE_COORDINATOR,
 )
 from .entity import UnfoldedCircleEntity
-from .pyUnfoldedCircleRemote.const import RemoteUpdateType
-from .pyUnfoldedCircleRemote.remote import Activity, ActivityGroup, UCMediaPlayerEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -104,27 +108,20 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     ) -> None:
         """Initialize a switch."""
         super().__init__(coordinator)
+        self._attr_has_entity_name = True
         self.activity_group = activity_group
         self.activity = activity
         if activity_group is None and activity is None:
-            self._attr_name = f"{self.coordinator.api.name} Media Player"
-            self._attr_unique_id = f"{self.coordinator.api.serial_number}_mediaplayer"
+            self._attr_name = "Media Player"
+            self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_mediaplayer"
             self.activities = self.coordinator.api.activities
         elif activity is not None:
-            self._attr_name = (
-                f"{self.coordinator.api.name} {activity.name} Media Player"
-            )
-            self._attr_unique_id = (
-                f"{self.coordinator.api.serial_number}_{activity.name}_mediaplayer"
-            )
+            self._attr_name = f"{activity.name} Media Player"
+            self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_{activity.name}_mediaplayer"
             self.activities = [activity]
         elif activity_group is not None:
-            self._attr_name = (
-                f"{self.coordinator.api.name} {activity_group.name} Media Player"
-            )
-            self._attr_unique_id = (
-                f"{self.coordinator.api.serial_number}_{activity_group.id}_mediaplayer"
-            )
+            self._attr_name = f"{activity_group.name} Media Player"
+            self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_{activity_group.id}_mediaplayer"
             self.activities = self.activity_group.activities
         self._extra_state_attributes = {}
         self._current_activity = None
@@ -349,7 +346,8 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
                         return bytes_data, mime_type
                 except Exception as ex:
                     _LOGGER.debug(
-                        "Unfolded circle error while decoding media artwork: %s", ex
+                        "Unfolded circle error while decoding media artwork: %s",
+                        ex,
                     )
             else:
                 return await super().async_get_media_image()
@@ -548,9 +546,6 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
                 _LOGGER.debug(
                     "Unfolded circle changed active media player entity not initialized, update it"
                 )
-                # return asyncio.run_coroutine_threadsafe(
-                #     self._active_media_entity.update_data(), self.coordinator.hass.loop
-                # ).result()
                 asyncio.ensure_future(self._active_media_entity.update_data())
         except (KeyError, IndexError):
             _LOGGER.debug(

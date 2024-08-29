@@ -3,11 +3,13 @@
     "abort": {
       "already_configured": "Device is already configured",
       "already_in_progress": "Device is pending setup",
-      "no_mac": "This device is not recognized as a valid Unfolded Circle Remote (No MAC Address)"
+      "no_mac": "This device is not recognized as a valid Unfolded Circle Remote (No MAC Address)",
+      "reauth_successful": "Reauthentication was successful"
     },
     "error": {
       "cannot_connect": "Failed to connect",
-      "invalid_auth": "Invalid authentication",
+      "invalid_dock_password": "Incorrect dock password. Submit with an empty password to skip",
+      "invalid_auth": "Incorrect pin supplied. Please try again",
       "unknown": "Unexpected error"
     },
     "step": {
@@ -15,6 +17,13 @@
         "data": {
           "host": "Host",
           "pin": "PIN Code"
+        }
+      },
+      "dock": {
+        "title": "Supply {name} Password {count}",
+        "description": "If you don't remember your password, just submit. To finish dock setup, go to Settings and complete the Repair",
+        "data": {
+          "password": "Password"
         }
       },
       "zeroconf_confirm": {
@@ -76,6 +85,31 @@
         "data": {
           "add_entities": "Add entities",
           "remove_entities": "Remove entities"
+        }
+      }
+    }
+  },
+  "issues": {
+    "dock_password": {
+      "title": "Supply {name} Password",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Supply {name} Password",
+            "description": "Your dock password is needed to offer learning support",
+            "data": {
+              "password": "{name} Password"
+            }
+          }
+        },
+        "error": {
+          "cannot_connect": "Failed to connect",
+          "invalid_dock_password": "Incorrect dock password. Please try again",
+          "invalid_auth": "Incorrect pin supplied. Please try again",
+          "unknown": "Unexpected error"
+        },
+        "abort": {
+          "reauth_successful": "Dock authentication was successful"
         }
       }
     }

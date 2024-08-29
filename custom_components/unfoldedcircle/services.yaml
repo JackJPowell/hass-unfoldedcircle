@@ -12,3 +12,20 @@ update_activity:
       required: false
       selector:
         boolean:
+
+learn_ir_command:
+  name: Learn IR Commands
+  description: Allows for the automated learning of a sequence of IR commands
+  target:
+    entity:
+      - integration: unfoldedcircle
+        domain: remote
+  fields:
+    remote:
+      name: Remote Entity Information
+      description: Remote Dictionary containing -> Name, Description, and Icon
+      required: true
+    ir_dataset:
+      name: IR Codeset Information
+      description: IR Codeset Dictionary containing -> Name and a list of commands
+      required: true

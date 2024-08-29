@@ -9,29 +9,31 @@ from urllib.error import HTTPError
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
     UpdateFailed,
 )
+from pyUnfoldedCircleRemote.remote import Remote
+from pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
+from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
+from pyUnfoldedCircleRemote.dock import Dock
 
 from .const import DEVICE_SCAN_INTERVAL, DOMAIN
-from .pyUnfoldedCircleRemote.remote import Remote
-from .pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
 from .websocket import UCWebsocketClient
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
-    """Data update coordinator for an Unfolded Circle Remote device."""
+class UnfoldedCircleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
+    """Base Unfolded Circle Coordinator Class"""
 
-    # List of events to subscribe to the websocket
     subscribe_events: dict[str, bool]
     entities: list[CoordinatorEntity]
+    websocket_client: UCWebsocketClient
 
-    def __init__(self, hass: HomeAssistant, unfolded_circle_remote_device) -> None:
-        """Initialize the Coordinator."""
+    def __init__(self, hass: HomeAssistant, unfolded_circle_device) -> None:
         super().__init__(
             hass,
             name=DOMAIN,
@@ -39,29 +41,28 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=DEVICE_SCAN_INTERVAL,
         )
         self.hass = hass
-        self.api: Remote = unfolded_circle_remote_device
+        self.api: Remote = unfolded_circle_device
         self.data = {}
-        self.remote_websocket = RemoteWebsocket(self.api.endpoint, self.api.apikey)
+        self.websocket = None
         self.websocket_task = None
         self.subscribe_events = {}
         self.polling_data = False
         self.entities = []
+        self.docks: list[Dock] = []
         self.websocket_client = UCWebsocketClient(hass)
 
     async def init_websocket(self):
         """Initialize the Web Socket"""
-        self.remote_websocket.events_to_subscribe = [
+        self.websocket.events_to_subscribe = [
             "software_updates",
             *list(self.subscribe_events.keys()),
         ]
         _LOGGER.debug(
             "Unfolded Circle Remote events list to subscribe %s",
-            self.remote_websocket.events_to_subscribe,
+            self.websocket.events_to_subscribe,
         )
         self.websocket_task = asyncio.create_task(
-            self.remote_websocket.init_websocket(
-                self.receive_data, self.reconnection_ws
-            )
+            self.websocket.init_websocket(self.receive_data, self.reconnection_ws)
         )
 
     def update(self, message: any):
@@ -102,52 +103,28 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         debug_info = []
         for activity_group in self.api.activity_groups:
             debug_info.append(
-                "Activity group "
-                + activity_group.name
-                + " ("
-                + activity_group.id
-                + ") :"
+                f"Activity group {activity_group.name} ({activity_group.id}) :"
             )
             active_media_entity = None
             if active_media_entity is None:
                 debug_info.append("  No active media entity for this group")
             for activity in activity_group.activities:
                 debug_info.append(
-                    " - Activity "
-                    + activity.name
-                    + " ("
-                    + activity.id
-                    + ") : "
-                    + activity.state
+                    f" - Activity {activity.name} ({activity.id}) : {activity.state})"
                 )
                 for media_entity in activity.mediaplayer_entities:
                     if active_media_entity and active_media_entity == media_entity:
                         debug_info.append(
-                            "   > Media "
-                            + media_entity.name
-                            + " ("
-                            + media_entity.id
-                            + ") : "
-                            + media_entity.state
+                            f"   > Media {media_entity.name} ({media_entity.id}) : {media_entity.state}"
                         )
                     else:
                         debug_info.append(
-                            "   - Media "
-                            + media_entity.name
-                            + " ("
-                            + media_entity.id
-                            + ") : "
-                            + media_entity.state
+                            f"   - Media {media_entity.name}  ({media_entity.id}) : {media_entity.state}"
                         )
         debug_info.append("Media player entities from remote :")
         for media_entity in self.api._entities:
             debug_info.append(
-                " - Player "
-                + media_entity.name
-                + " ("
-                + media_entity.id
-                + ") : "
-                + media_entity.state
+                f" - Player {media_entity.name} ({media_entity.id}) : {media_entity.state}"
             )
         _LOGGER.debug("UC2 debug structure\n%s", "\n".join(debug_info))
 
@@ -170,12 +147,73 @@ class UnfoldedCircleRemoteCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 f"Error communicating with Unfolded Circle Remote API {ex}"
             ) from ex
 
-    async def close(self):
+    async def close_websocket(self):
         """Close websocket"""
         try:
             if self.websocket_task:
                 self.websocket_task.cancel()
-            if self.remote_websocket:
-                await self.remote_websocket.close_websocket()
+            if self.websocket:
+                await self.websocket.close_websocket()
         except Exception as ex:
             _LOGGER.error("Unfolded Circle Remote while closing websocket: %s", ex)
+
+
+class UnfoldedCircleRemoteCoordinator(
+    UnfoldedCircleCoordinator, DataUpdateCoordinator[dict[str, Any]]
+):
+    """Data update coordinator for an Unfolded Circle Remote device."""
+
+    # List of events to subscribe to the websocket
+    subscribe_events: dict[str, bool]
+    entities: list[CoordinatorEntity]
+
+    def __init__(self, hass: HomeAssistant, unfolded_circle_remote_device) -> None:
+        """Initialize the Coordinator."""
+        super().__init__(hass, unfolded_circle_remote_device)
+        self.hass = hass
+        self.api: Remote = unfolded_circle_remote_device
+        self.data = {}
+        self.websocket = RemoteWebsocket(self.api.endpoint, self.api.apikey)
+        self.websocket_task = None
+        self.subscribe_events = {}
+        self.polling_data = False
+        self.entities = []
+        self.docks: list[Dock] = self.api._docks
+        _LOGGER.debug("Unfolded Circle websocket APIs registered")
+
+
+class UnfoldedCircleDockCoordinator(
+    UnfoldedCircleCoordinator, DataUpdateCoordinator[dict[str, Any]]
+):
+    """Data update coordinator for an Unfolded Circle Remote device."""
+
+    # List of events to subscribe to the websocket
+    subscribe_events: dict[str, bool]
+    entities: list[CoordinatorEntity]
+
+    def __init__(self, hass: HomeAssistant, dock: Dock) -> None:
+        """Initialize the Coordinator."""
+        super().__init__(hass, dock)
+        self.hass = hass
+        self.api: Dock = dock
+        self.data = {}
+        self.websocket = DockWebsocket(
+            self.api._ws_endpoint,
+            api_key=dock.apikey,
+            dock_password=self.api.password,
+        )
+        self.websocket_task = None
+        self.subscribe_events = {}
+        self.polling_data = False
+        self.entities = []
+
+        _LOGGER.debug("Unfolded Circle websocket APIs registered")
+
+    async def init_websocket(self):
+        """Initialize the Web Socket"""
+        self.websocket_task = asyncio.create_task(
+            self.websocket.init_websocket(self.receive_data, self.reconnection_ws)
+        )
+
+    def debug_structure(self):
+        pass

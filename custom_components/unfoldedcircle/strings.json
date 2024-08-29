@@ -7,6 +7,12 @@
           "host": "[%key:common::config_flow::data::host%]"
         }
       },
+      "dock": {
+        "title": "Docks",
+        "data": {
+          "password": "{name} Password"
+        }
+      },
       "zeroconf_confirm": {
         "data": {
           "pin": "[%key:common::config_flow::data::pin%]"

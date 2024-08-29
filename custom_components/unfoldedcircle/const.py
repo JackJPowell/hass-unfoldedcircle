@@ -12,14 +12,8 @@ CONF_ACTIVITIES_AS_SWITCHES = "activities_as_switches"
 CONF_SUPPRESS_ACTIVITIY_GROUPS = "suppress_activity_groups"
 DEVICE_SCAN_INTERVAL = timedelta(seconds=30)
 UNFOLDED_CIRCLE_COORDINATOR = "unfolded_circle_coordinator"
+UNFOLDED_CIRCLE_DOCK_COORDINATORS = "unfolded_circle_dock_coordinators"
+UNFOLDED_CIRCLE_DOCK_COORDINATOR = "unfolded_circle_dock_coordinator"
 UNFOLDED_CIRCLE_API = "unfolded_circle_api"
 UPDATE_ACTIVITY_SERVICE = "update_activity"
-HA_SUPPORTED_DOMAINS = [
-    "button",
-    "switch",
-    "climate",
-    "cover",
-    "light",
-    "media_player",
-    "remote",
-]
+LEARN_IR_COMMAND_SERVICE = "learn_ir_command"

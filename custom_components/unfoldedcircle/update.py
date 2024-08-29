@@ -2,8 +2,8 @@
 
 import logging
 import math
-import time
 from typing import Any
+import asyncio
 
 from homeassistant.components.update import (
     UpdateDeviceClass,
@@ -40,8 +40,9 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
     def __init__(self, coordinator) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
-        self._attr_unique_id = f"{self.coordinator.api.name}_update_status"
-        self._attr_name = f"{self.coordinator.api.name} Firmware"
+        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_update_status"
+        self._attr_has_entity_name = True
+        self._attr_name = "Firmware"
         self._attr_device_class = UpdateDeviceClass.FIRMWARE
         self._attr_auto_update = self.coordinator.api.automatic_updates
         self._attr_installed_version = self.coordinator.api.sw_version
@@ -78,9 +79,15 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
             # the update routine again. If download has completed, the upgrade
             # will begin. In between check on download status. If it is progressing
             # keep trying. If not, give it 3 times (30 seconds) before timing out.
+            if update_information.get("state") == "NO_BATTERY":
+                _LOGGER.error(
+                    "Unfolded Circle Update Failed -- Please charge the remote before upgrading."
+                )
+                return
+
             while update_information.get("state") != "START" and retry_count < 6:
                 self._is_downloading = True
-                time.sleep(5)
+                await asyncio.sleep(5)
                 download_percentage = await self.update_download_status()
                 if download_percentage == previous_download_percentage:
                     retry_count = retry_count + 1

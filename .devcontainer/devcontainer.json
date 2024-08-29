@@ -47,8 +47,10 @@
           "!include_dir_merge_named scalar"
         ],
         "[python]": {
-          "editor.defaultFormatter": "charliermarsh.ruff"
-        }
+          "editor.defaultFormatter": "charliermarsh.ruff",
+          "editor.formatOnSave": true
+        },
+        "ruff.organizeImports": true
       }
     }
   },

@@ -19,10 +19,12 @@ async def async_setup_entry(
 ) -> None:
     """Use to setup entity."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
-    async_add_entities([
-        BatteryBinarySensor(coordinator),
-        PollingBinarySensor(coordinator),
-    ])
+    async_add_entities(
+        [
+            BatteryBinarySensor(coordinator),
+            PollingBinarySensor(coordinator),
+        ]
+    )
 
 
 class PollingBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
@@ -36,10 +38,11 @@ class PollingBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
         super().__init__(coordinator)
 
         # As per the sensor, this must be a unique value within this domain.
-        self._attr_unique_id = f"{self.coordinator.api.serial_number}_polling_status"
+        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_polling_status"
 
         # The name of the entity
-        self._attr_name = f"{self.coordinator.api.name} Polling Status"
+        self._attr_has_entity_name = True
+        self._attr_name = "Polling Status"
         self._attr_native_value = self.coordinator.polling_data
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._extra_state_attributes = {}
@@ -66,7 +69,7 @@ class PollingBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
             self.coordinator.websocket_task is not None
         )
         self._extra_state_attributes["Websocket events"] = ", ".join(
-            self.coordinator.remote_websocket.events_to_subscribe
+            self.coordinator.websocket.events_to_subscribe
         )
         self.async_write_ha_state()
 
@@ -83,9 +86,9 @@ class BatteryBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
     def __init__(self, coordinator) -> None:
         """Initialize Binary Sensor."""
         super().__init__(coordinator)
-
-        self._attr_unique_id = f"{self.coordinator.api.serial_number}_charging_status"
-        self._attr_name = f"{self.coordinator.api.name} Charging Status"
+        self._attr_has_entity_name = True
+        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_charging_status"
+        self._attr_name = "Charging Status"
         self._attr_native_value = False
 
     @property

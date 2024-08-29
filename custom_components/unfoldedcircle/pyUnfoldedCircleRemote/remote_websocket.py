@@ -10,6 +10,7 @@ import requests
 import websockets
 from requests import Session
 from websockets import WebSocketClientProtocol
+from .websocket import Websocket
 
 from .const import AUTH_APIKEY_NAME, WS_RECONNECTION_DELAY
 
@@ -29,7 +30,7 @@ class LoggerAdapter(logging.LoggerAdapter):
         return f"{websocket.id} {msg}", kwargs
 
 
-class RemoteWebsocket:
+class RemoteWebsocket(Websocket):
     """Web Socket Class for Unfolded Circle Remote"""
 
     session: Session | None
@@ -40,6 +41,7 @@ class RemoteWebsocket:
     websocket: WebSocketClientProtocol | None = None
 
     def __init__(self, api_url: str, api_key: str = None) -> None:
+        super().__init__(api_url, api_key)
         self.session = None
         self.hostname = urlparse(api_url).hostname
         self.api_key = api_key
@@ -64,7 +66,8 @@ class RemoteWebsocket:
         """Initialize websocket connection with the registered API key."""
         await self.close_websocket()
         _LOGGER.debug(
-            "UnfoldedCircleRemote websocket init connection to %s", self.endpoint
+            "UnfoldedCircleRemote websocket init connection to %s",
+            self.endpoint,
         )
 
         first = True
@@ -124,12 +127,14 @@ class RemoteWebsocket:
         _LOGGER.debug(
             "UnfoldedCircleRemote subscribing to events %s", self.events_to_subscribe
         )
-        await self.send_message({
-            "id": 1,
-            "kind": "req",
-            "msg": "subscribe_events",
-            "msg_data": {"channels": self.events_to_subscribe},
-        })
+        await self.send_message(
+            {
+                "id": 1,
+                "kind": "req",
+                "msg": "subscribe_events",
+                "msg_data": {"channels": self.events_to_subscribe},
+            }
+        )
 
     async def send_message(self, message: any) -> None:
         """Send a message to the connected websocket."""
@@ -191,7 +196,8 @@ class RemoteWebsocket:
         if self.session is None:
             return
         response = self.session.post(
-            self.api_endpoint + "/pub/logout", params={"id": self.session.cookies["id"]}
+            self.api_endpoint + "/pub/logout",
+            params={"id": self.session.cookies["id"]},
         )
         _LOGGER.info("Logout %d", response.status_code)
         self.session = None
