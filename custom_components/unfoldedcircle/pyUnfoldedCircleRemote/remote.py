@@ -570,8 +570,11 @@ class Remote:
                         data=data,
                     )
                 if response.ok:
+                    _LOGGER.debug("Token successfully registered to the remote %s", content)
                     return content
-        raise ExternalSystemNotRegistered
+                _LOGGER.error("Error while registering the new HA key to the remote %s", content)
+                raise ExternalSystemNotRegistered(response)
+        raise ExternalSystemNotRegistered("Error during key registration")
 
     async def update_token_for_external_system(
         self,
@@ -627,9 +630,46 @@ class Remote:
         """Checks against the registered external systems on the remote
         to validate the supplied system name"""
         registered_systems = await self.get_registered_external_systems()
+        _LOGGER.debug("Remote registered systems %s", registered_systems)
         for rs in registered_systems:
             if system == rs.get("system"):
                 return True
+
+    async def get_integrations(self) -> list[dict]:
+        """Retrieves the list of integration instances"""
+        async with self.client() as session:
+            page = 1
+            data: list[dict] = []
+            while True:
+                params = {"limit": 100, "page": page}
+                response = await session.get(self.url(f"intg/instances"), params=params)
+                await self.raise_on_error(response)
+                count = int(response.headers.get("pagination-count", 0))
+                data += await response.json()
+                if len(data) >= count:
+                    break
+                page += 1
+            return data
+
+    async def get_driver_instance(self, driver_id: str) -> dict[str]:
+        """Retrieves the driver instance from its driver id"""
+        async with (
+            self.client() as session,
+            session.get(self.url(f"intg/drivers/{driver_id}")) as response,
+        ):
+            await self.raise_on_error(response)
+            return await response.json()
+
+    async def create_driver_instance(self, driver_id: str, body: dict) -> str:
+        """Retrieves the driver instance from its driver id"""
+        async with (
+            self.client() as session,
+            session.post(
+                self.url(f"intg/drivers/{driver_id}"), json=body
+            ) as response,
+        ):
+            await self.raise_on_error(response)
+            return await response.json()
 
     @staticmethod
     async def get_version_information(base_url) -> dict[str]:

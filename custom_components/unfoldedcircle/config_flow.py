@@ -29,7 +29,7 @@ from .const import (
     CONF_SERIAL,
     CONF_SUPPRESS_ACTIVITIY_GROUPS,
     DOMAIN,
-    HA_SUPPORTED_DOMAINS, UC_HA_TOKEN_ID, UC_HA_SYSTEM,
+    HA_SUPPORTED_DOMAINS, UC_HA_TOKEN_ID, UC_HA_SYSTEM, UC_HA_DRIVER_ID
 )
 from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
 from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
@@ -97,7 +97,7 @@ async def async_step_select_entities(
             if integration_id is None or not integration.get("enabled", False):
                 continue
             # TODO hack to reload only HA integrations including external ones
-            if not integration_id.startswith("hass"):
+            if not integration_id.startswith(UC_HA_DRIVER_ID):
                 continue
             # Force reload of all the integrations entities as we don't know which one to address
             _LOGGER.debug("Refresh the integration entities of %s", integration_id)
@@ -274,19 +274,38 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
 
         url = get_url(self.hass)
         key = await self._remote.create_api_key()
+        if not key:
+            raise InvalidAuth("Unable to login: failed to create API key")
         await self._remote.get_remote_information()
         await self._remote.get_remote_configuration()
         await self._remote.get_remote_wifi_info()
 
         token = await generate_token(self.hass, f"{self._remote.name}  ({self._remote.serial_number})")
+        _LOGGER.debug("Generated token : %s", f"{self._remote.name}  ({self._remote.serial_number})")
         await self._remote.set_token_for_external_system(
             system=UC_HA_SYSTEM, token_id=UC_HA_TOKEN_ID,token=token, name="Home Assistant Access token",
             description="URL and long lived access token for Home Assistant WebSocket API",
             url=url, data=""
         )
-
-        if not key:
-            raise InvalidAuth("Unable to login: failed to create API key")
+        try:
+            remote_drivers_instances = await self._remote.get_integrations()
+            _LOGGER.debug("Remote list of integrations %s", remote_drivers_instances)
+            try:
+                ha_driver_instance = next(filter(lambda instance: instance.get('driver_id', None) == UC_HA_DRIVER_ID,
+                                                 remote_drivers_instances))
+                _LOGGER.debug("Home assistant driver instance found %s", ha_driver_instance)
+            except StopIteration:
+                _LOGGER.debug("No Home assistant driver instance (%s), create one", UC_HA_DRIVER_ID)
+                await self._remote.create_driver_instance(UC_HA_DRIVER_ID, {
+                    "name": {
+                        "en": "Home Assistant"
+                    },
+                    "icon": "uc:hass",
+                    "enabled": True
+                })
+        except Exception as ex:
+            _LOGGER.error("Error during driver registration %s", ex)
+            raise CannotConnect from ex
 
         mac_address = None
         if self._remote.mac_address:
@@ -646,6 +665,41 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the selected entities to subscribe to."""
+
+        # If user asks to configure entities, the HA driver may not have been configured at all
+        # so we need to regenerate the HA token and check for a HA driver instance and create it if none
+        url = get_url(self.hass)
+        token = await generate_token(self.hass, f"{self._remote.name}  ({self._remote.serial_number})")
+        _LOGGER.debug("Generated token : %s", f"{self._remote.name}  ({self._remote.serial_number})")
+        try:
+            await self._remote.set_token_for_external_system(
+                system=UC_HA_SYSTEM, token_id=UC_HA_TOKEN_ID, token=token, name="Home Assistant Access token",
+                description="URL and long lived access token for Home Assistant WebSocket API",
+                url=url, data=""
+            )
+        except Exception as ex:
+            _LOGGER.error("Error during token registration %s", ex)
+            raise CannotConnect from ex
+        try:
+            remote_drivers_instances = await self._remote.get_integrations()
+            _LOGGER.debug("Remote list of integrations %s", remote_drivers_instances)
+            try:
+                ha_driver_instance = next(filter(lambda instance: instance.get('driver_id', None) == UC_HA_DRIVER_ID,
+                                          remote_drivers_instances))
+                _LOGGER.debug("Home assistant driver instance found %s", ha_driver_instance)
+            except StopIteration:
+                _LOGGER.debug("No Home assistant driver instance (%s), create one", UC_HA_DRIVER_ID)
+                await self._remote.create_driver_instance(UC_HA_DRIVER_ID, {
+                    "name": {
+                        "en": "Home Assistant"
+                    },
+                    "icon": "uc:hass",
+                    "enabled": True
+                })
+        except Exception as ex:
+            _LOGGER.error("Error during driver registration %s", ex)
+            raise CannotConnect from ex
+
         return await async_step_select_entities(
             self, self.hass, self._remote, self.async_step_finish, user_input
         )
