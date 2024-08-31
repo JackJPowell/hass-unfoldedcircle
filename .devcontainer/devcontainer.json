@@ -5,7 +5,7 @@
   "postCreateCommand": ".devcontainer/setup",
   "postAttachCommand": ".devcontainer/setup",
   "forwardPorts": [8123],
-  "runArgs": ["-e", "GIT_EDITOR=code --wait"],
+  "runArgs": ["-e", "GIT_EDITOR=code --wait", "--network=host"],
   "containerEnv": {
     "PYTHONASYNCIODEBUG": "1"
   },
