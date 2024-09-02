@@ -155,7 +155,6 @@ async def async_setup_entry(
             await coordinator.api.get_activity_by_id(entity.unique_id).edit(
                 service_call.data
             )
-            test = 1 + 1
 
     prevent_sleep_schema = cv.make_entity_service_schema(
         {vol.Optional(ATTR_PREVENT_SLEEP, default=False): cv.boolean}

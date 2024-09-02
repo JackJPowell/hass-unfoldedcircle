@@ -1,6 +1,7 @@
 # Home Assistant
 homeassistant>=2024.8.3
 PyTurboJPEG
+pyUnfoldedCircleRemote==0.11.4
 
 # Development
 colorlog==6.7.0

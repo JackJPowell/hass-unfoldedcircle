@@ -648,7 +648,7 @@ class Remote:
             data: list[dict] = []
             while True:
                 params = {"limit": 100, "page": page}
-                response = await session.get(self.url(f"intg/instances"), params=params)
+                response = await session.get(self.url("intg/instances"), params=params)
                 await self.raise_on_error(response)
                 count = int(response.headers.get("pagination-count", 0))
                 data += await response.json()

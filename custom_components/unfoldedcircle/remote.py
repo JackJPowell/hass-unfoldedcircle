@@ -242,7 +242,7 @@ class IR:
         subdevice = self.data.get("ir_dataset").get("name")
         for command in self.data.get("ir_dataset").get("command"):
             try:
-                code = await self._async_learn_ir_command(
+                code = await self._async_learn_ir_command(  # noqa: F841
                     command, subdevice, name, description, icon
                 )
 
@@ -290,7 +290,7 @@ class IR:
                 # Refresh the list of remotes (We are shortcutting to save time. This
                 # probably should just call the get_remotes_complete() method)
                 await self.coordinator.api._remotes_complete.append(new_remote.copy())
-            except Exception as ex:
+            except Exception:
                 pass
 
         try:

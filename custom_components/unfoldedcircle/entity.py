@@ -11,7 +11,7 @@ from .coordinator import UnfoldedCircleDockCoordinator
 
 async def async_setup_entry(hass: HomeAssistant, config_entry):
     """Add sensors for passed config_entry in HA."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
+    coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]  # noqa: F841
 
 
 class UnfoldedCircleEntity(CoordinatorEntity[UnfoldedCircleRemoteCoordinator]):
