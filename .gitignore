@@ -1,5 +1,6 @@
 .DS_STORE
 *.zip
 config/*
+!config/configuration.yaml
 *.pyc
 __pycache__
