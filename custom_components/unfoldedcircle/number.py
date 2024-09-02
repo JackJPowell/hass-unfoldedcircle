@@ -19,10 +19,10 @@ from .const import (
     UNFOLDED_CIRCLE_DOCK_COORDINATORS,
 )
 from .coordinator import (
-    UnfoldedCircleRemoteCoordinator,
     UnfoldedCircleDockCoordinator,
+    UnfoldedCircleRemoteCoordinator,
 )
-from .entity import UnfoldedCircleEntity, UnfoldedCircleDockEntity
+from .entity import UnfoldedCircleDockEntity, UnfoldedCircleEntity
 
 _LOGGER = logging.getLogger(__name__)
 

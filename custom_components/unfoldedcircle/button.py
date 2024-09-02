@@ -11,7 +11,7 @@ from .const import (
     UNFOLDED_CIRCLE_COORDINATOR,
     UNFOLDED_CIRCLE_DOCK_COORDINATORS,
 )
-from .entity import UnfoldedCircleEntity, UnfoldedCircleDockEntity
+from .entity import UnfoldedCircleDockEntity, UnfoldedCircleEntity
 
 
 async def async_setup_entry(

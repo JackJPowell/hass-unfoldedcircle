@@ -1,4 +1,4 @@
-"""Coordinator for Unfolded Circle Integration"""
+"""Coordinator for Unfolded Circle Integration."""
 
 from __future__ import annotations
 
@@ -7,18 +7,18 @@ import logging
 from typing import Any
 from urllib.error import HTTPError
 
+from pyUnfoldedCircleRemote.dock import Dock
+from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
+from pyUnfoldedCircleRemote.remote import Remote
+from pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
+
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
-
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
     UpdateFailed,
 )
-from pyUnfoldedCircleRemote.remote import Remote
-from pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
-from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
-from pyUnfoldedCircleRemote.dock import Dock
 
 from .const import DEVICE_SCAN_INTERVAL, DOMAIN
 from .websocket import UCWebsocketClient
@@ -27,7 +27,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class UnfoldedCircleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
-    """Base Unfolded Circle Coordinator Class"""
+    """Base Unfolded Circle Coordinator Class."""
 
     subscribe_events: dict[str, bool]
     entities: list[CoordinatorEntity]
@@ -52,7 +52,7 @@ class UnfoldedCircleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.websocket_client = UCWebsocketClient(hass)
 
     async def init_websocket(self):
-        """Initialize the Web Socket"""
+        """Initialize the Web Socket."""
         self.websocket.events_to_subscribe = [
             "software_updates",
             *list(self.subscribe_events.keys()),
@@ -66,40 +66,40 @@ class UnfoldedCircleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
 
     def update(self, message: any):
-        """Update data received from WS"""
+        """Update data received from WS."""
         try:
             # Update internal data from the message
             self.api.update_from_message(message)
             # Trigger update of entities
             self.async_set_updated_data(vars(self.api))
             # asyncio.create_task(self._async_update_data()).result()
-        except Exception as ex:
+        except Exception as ex:  # noqa: BLE001
             _LOGGER.error(
                 "Unfolded Circle Remote error while updating entities: %s", ex
             )
 
     async def reconnection_ws(self):
-        """Reconnect WS Connection if dropped"""
+        """Reconnect WS Connection if dropped."""
         _LOGGER.debug(
             "Unfolded Circle Remote coordinator refresh data after a period of disconnection"
         )
         try:
             await self.api.update()
             self.async_set_updated_data(vars(self.api))
-        except Exception as ex:
+        except Exception as ex:  # noqa: BLE001
             _LOGGER.error(
                 "Unfolded Circle Remote reconnection_ws error while updating entities: %s",
                 ex,
             )
 
     async def receive_data(self, message: any):
-        """update coordinator data upon receipt"""
+        """update coordinator data upon receipt."""
         self.update(message)
         if logging.DEBUG:
             self.debug_structure()
 
     def debug_structure(self):
-        """Output debugbing information"""
+        """Output debugbing information."""
         debug_info = []
         for activity_group in self.api.activity_groups:
             debug_info.append(
@@ -148,13 +148,13 @@ class UnfoldedCircleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             ) from ex
 
     async def close_websocket(self):
-        """Close websocket"""
+        """Close websocket."""
         try:
             if self.websocket_task:
                 self.websocket_task.cancel()
             if self.websocket:
                 await self.websocket.close_websocket()
-        except Exception as ex:
+        except Exception as ex:  # noqa: BLE001
             _LOGGER.error("Unfolded Circle Remote while closing websocket: %s", ex)
 
 
@@ -178,7 +178,7 @@ class UnfoldedCircleRemoteCoordinator(
         self.subscribe_events = {}
         self.polling_data = False
         self.entities = []
-        self.docks: list[Dock] = self.api._docks
+        self.docks: list[Dock] = self.api._docks  # noqa: SLF001
         _LOGGER.debug("Unfolded Circle websocket APIs registered")
 
 
@@ -210,10 +210,11 @@ class UnfoldedCircleDockCoordinator(
         _LOGGER.debug("Unfolded Circle websocket APIs registered")
 
     async def init_websocket(self):
-        """Initialize the Web Socket"""
+        """Initialize the Web Socket."""
         self.websocket_task = asyncio.create_task(
             self.websocket.init_websocket(self.receive_data, self.reconnection_ws)
         )
 
     def debug_structure(self):
+        """debug structure stub."""
         pass
