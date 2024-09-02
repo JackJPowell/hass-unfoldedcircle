@@ -46,7 +46,7 @@
           "remove_entities": "Remove entities"
         },
         "menu_options": {
-          "select_entities": "Remote is not connected, retry",
+          "select_entities": "Remote is not connected. Retry",
           "finish": "Ignore this step and finish"
         }
       }
@@ -56,10 +56,10 @@
     "step": {
       "init": {
         "title": "Unfolded Circle Options",
-        "description": "Configure the remote entities or the component",
+        "description": "What would you like to configure?",
         "menu_options": {
-          "select_entities": "Configure the entities on the remote",
-          "activities": "Configure the integration"
+          "select_entities": "Configure the entities on your remote",
+          "activities": "Configure this integration"
         }
       },
       "media_player": {
@@ -85,6 +85,10 @@
         "data": {
           "add_entities": "Add entities",
           "remove_entities": "Remove entities"
+        },
+        "menu_options": {
+          "select_entities": "Remote is not connected. Retry",
+          "finish": "Ignore this step and finish"
         }
       }
     }

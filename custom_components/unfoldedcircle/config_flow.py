@@ -129,14 +129,10 @@ async def async_step_select_entities(
         if subscription is None:
             _LOGGER.error(
                 "The remote's websocket didn't subscribe to configuration event, "
-                "unable to retrieve and update entities"
+                + "unable to retrieve and update entities"
             )
             return config_flow.async_show_menu(
-                step_id="select_entities",
-                menu_options={
-                    "select_entities": "Remote is not connected, retry",
-                    "finish": "Ignore this step and finish",
-                },
+                step_id="select_entities", menu_options=["select_entities", "finish"]
             )
 
         _LOGGER.debug("Found subscription for remote : %s", subscription)
@@ -168,14 +164,10 @@ async def async_step_select_entities(
         if subscription is None:
             _LOGGER.error(
                 "The remote's websocket didn't subscribe to configuration event, "
-                "unable to retrieve and update entities"
+                + "unable to retrieve and update entities"
             )
             return config_flow.async_show_menu(
-                step_id="select_entities",
-                menu_options={
-                    "select_entities": "Remote is not connected, retry",
-                    "finish": "Ignore this step and finish",
-                },
+                step_id="select_entities", menu_options=["select_entities", "finish"]
             )
         add_entities = user_input.get("add_entities", [])
         remove_entities = user_input.get("remove_entities", [])
@@ -206,10 +198,7 @@ async def async_step_select_entities(
                 )
                 return config_flow.async_show_menu(
                     step_id="select_entities",
-                    menu_options={
-                        "select_entities": "Try again",
-                        "finish": "Ignore this step and finish",
-                    },
+                    menu_options=["select_entities", "finish"],
                 )
             # Subscribe to the new entities
             integrations = await remote.get_remote_integrations()
@@ -233,11 +222,7 @@ async def async_step_select_entities(
                 ex,
             )
             return config_flow.async_show_menu(
-                step_id="select_entities",
-                menu_options={
-                    "select_entities": "Try again",
-                    "finish": "Ignore this step and finish",
-                },
+                step_id="select_entities", menu_options=["select_entities", "finish"]
             )
         return await finish_callback(None)
 
@@ -707,11 +692,7 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         self._websocket_client = UCWebsocketClient(self.hass)
         await self.async_connect_remote()
         return self.async_show_menu(
-            step_id="init",
-            menu_options={
-                "select_entities": "Configure the entities on the remote",
-                "activities": "Configure the integration",
-            },
+            step_id="init", menu_options=["select_entities", "activities"]
         )
 
     async def async_step_media_player(self, user_input=None) -> FlowResult:
