@@ -20,7 +20,7 @@ from pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
 from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
 from pyUnfoldedCircleRemote.dock import Dock
 
-from .const import DEVICE_SCAN_INTERVAL, DOMAIN
+from .const import DEVICE_SCAN_INTERVAL, DOMAIN, DEBUG_UC_MSG
 from .websocket import UCWebsocketClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -126,7 +126,8 @@ class UnfoldedCircleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             debug_info.append(
                 f" - Player {media_entity.name} ({media_entity.id}) : {media_entity.state}"
             )
-        _LOGGER.debug("UC2 debug structure\n%s", "\n".join(debug_info))
+        if DEBUG_UC_MSG:
+            _LOGGER.debug("UC2 debug structure\n%s", "\n".join(debug_info))
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Get the latest data from the Unfolded Circle Remote."""

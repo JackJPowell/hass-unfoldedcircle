@@ -13,7 +13,7 @@ from homeassistant.helpers.event import (
     async_track_state_change_event,
 )
 
-from .const import DOMAIN
+from .const import DOMAIN, UC_HA_DRIVER_ID
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ def ws_get_info(
     msg: dict,
 ) -> None:
     """Handle get info command."""
-    _LOGGER.debug("Unfolded Circle connect request %s", msg)
+    _LOGGER.debug(f"Unfolded Circle connect request {DOMAIN}/info %s", msg)
     connection.send_message(
         {
             "id": msg.get("id"),
@@ -71,7 +71,7 @@ def ws_get_states(
     msg: dict,
 ) -> None:
     """Handle get info command."""
-    _LOGGER.debug("Unfolded Circle get entities states request %s", msg)
+    _LOGGER.debug("Unfolded Circle get entities states request from remote %s", msg)
     entity_ids: list[str] = msg.get("data", {}).get("entity_ids", [])
     entity_states = []
     # If entity_ids list is empty, send all entities
@@ -211,6 +211,7 @@ class UCWebsocketClient(metaclass=Singleton):
         )
 
     async def close(self):
+        _LOGGER.debug("Unfolded Circle close all subscriptions")
         for subscription in self._subscriptions:
             try:
                 _LOGGER.debug(
@@ -223,12 +224,11 @@ class UCWebsocketClient(metaclass=Singleton):
                 pass
         self._subscriptions = []
 
-    async def get_subscribed_entities(self, client_id: str) -> SubscriptionEvent | None:
+    def get_subscribed_entities(self, client_id: str) -> SubscriptionEvent | None:
         """Return subscribed entities of given client id (remote's host)"""
+        _LOGGER.debug("get_subscribed_entities for client %s : %s", client_id, self._subscriptions)
         if client_id is None:
             return None
-        # TODO better handling of client ids
-        client_id = client_id.split(":")[0]
         for subscription in self._subscriptions:
             _LOGGER.debug(
                 "Get subscribed entities for client %s : found client %s, (driver %s)",
@@ -236,7 +236,18 @@ class UCWebsocketClient(metaclass=Singleton):
                 subscription.client_id,
                 subscription.driver_id,
             )
-            if subscription.client_id.startswith(client_id):
+            if subscription.client_id == client_id:
+                return subscription
+        return None
+
+    def get_driver_subscription(self, client_id: str) -> SubscriptionEvent | None:
+        """Return subscribed entities of given client id (remote's host)"""
+        _LOGGER.debug("get_driver_subscription for client %s : %s", client_id, self._configurations)
+        if client_id is None:
+            return None
+        for subscription in self._configurations:
+            if subscription.client_id == client_id:
+                _LOGGER.debug("get_driver_subscription found subscription %s", subscription)
                 return subscription
         return None
 
@@ -245,21 +256,7 @@ class UCWebsocketClient(metaclass=Singleton):
     ) -> bool:
         if client_id is None:
             return False
-        # TODO better handling of client ids
-        client_id = client_id.split(":")[0]
-        configuration = None
-        for _configuration in self._configurations:
-            _LOGGER.debug("send_configuration_to_remote : %s", _configuration.client_id)
-            if _configuration.client_id.startswith(client_id):
-                configuration = _configuration
-                break
-        # Fallback : find subscription with empty client id
-        if configuration is None:
-            for _configuration in self._configurations:
-                if _configuration.client_id is None or _configuration.client_id == "":
-                    configuration = _configuration
-                    break
-
+        configuration = self.get_driver_subscription(client_id)
         if configuration is None:
             _LOGGER.warning(
                 "Unfolded Circle cannot notify remote %s for new configuration, it is not registered (%s)",
@@ -324,9 +321,7 @@ class UCWebsocketClient(metaclass=Singleton):
         data = msg["data"]
         entities = data.get("entities", [])
         client_id = data.get("client_id", "")
-        driver_id = data.get(
-            "driver_id", "hass"
-        )  # TODO : upcoming modifications of core+HA driver
+        driver_id = data.get("driver_id", UC_HA_DRIVER_ID)
 
         cancel_callback = async_track_state_change_event(
             self.hass, entities, entities_state_change_event
@@ -378,9 +373,7 @@ class UCWebsocketClient(metaclass=Singleton):
         subscription_id = msg["id"]
         data = msg["data"]
         client_id = data.get("client_id", "")
-        driver_id = data.get(
-            "driver_id", "hass"
-        )  # TODO : upcoming modifications of core+HA driver
+        driver_id = data.get("driver_id", UC_HA_DRIVER_ID)
 
         configuration = SubscriptionEvent(
             client_id=client_id,

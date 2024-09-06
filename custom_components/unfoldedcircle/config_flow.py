@@ -83,10 +83,12 @@ async def async_step_select_entities(
 ) -> FlowResult:
     """Handle the selected entities to subscribe to for both setup and config flows."""
     errors: dict[str, str] = {}
-    subscription: SubscriptionEvent | None = None
+    subscribed_entities_subscription: SubscriptionEvent | None = None
+    configure_entities_subscription: SubscriptionEvent | None = None
     websocket_client = UCWebsocketClient(hass)
     filtered_domains = HA_SUPPORTED_DOMAINS
-    await remote.get_remote_wifi_info()
+    _LOGGER.debug("Extracted remote information %s", await remote.get_version())
+    _LOGGER.debug("Using remote ID \"%s\" to get and set subscribed entities", remote.hostname)
 
     if user_input is None:
         # First find the active HA drivers on the remote
@@ -94,31 +96,27 @@ async def async_step_select_entities(
         _LOGGER.debug("Extraction of remote's integrations %s", integrations)
         for integration in integrations:
             integration_id: str | None = integration.get("integration_id", None)
-            if integration_id is None or not integration.get("enabled", False):
+            if integration_id is None: # or not integration.get("enabled", False):
                 continue
             # TODO hack to reload only HA integrations including external ones
             if not integration_id.startswith(UC_HA_DRIVER_ID):
                 continue
             # Force reload of all the integrations entities as we don't know which one to address
-            _LOGGER.debug("Refresh the integration entities of %s", integration_id)
-            await remote.get_remote_integration_entities(integration_id, True)
+            _LOGGER.debug("Refresh the integration entities of %s : %s", integration_id,
+                          await remote.get_remote_integration_entities(integration_id, True))
 
-        # Wait until 10 seconds so that the driver connects to HA and subscribe to events
-        retries = 10
+        # Wait until 5 seconds so that the driver connects to HA and subscribe to events
+        retries = 5
         while retries > 0:
             await asyncio.sleep(1)
             retries -= 1
-            subscription = await websocket_client.get_subscribed_entities(
-                remote.ip_address
-            )
-            if subscription is not None:
+            subscribed_entities_subscription = websocket_client.get_subscribed_entities(remote.hostname)
+            configure_entities_subscription = websocket_client.get_driver_subscription(remote.hostname)
+            if subscribed_entities_subscription is not None and configure_entities_subscription is not None:
                 break
+            _LOGGER.debug("Waiting for current subscribed entities from HA driver... (%s)", retries)
 
-        # Last try : get remote with empty ID (can occur if the driver didn't get the remote ID yet
-        if subscription is None:
-            subscription = await websocket_client.get_subscribed_entities("")
-
-        if subscription is None:
+        if configure_entities_subscription is None:
             _LOGGER.error(
                 "The remote's websocket didn't subscribe to configuration event, "
                 "unable to retrieve and update entities"
@@ -130,18 +128,22 @@ async def async_step_select_entities(
                     "finish": "Ignore this step and finish",
                 },
             )
-
-        _LOGGER.debug("Found subscription for remote : %s", subscription)
+        _LOGGER.debug("Found configuration subscription for remote : %s", configure_entities_subscription)
+        subscribed_entities: list[str] = []
+        if subscribed_entities_subscription:
+            _LOGGER.debug("Found subscribed entities for remote : %s", subscribed_entities_subscription)
+            subscribed_entities = subscribed_entities_subscription.entity_ids
 
         config: EntitySelectorConfig = {
-            "exclude_entities": subscription.entity_ids,
+            "exclude_entities": subscribed_entities,
             "filter": [{"domain": filtered_domains}],
             "multiple": True,
         }
+
         data_schema: dict[any, any] = {"add_entities": EntitySelector(config)}
-        if len(subscription.entity_ids) > 0:
+        if len(subscribed_entities) > 0:
             config: EntitySelectorConfig = {
-                "include_entities": subscription.entity_ids,
+                "include_entities": subscribed_entities,
                 "filter": [{"domain": filtered_domains}],
                 "multiple": True,
             }
@@ -154,10 +156,9 @@ async def async_step_select_entities(
             errors=errors,
         )
     if user_input is not None:
-        subscription = await websocket_client.get_subscribed_entities(remote.ip_address)
-        if subscription is None:
-            subscription = await websocket_client.get_subscribed_entities("")
-        if subscription is None:
+        configure_entities_subscription = websocket_client.get_driver_subscription(remote.hostname)
+        subscribed_entities_subscription = websocket_client.get_subscribed_entities(remote.hostname)
+        if configure_entities_subscription is None:
             _LOGGER.error(
                 "The remote's websocket didn't subscribe to configuration event, "
                 "unable to retrieve and update entities"
@@ -169,9 +170,14 @@ async def async_step_select_entities(
                     "finish": "Ignore this step and finish",
                 },
             )
+        subscribed_entities: list[str] = []
+        if subscribed_entities_subscription:
+            _LOGGER.debug("Found subscribed entities for remote : %s", subscribed_entities_subscription)
+            subscribed_entities = subscribed_entities_subscription.entity_ids
+
         add_entities = user_input.get("add_entities", [])
         remove_entities = user_input.get("remove_entities", [])
-        final_list = set(subscription.entity_ids) - set(remove_entities)
+        final_list = set(subscribed_entities) - set(remove_entities)
         final_list.update(add_entities)
         final_list = list(final_list)
 
@@ -188,13 +194,11 @@ async def async_step_select_entities(
             if state is not None:
                 entity_states.append(state)
         try:
-            result = await websocket_client.send_configuration_to_remote(
-                remote.ip_address, entity_states
-            )
+            result = await websocket_client.send_configuration_to_remote(remote.hostname, entity_states)
             if not result:
                 _LOGGER.error(
                     "Failed to notify remote with the new entities %s",
-                    remote.ip_address,
+                    remote.hostname,
                 )
                 return config_flow.async_show_menu(
                     step_id="select_entities",
@@ -209,7 +213,7 @@ async def async_step_select_entities(
                 integration_id = integration.get("integration_id", None)
                 if (
                     integration_id is None
-                    or integration.get("driver_id", "") != subscription.driver_id
+                    or integration.get("driver_id", "") != subscribed_entities_subscription.driver_id
                 ):
                     continue
                 await remote.get_remote_integration_entities(integration_id, True)
@@ -280,14 +284,17 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         await self._remote.get_remote_configuration()
         await self._remote.get_remote_wifi_info()
 
-        token = await generate_token(self.hass, f"{self._remote.name}  ({self._remote.serial_number})")
-        _LOGGER.debug("Generated token : %s", f"{self._remote.name}  ({self._remote.serial_number})")
-        await self._remote.set_token_for_external_system(
-            system=UC_HA_SYSTEM, token_id=UC_HA_TOKEN_ID,token=token, name="Home Assistant Access token",
-            description="URL and long lived access token for Home Assistant WebSocket API",
-            url=url, data=""
-        )
+        # If this part (register a new HA token and send it to the remote) fails, we should let the config flow continue
+        # It will let have the remote entities inside HA, but it will not let configure the HA entities on the remote
+        token = None
         try:
+            token = await generate_token(self.hass, f"{self._remote.name}  ({self._remote.serial_number})")
+            _LOGGER.debug("Generated token : %s", f"{self._remote.name}  ({self._remote.serial_number})")
+            await self._remote.set_token_for_external_system(
+                system=UC_HA_SYSTEM, token_id=UC_HA_TOKEN_ID, token=token, name="Home Assistant Access token",
+                description="URL and long lived access token for Home Assistant WebSocket API",
+                url=url, data=""
+            )
             remote_drivers_instances = await self._remote.get_integrations()
             _LOGGER.debug("Remote list of integrations %s", remote_drivers_instances)
             try:
@@ -304,8 +311,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                     "enabled": True
                 })
         except Exception as ex:
-            _LOGGER.error("Error during driver registration %s", ex)
-            raise CannotConnect from ex
+            _LOGGER.error("Error during the driver registration to the remote %s, keep on config flow", ex)
 
         mac_address = None
         if self._remote.mac_address:
@@ -587,6 +593,7 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
             self.config_entry.data["apiKey"],
         )
         await self._remote.can_connect()
+        await self._remote.get_version()
         return await self._remote.get_remote_information()
 
     async def async_step_init(self, user_input=None):  # pylint: disable=unused-argument
