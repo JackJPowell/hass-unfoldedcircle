@@ -121,6 +121,7 @@ class Remote:
         self._manufacturer = "Unfolded Circle"
         self._mac_address = ""
         self._ip_address = ""
+        self._hostname = ""
         self._battery_level = 0
         self._battery_status = ""
         self._is_charging = False
@@ -166,6 +167,10 @@ class Remote:
     def name(self):
         """Name of the remote."""
         return self._name or "Unfolded Circle Remote Two"
+
+    @property
+    def hostname(self) -> str:
+        return self._hostname
 
     @property
     def memory_available(self):
@@ -689,13 +694,23 @@ class Remote:
         ):
             return await response.json()
 
-    async def get_remote_wifi_info(self) -> str:
+    async def get_version(self) -> dict[str]:
+        """Get remote version information /pub/version"""
+        async with (
+            self.client() as session,
+            session.get(self.url("pub/version")) as response,
+        ):
+            information = await response.json()
+            self._hostname = information.get("hostname", "")
+            return information
+
+    async def get_remote_wifi_info(self) -> dict[str, any]:
         """Get System wifi information from remote. address."""
         if self._is_simulator:
             self._mac_address = SIMULATOR_MAC_ADDRESS
             parsed_uri = urlparse(self.endpoint)
             self._ip_address = parsed_uri.netloc
-            return
+            return {"ip_address": self._ip_address, "address": self._mac_address}
         async with (
             self.client() as session,
             session.get(self.url("system/wifi")) as response,
