@@ -20,8 +20,8 @@ from homeassistant.helpers.selector import (
     EntitySelector,
     EntitySelectorConfig,
 )
-from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
-from pyUnfoldedCircleRemote.const import (
+from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
+from .pyUnfoldedCircleRemote.const import (
     AUTH_APIKEY_NAME,
     SIMULATOR_MAC_ADDRESS,
 )
