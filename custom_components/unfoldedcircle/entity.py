@@ -5,13 +5,14 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import UnfoldedCircleRemoteCoordinator
-from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
+from .const import DOMAIN
 from .coordinator import UnfoldedCircleDockCoordinator
+from . import UnfoldedCircleConfigEntry
 
 
-async def async_setup_entry(hass: HomeAssistant, config_entry):
+async def async_setup_entry(hass: HomeAssistant, config_entry: UnfoldedCircleConfigEntry):
     """Add sensors for passed config_entry in HA."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
+    coordinator = config_entry.runtime_data.coordinator
 
 
 class UnfoldedCircleEntity(CoordinatorEntity[UnfoldedCircleRemoteCoordinator]):
@@ -20,7 +21,7 @@ class UnfoldedCircleEntity(CoordinatorEntity[UnfoldedCircleRemoteCoordinator]):
     def __init__(self, coordinator) -> None:
         """Initialize Unfolded Circle Sensor."""
         super().__init__(coordinator)
-        self.coordinator = coordinator
+        self.coordinator: UnfoldedCircleRemoteCoordinator = coordinator
         self.coordinator.entities.append(self)
 
     @property

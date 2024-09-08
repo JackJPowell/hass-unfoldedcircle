@@ -29,6 +29,7 @@ from .const import (
     LEARN_IR_COMMAND_SERVICE,
 )
 from .entity import UnfoldedCircleEntity, UnfoldedCircleDockEntity
+from . import UnfoldedCircleConfigEntry
 
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
@@ -46,14 +47,12 @@ CREATE_CODESET_SCHEMA = cv.make_entity_service_schema(
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: UnfoldedCircleConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Platform."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
-    dock_coordinators = hass.data[DOMAIN][config_entry.entry_id][
-        UNFOLDED_CIRCLE_DOCK_COORDINATORS
-    ]
+    coordinator = config_entry.runtime_data.coordinator
+    dock_coordinators = config_entry.runtime_data.dock_coordinators
     platform = entity_platform.async_get_current_platform()
 
     async_add_entities([RemoteSensor(coordinator)])
@@ -75,9 +74,7 @@ async def async_setup_entry(
             assert isinstance(entity, RemoteDockSensor)
 
         if service_call.service == LEARN_IR_COMMAND_SERVICE:
-            dock_coordinators = hass.data[DOMAIN][config_entry.entry_id][
-                UNFOLDED_CIRCLE_DOCK_COORDINATORS
-            ]
+            dock_coordinators = config_entry.runtime_data.dock_coordinators
 
             for coor in dock_coordinators:
                 coordinator = coor
@@ -105,7 +102,9 @@ class RemoteDockSensor(UnfoldedCircleDockEntity, RemoteEntity):
     def __init__(self, coordinator) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
-        self._attr_unique_id = f"{self.coordinator.api.model_number}_{self.coordinator.api.serial_number}_remote"
+        self._attr_unique_id = (
+            f"{self.coordinator.api.model_number}_{self.coordinator.api.serial_number}_remote"
+        )
         self._attr_has_entity_name = True
         self._attr_name = "Remote"
         self._attr_activity_list = []
@@ -160,7 +159,9 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._attr_has_entity_name = True
-        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_remote"
+        self._attr_unique_id = (
+            f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_remote"
+        )
         self._attr_name = "Remote"
         self._attr_activity_list = []
         self._extra_state_attributes = {}
@@ -320,6 +321,4 @@ class IR:
             )
 
         finally:
-            persistent_notification.async_dismiss(
-                self.hass, notification_id="learn_command"
-            )
+            persistent_notification.async_dismiss(self.hass, notification_id="learn_command")

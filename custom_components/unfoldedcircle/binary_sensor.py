@@ -3,28 +3,26 @@
 from typing import Any, Mapping
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_BATTERY_CHARGING, EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
 from .entity import UnfoldedCircleEntity
+from . import UnfoldedCircleConfigEntry
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: UnfoldedCircleConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Use to setup entity."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
-    async_add_entities(
-        [
-            BatteryBinarySensor(coordinator),
-            PollingBinarySensor(coordinator),
-        ]
-    )
+
+    coordinator = config_entry.runtime_data.coordinator
+    async_add_entities([
+        BatteryBinarySensor(coordinator),
+        PollingBinarySensor(coordinator),
+    ])
 
 
 class PollingBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
@@ -38,7 +36,9 @@ class PollingBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
         super().__init__(coordinator)
 
         # As per the sensor, this must be a unique value within this domain.
-        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_polling_status"
+        self._attr_unique_id = (
+            f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_polling_status"
+        )
 
         # The name of the entity
         self._attr_has_entity_name = True
@@ -87,7 +87,9 @@ class BatteryBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
         """Initialize Binary Sensor."""
         super().__init__(coordinator)
         self._attr_has_entity_name = True
-        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_charging_status"
+        self._attr_unique_id = (
+            f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_charging_status"
+        )
         self._attr_name = "Charging Status"
         self._attr_native_value = False
 

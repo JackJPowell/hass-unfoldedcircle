@@ -10,7 +10,8 @@ from homeassistant.helpers import issue_registry
 from homeassistant.core import HomeAssistant
 from .helpers import validate_dock_password
 from .config_flow import CannotConnect, InvalidDockPassword
-from .const import DOMAIN, UNFOLDED_CIRCLE_COORDINATOR
+from .const import DOMAIN
+from . import UnfoldedCircleConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,10 +24,12 @@ class DockPasswordRepairFlow(RepairsFlow):
         self.data = data
         self.issue_id = issue_id
         self.hass = hass
-        self.coordinator = self.hass.data[DOMAIN][self.data.get("config_entry_id")][
-            UNFOLDED_CIRCLE_COORDINATOR
-        ]
-        self.config_entry = self.coordinator.config_entry
+        # self.coordinator = self.hass.data[DOMAIN][self.data.get("config_entry_id")][
+        #     UNFOLDED_CIRCLE_COORDINATOR
+        # ]
+        self.config_entry: UnfoldedCircleConfigEntry = self.data.get("config_entry")
+        self.coordinator = self.config_entry.runtime_data.coordinator
+        # self.config_entry = self.coordinator.config_entry
         self.dock_total = 0
         self.dock_count = 0
 
@@ -50,11 +53,8 @@ class DockPasswordRepairFlow(RepairsFlow):
         if user_input is not None:
             try:
                 self.data["password"] = user_input.get("password")
-                coordinator = self.hass.data[DOMAIN][self.data.get("config_entry_id")][
-                    UNFOLDED_CIRCLE_COORDINATOR
-                ]
-                existing_entry = coordinator.config_entry
-                is_valid = await validate_dock_password(coordinator.api, self.data)
+                existing_entry = self.coordinator.config_entry
+                is_valid = await validate_dock_password(self.coordinator.api, self.data)
                 if is_valid:
                     config_data = existing_entry
                     for info in config_data.data["docks"]:

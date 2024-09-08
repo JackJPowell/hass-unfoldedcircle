@@ -16,11 +16,8 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.typing import StateType
 
-from .const import (
-    DOMAIN,
-    UNFOLDED_CIRCLE_COORDINATOR,
-)
 from .entity import UnfoldedCircleEntity
+from . import UnfoldedCircleConfigEntry
 
 
 @dataclass
@@ -98,13 +95,14 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
 )
 
 
-async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entities):
+async def async_setup_entry(
+    hass: HomeAssistant, config_entry: UnfoldedCircleConfigEntry, async_add_entities
+):
     """Add sensors for passed config_entry in HA."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
+    coordinator = config_entry.runtime_data.coordinator
 
     async_add_entities(
-        UnfoldedCircleSensor(coordinator, description)
-        for description in UNFOLDED_CIRCLE_SENSOR
+        UnfoldedCircleSensor(coordinator, description) for description in UNFOLDED_CIRCLE_SENSOR
     )
 
 

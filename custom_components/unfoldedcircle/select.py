@@ -4,17 +4,15 @@ import logging
 from typing import Any, Mapping
 
 from homeassistant.components.select import SelectEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from pyUnfoldedCircleRemote.const import RemoteUpdateType
 
 from .const import (
     CONF_SUPPRESS_ACTIVITIY_GROUPS,
-    DOMAIN,
-    UNFOLDED_CIRCLE_COORDINATOR,
 )
 from .entity import UnfoldedCircleEntity
+from . import UnfoldedCircleConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,11 +21,11 @@ POWER_OFF_LABEL = "Power Off"
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: UnfoldedCircleConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Use to setup entity."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
+    coordinator = config_entry.runtime_data.coordinator
     # IF the option to suppress activity groups is true, skip adding activity groups
     if config_entry.options.get(CONF_SUPPRESS_ACTIVITIY_GROUPS, False) is False:
         async_add_entities(
@@ -105,9 +103,7 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
                 return
             self._extra_state_attributes = {}
         except (KeyError, IndexError):
-            _LOGGER.debug(
-                "Unfolded Circle Remote select _handle_coordinator_update error"
-            )
+            _LOGGER.debug("Unfolded Circle Remote select _handle_coordinator_update error")
             return
         self._state = self.activity_group.state
         for activity in self.activity_group.activities:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 from typing import Any
 import logging
-
+from dataclasses import dataclass
 from homeassistant.components import zeroconf
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -13,12 +13,7 @@ from homeassistant.helpers import entity_registry as er, issue_registry
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
-from .const import (
-    DOMAIN,
-    UNFOLDED_CIRCLE_API,
-    UNFOLDED_CIRCLE_COORDINATOR,
-    UNFOLDED_CIRCLE_DOCK_COORDINATORS,
-)
+from .const import DOMAIN
 from .coordinator import (
     UnfoldedCircleRemoteCoordinator,
     UnfoldedCircleDockCoordinator,
@@ -40,7 +35,19 @@ PLATFORMS: list[Platform] = [
 _LOGGER: logging.Logger = logging.getLogger(__package__)
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+@dataclass
+class RuntimeData:
+    """Unfolded Circle Runtime Data"""
+
+    coordinator: UnfoldedCircleRemoteCoordinator
+    remote: Remote
+    dock_coordinators: UnfoldedCircleDockCoordinator
+
+
+type UnfoldedCircleConfigEntry = ConfigEntry[RuntimeData]
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: UnfoldedCircleConfigEntry) -> bool:
     """Set up Unfolded Circle Remote from a config entry."""
 
     try:
@@ -129,7 +136,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 data={
                     "id": dock.id,
                     "name": dock.name,
-                    "config_entry_id": entry.entry_id,
+                    "config_entry": entry,
                 },
                 is_fixable=True,
                 is_persistent=False,
@@ -139,11 +146,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 translation_placeholders={"name": dock.name},
             )
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
-        UNFOLDED_CIRCLE_COORDINATOR: coordinator,
-        UNFOLDED_CIRCLE_API: remote_api,
-        UNFOLDED_CIRCLE_DOCK_COORDINATORS: dock_coordinators,
-    }
+    entry.runtime_data = RuntimeData(
+        coordinator=coordinator, remote=remote_api, dock_coordinators=dock_coordinators
+    )
 
     await coordinator.async_config_entry_first_refresh()
 
@@ -154,20 +159,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: UnfoldedCircleConfigEntry) -> bool:
     """Unload a config entry."""
     try:
-        coordinator: UnfoldedCircleRemoteCoordinator = hass.data[DOMAIN][
-            entry.entry_id
-        ][UNFOLDED_CIRCLE_COORDINATOR]
+        coordinator = entry.runtime_data.coordinator
         await coordinator.close_websocket()
 
         for dock in coordinator.api._docks:
             issue_registry.async_delete_issue(hass, DOMAIN, f"dock_password_{dock.id}")
     except Exception as ex:
         _LOGGER.error("Unfolded Circle Remote async_unload_entry error: %s", ex)
-    if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        hass.data[DOMAIN].pop(entry.entry_id)
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     return unload_ok
 
@@ -202,18 +204,13 @@ def _update_config_entry(
     return True
 
 
-def _migrate_device_identifiers(
-    hass: HomeAssistant, entry_id: str, coordinator
-) -> None:
+def _migrate_device_identifiers(hass: HomeAssistant, entry_id: str, coordinator) -> None:
     """Migrate old device identifiers."""
     dev_reg = dr.async_get(hass)
     devices: list[dr.DeviceEntry] = dr.async_entries_for_config_entry(dev_reg, entry_id)
     for device in devices:
         old_identifier = list(next(iter(device.identifiers)))
-        if (
-            "ucr" not in old_identifier[1].lower()
-            and "ucd" not in old_identifier[1].lower()
-        ):
+        if "ucr" not in old_identifier[1].lower() and "ucd" not in old_identifier[1].lower():
             new_identifier = {
                 (
                     DOMAIN,

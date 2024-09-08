@@ -13,7 +13,6 @@ from homeassistant.components.media_player import (
     MediaPlayerState,
     MediaType,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -30,10 +29,9 @@ from .const import (
     CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
     CONF_ACTIVITY_MEDIA_ENTITIES,
     CONF_GLOBAL_MEDIA_ENTITY,
-    DOMAIN,
-    UNFOLDED_CIRCLE_COORDINATOR,
 )
 from .entity import UnfoldedCircleEntity
+from . import UnfoldedCircleConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -70,11 +68,11 @@ AUTOMATIC_ENTITY_SELECTION_LABEL = "Automatic selection"
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: UnfoldedCircleConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Use to setup entity."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][UNFOLDED_CIRCLE_COORDINATOR]
+    coordinator = config_entry.runtime_data.coordinator
     media_players = []
     # Enable the global media player entity for all activities if enabled by user
     if config_entry.options.get(CONF_GLOBAL_MEDIA_ENTITY, True):
@@ -82,16 +80,12 @@ async def async_setup_entry(
     # Add additional media players (one per activity group) if the user option is enabled
     if config_entry.options.get(CONF_ACTIVITY_GROUP_MEDIA_ENTITIES, False):
         for activity_group in coordinator.api.activity_groups:
-            media_players.append(
-                MediaPlayerUCRemote(coordinator, activity_group=activity_group)
-            )
+            media_players.append(MediaPlayerUCRemote(coordinator, activity_group=activity_group))
     # Add additional media players (one per activity) if the user option is enabled
     if config_entry.options.get(CONF_ACTIVITY_MEDIA_ENTITIES, False):
         for activity in coordinator.api.activities:
             if activity.has_media_player_entities is True:
-                media_players.append(
-                    MediaPlayerUCRemote(coordinator, activity=activity)
-                )
+                media_players.append(MediaPlayerUCRemote(coordinator, activity=activity))
     async_add_entities(media_players)
 
 
@@ -113,7 +107,9 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         self.activity = activity
         if activity_group is None and activity is None:
             self._attr_name = "Media Player"
-            self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_mediaplayer"
+            self._attr_unique_id = (
+                f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_mediaplayer"
+            )
             self.activities = self.coordinator.api.activities
         elif activity is not None:
             self._attr_name = f"{activity.name} Media Player"
@@ -201,13 +197,8 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         for entity in self._active_media_entities:
             self._extra_state_attributes[entity.name] = entity.state
         if self._active_media_entity:
-            self._extra_state_attributes["Active media player"] = (
-                self._active_media_entity.name
-            )
-        if (
-            self._active_media_entity
-            and active_media_entity != self._active_media_entity
-        ):
+            self._extra_state_attributes["Active media player"] = self._active_media_entity.name
+        if self._active_media_entity and active_media_entity != self._active_media_entity:
             _LOGGER.debug(
                 "Unfolded circle changed active media player entity for group: %s :",
                 vars(self._active_media_entity),
@@ -315,9 +306,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     @property
     def media_image_hash(self) -> str | None:
         if self._active_media_entity and self._active_media_entity.media_image_url:
-            return hashlib.sha256(
-                str.encode(self._active_media_entity.media_image_url)
-            ).hexdigest()
+            return hashlib.sha256(str.encode(self._active_media_entity.media_image_url)).hexdigest()
         return None
 
     @property
@@ -397,10 +386,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     @property
     def media_position_updated_at(self):
         """Last time status was updated."""
-        if (
-            self._active_media_entity
-            and self._active_media_entity.media_position_updated_at
-        ):
+        if self._active_media_entity and self._active_media_entity.media_position_updated_at:
             return self._active_media_entity.media_position_updated_at.replace(
                 tzinfo=utcnow().tzinfo
             )
@@ -434,9 +420,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
             and self._active_media_entity.activity is not None
             and self._active_media_entity.activity.volume_mute_command is not None
         ):
-            entity_id = self._active_media_entity.activity.volume_mute_command.get(
-                "entity_id"
-            )
+            entity_id = self._active_media_entity.activity.volume_mute_command.get("entity_id")
             for media_player in self._active_media_entities:
                 if media_player.id == entity_id:
                     return media_player.muted
@@ -451,9 +435,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
             and self._active_media_entity.activity is not None
             and self._active_media_entity.activity.volume_mute_command is not None
         ):
-            entity_id = self._active_media_entity.activity.volume_mute_command.get(
-                "entity_id"
-            )
+            entity_id = self._active_media_entity.activity.volume_mute_command.get("entity_id")
             for media_player in self._active_media_entities:
                 if media_player.id == entity_id:
                     return media_player.volume / 100
@@ -548,9 +530,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
                 )
                 asyncio.ensure_future(self._active_media_entity.update_data())
         except (KeyError, IndexError):
-            _LOGGER.debug(
-                "Unfolded Circle Remote MediaPlayer _handle_coordinator_update error"
-            )
+            _LOGGER.debug("Unfolded Circle Remote MediaPlayer _handle_coordinator_update error")
             return
         # self._state = self.activity_group.state
         self.async_write_ha_state()
