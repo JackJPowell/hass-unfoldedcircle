@@ -99,16 +99,16 @@ async def validate_input(
     await remote.get_remote_configuration()
     await remote.get_remote_wifi_info()
     await remote.get_docks()
-    token = await generate_token(hass, remote.name)
-    token_id = await remote.set_token_for_external_system(
-        "hass",
-        "hass_id",
-        token,
-        "Home Assistant",
-        "Home Assistant Long Lived Access Token",
-        url,
-        "data",
-    )
+    # token = await generate_token(hass, remote.name)
+    # token_id = await remote.set_token_for_external_system(
+    #     "hass",
+    #     "hass_id",
+    #     token,
+    #     "Home Assistant",
+    #     "Home Assistant Long Lived Access Token",
+    #     url,
+    #     "data",
+    # )
 
     if not key:
         raise InvalidAuth("Unable to login: failed to create API key")
@@ -129,8 +129,8 @@ async def validate_input(
         "pin": data["pin"],
         "mac_address": remote.mac_address,
         "ip_address": remote.ip_address,
-        "token": token,
-        "token_id": token_id,
+        # "token": token,
+        # "token_id": token_id,
         CONF_SERIAL: remote.serial_number,
         CONF_MAC: mac_address,
         "docks": docks,
