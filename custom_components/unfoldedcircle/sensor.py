@@ -33,7 +33,6 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.BATTERY,
         unit_of_measurement=PERCENTAGE,
         name="Battery",
-        has_entity_name=False,
         unique_id="battery",
     ),
     UnfoldedCircleSensorEntityDescription(
@@ -42,7 +41,6 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.ILLUMINANCE,
         icon="mdi:sun-wireless",
         name="Illuminance",
-        has_entity_name=False,
         unique_id="illuminance",
     ),
     UnfoldedCircleSensorEntityDescription(
@@ -51,7 +49,6 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:power-plug-battery",
         name="Power Mode",
-        has_entity_name=False,
         unique_id="power_mode",
     ),
     UnfoldedCircleSensorEntityDescription(
@@ -60,7 +57,6 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         device_class=UnitOfInformation.MEBIBYTES,
         entity_category=EntityCategory.DIAGNOSTIC,
         name="Memory Available",
-        has_entity_name=False,
         unique_id="memory_available",
         suggested_display_precision=0,
         icon="mdi:memory",
@@ -73,7 +69,6 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         device_class=UnitOfInformation.MEBIBYTES,
         entity_category=EntityCategory.DIAGNOSTIC,
         name="Storage Available",
-        has_entity_name=False,
         unique_id="storage_available",
         suggested_display_precision=0,
         icon="mdi:harddisk",
@@ -85,7 +80,6 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         unit_of_measurement="load",
         entity_category=EntityCategory.DIAGNOSTIC,
         name="CPU Load Avg (1 min)",
-        has_entity_name=False,
         unique_id="cpu_load_1_min",
         suggested_display_precision=2,
         icon="mdi:cpu-64-bit",
@@ -120,12 +114,11 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
         super().__init__(coordinator)
         self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_{description.unique_id}"
         self._attr_has_entity_name = True
-        self._attr_name = f"{description.name}"
+        self._attr_name = description.name
         self._attr_unit_of_measurement = description.unit_of_measurement
         self._attr_native_unit_of_measurement = description.unit_of_measurement
         self._device_class = description.device_class
         self._attr_entity_category = description.entity_category
-        self._attr_has_entity_name = description.has_entity_name
         self.entity_description = description
         self._state: StateType = None
 
