@@ -246,14 +246,6 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         return self._state
 
     @property
-    def name(self) -> str | UndefinedType | None:
-        if self.activity_group is None and self.activity is None:
-            return f"{self.coordinator.api.name} Media Player"
-        elif self.activity is not None:
-            return f"{self.activity.name} Media Player"
-        return f"{self.activity_group.name} Media Player"
-
-    @property
     def source(self):
         """Return the current input source."""
         if self._active_media_entity:
