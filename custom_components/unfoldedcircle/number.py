@@ -173,7 +173,7 @@ class UCRemoteNumber(UnfoldedCircleEntity, NumberEntity):
         self.entity_description = description
         self._attr_has_entity_name = True
         self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_{description.unique_id}"
-        self._attr_name = f"{description.name}"
+        self._attr_name = description.name
         key = "_" + description.key
         self._attr_native_value = coordinator.data.get(key)
         self._attr_icon = description.icon

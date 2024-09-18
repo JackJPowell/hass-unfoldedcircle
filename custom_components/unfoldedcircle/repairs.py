@@ -24,12 +24,8 @@ class DockPasswordRepairFlow(RepairsFlow):
         self.data = data
         self.issue_id = issue_id
         self.hass = hass
-        # self.coordinator = self.hass.data[DOMAIN][self.data.get("config_entry_id")][
-        #     UNFOLDED_CIRCLE_COORDINATOR
-        # ]
         self.config_entry: UnfoldedCircleConfigEntry = self.data.get("config_entry")
         self.coordinator = self.config_entry.runtime_data.coordinator
-        # self.config_entry = self.coordinator.config_entry
         self.dock_total = 0
         self.dock_count = 0
 

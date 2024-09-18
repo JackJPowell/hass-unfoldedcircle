@@ -14,7 +14,6 @@ from homeassistant.components.remote import (
     RemoteEntityFeature,
 )
 from homeassistant.components import persistent_notification
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback, ServiceCall
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import service, entity_platform
@@ -24,8 +23,6 @@ from pyUnfoldedCircleRemote.remote import AuthenticationError
 
 from .const import (
     DOMAIN,
-    UNFOLDED_CIRCLE_COORDINATOR,
-    UNFOLDED_CIRCLE_DOCK_COORDINATORS,
     LEARN_IR_COMMAND_SERVICE,
 )
 from .entity import UnfoldedCircleEntity, UnfoldedCircleDockEntity
