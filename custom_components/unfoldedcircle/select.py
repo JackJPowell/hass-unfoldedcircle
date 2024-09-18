@@ -103,7 +103,9 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
                 return
             self._extra_state_attributes = {}
         except (KeyError, IndexError):
-            _LOGGER.debug("Unfolded Circle Remote select _handle_coordinator_update error")
+            _LOGGER.debug(
+                "Unfolded Circle Remote select _handle_coordinator_update error"
+            )
             return
         self._state = self.activity_group.state
         for activity in self.activity_group.activities:

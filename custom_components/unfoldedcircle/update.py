@@ -39,9 +39,7 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
     def __init__(self, coordinator) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
-        self._attr_unique_id = (
-            f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_update_status"
-        )
+        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_update_status"
         self._attr_has_entity_name = True
         self._attr_name = "Firmware"
         self._attr_device_class = UpdateDeviceClass.FIRMWARE
@@ -60,7 +58,9 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
         )
         self._attr_title = f"{self.coordinator.api.name} Firmware"
 
-    async def async_install(self, version: str | None, backup: bool, **kwargs: Any) -> None:
+    async def async_install(
+        self, version: str | None, backup: bool, **kwargs: Any
+    ) -> None:
         """Install an update."""
         if self.coordinator.api.update_in_progress is True:
             return
@@ -151,7 +151,10 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        if self.coordinator.api.update_in_progress is True or self._is_downloading is True:
+        if (
+            self.coordinator.api.update_in_progress is True
+            or self._is_downloading is True
+        ):
             # If a download was needed, continue to show that percent
             # until the actual update percent exceeds it
             if self._download_progress > self.coordinator.api.update_percent:

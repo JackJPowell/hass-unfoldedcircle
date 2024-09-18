@@ -406,7 +406,9 @@ class Remote:
     def derive_configuration_url(self) -> str:
         """Derive configuration url from endpoint url."""
         parsed_url = urlparse(self.endpoint)
-        self.configuration_url = f"{parsed_url.scheme}://{parsed_url.netloc}/configurator/"
+        self.configuration_url = (
+            f"{parsed_url.scheme}://{parsed_url.netloc}/configurator/"
+        )
         return self.configuration_url
 
     def url(self, path="/") -> str:
@@ -429,10 +431,14 @@ class Remote:
                 "Authorization": "Bearer " + self.apikey,
                 "Accept": "application/json",
             }
-            return aiohttp.ClientSession(headers=headers, timeout=aiohttp.ClientTimeout(total=5))
+            return aiohttp.ClientSession(
+                headers=headers, timeout=aiohttp.ClientTimeout(total=5)
+            )
         if self.pin:
             auth = aiohttp.BasicAuth(AUTH_USERNAME, self.pin)
-            return aiohttp.ClientSession(auth=auth, timeout=aiohttp.ClientTimeout(total=2))
+            return aiohttp.ClientSession(
+                auth=auth, timeout=aiohttp.ClientTimeout(total=2)
+            )
 
     async def can_connect(self) -> bool:
         """Validate we can communicate with the remote given the supplied information."""
@@ -545,7 +551,9 @@ class Remote:
             }
             async with (
                 self.client() as session,
-                session.post(self.url(f"auth/external/{system}"), json=body) as response,
+                session.post(
+                    self.url(f"auth/external/{system}"), json=body
+                ) as response,
             ):
                 content = await response.json()
                 if response.status == 422:
@@ -586,7 +594,9 @@ class Remote:
             }
             async with (
                 self.client() as session,
-                session.put(self.url(f"auth/external/{system}/{token_id}"), json=body) as response,
+                session.put(
+                    self.url(f"auth/external/{system}/{token_id}"), json=body
+                ) as response,
             ):
                 await self.raise_on_error(response)
                 return await response.json()
@@ -602,7 +612,9 @@ class Remote:
         if await self.is_external_system_valid(system):
             async with (
                 self.client() as session,
-                session.delete(self.url(f"auth/external/{system}/{token_id}")) as response,
+                session.delete(
+                    self.url(f"auth/external/{system}/{token_id}")
+                ) as response,
             ):
                 await self.raise_on_error(response)
                 return await response.json()
@@ -789,7 +801,9 @@ class Remote:
             await self.raise_on_error(response)
             status = await response.json()
             self._memory_total = status.get("memory").get("total_memory") / 1048576
-            self._memory_available = status.get("memory").get("available_memory") / 1048576
+            self._memory_available = (
+                status.get("memory").get("available_memory") / 1048576
+            )
 
             self._storage_total = (
                 status.get("filesystem").get("user_data").get("used")
@@ -826,7 +840,9 @@ class Remote:
             self._display_brightness = settings.get("brightness")
             return settings
 
-    async def patch_remote_display_settings(self, auto_brightness=None, brightness=None) -> bool:
+    async def patch_remote_display_settings(
+        self, auto_brightness=None, brightness=None
+    ) -> bool:
         """Update remote display settings"""
         display_settings = await self.get_remote_display_settings()
         if auto_brightness is not None:
@@ -854,7 +870,9 @@ class Remote:
             self._button_backlight_brightness = settings.get("brightness")
             return settings
 
-    async def patch_remote_button_settings(self, auto_brightness=None, brightness=None) -> bool:
+    async def patch_remote_button_settings(
+        self, auto_brightness=None, brightness=None
+    ) -> bool:
         """Update remote button settings"""
         button_settings = await self.get_remote_button_settings()
         if auto_brightness is not None:
@@ -952,7 +970,9 @@ class Remote:
 
         async with (
             self.client() as session,
-            session.patch(self.url("cfg/power_saving"), json=power_saving_settings) as response,
+            session.patch(
+                self.url("cfg/power_saving"), json=power_saving_settings
+            ) as response,
         ):
             await self.raise_on_error(response)
             response = await response.json()
@@ -987,8 +1007,9 @@ class Remote:
                 self._available_update = information["available"]
                 for update in self._available_update:
                     if update.get("channel") in ["STABLE", "TESTING"]:
-                        if self._latest_sw_version == "" or self._latest_sw_version < update.get(
-                            "version"
+                        if (
+                            self._latest_sw_version == ""
+                            or self._latest_sw_version < update.get("version")
                         ):
                             self._release_notes_url = update.get("release_notes_url")
                             self._latest_sw_version = update.get("version")
@@ -1023,8 +1044,9 @@ class Remote:
                 self._available_update = information["available"]
                 for update in self._available_update:
                     if update.get("channel") in ["STABLE", "TESTING"]:
-                        if self._latest_sw_version == "" or self._latest_sw_version < update.get(
-                            "version"
+                        if (
+                            self._latest_sw_version == ""
+                            or self._latest_sw_version < update.get("version")
                         ):
                             self._release_notes_url = update.get("release_notes_url")
                             self._latest_sw_version = update.get("version")
@@ -1162,7 +1184,9 @@ class Remote:
         for remote in self._remotes:
             async with (
                 self.client() as session,
-                session.get(self.url("remotes/" + remote.get("entity_id") + "/ir")) as response,
+                session.get(
+                    self.url("remotes/" + remote.get("entity_id") + "/ir")
+                ) as response,
             ):
                 await self.raise_on_error(response)
                 code_set = await response.json()
@@ -1225,7 +1249,9 @@ class Remote:
                     self._ir_emitters.append(dock_data.copy())
             return self._ir_emitters
 
-    async def send_remote_command(self, device="", command="", repeat=0, **kwargs) -> bool:
+    async def send_remote_command(
+        self, device="", command="", repeat=0, **kwargs
+    ) -> bool:
         """Send a remote command to the dock kwargs: code,format,dock,port."""
         body_port = {}
         body_repeat = {}
@@ -1264,7 +1290,9 @@ class Remote:
 
         async with (
             self.client() as session,
-            session.put(self.url("ir/emitters/" + emitter + "/send"), json=body_merged) as response,
+            session.put(
+                self.url("ir/emitters/" + emitter + "/send"), json=body_merged
+            ) as response,
         ):
             await self.raise_on_error(response)
             response = await response.json()
@@ -1338,22 +1366,34 @@ class Remote:
                 _LOGGER.debug("Unfoldded circle configuration change")
                 state = data.get("msg_data").get("new_state")
                 if state.get("display") is not None:
-                    self._display_auto_brightness = state.get("display").get("auto_brightness")
+                    self._display_auto_brightness = state.get("display").get(
+                        "auto_brightness"
+                    )
                     self._display_brightness = state.get("display").get("brightness")
                 if state.get("button") is not None:
                     self._button_backlight = state.get("button").get("auto_brightness")
-                    self._button_backlight_brightness = state.get("button").get("brightness")
+                    self._button_backlight_brightness = state.get("button").get(
+                        "brightness"
+                    )
                 if state.get("sound") is not None:
                     self._sound_effects = state.get("sound").get("enabled")
                     self._sound_effects_volume = state.get("sound").get("volume")
                 if state.get("haptic") is not None:
                     self._haptic_feedback = state.get("haptic").get("enabled")
                 if state.get("software_update") is not None:
-                    self._check_for_updates = state.get("software_update").get("check_for_updates")
-                    self._automatic_updates = state.get("software_update").get("auto_update")
+                    self._check_for_updates = state.get("software_update").get(
+                        "check_for_updates"
+                    )
+                    self._automatic_updates = state.get("software_update").get(
+                        "auto_update"
+                    )
                 if state.get("power_saving") is not None:
-                    self._display_timeout = state.get("power_saving").get("display_off_sec")
-                    self._wakeup_sensitivity = state.get("power_saving").get("wakeup_sensitivity")
+                    self._display_timeout = state.get("power_saving").get(
+                        "display_off_sec"
+                    )
+                    self._wakeup_sensitivity = state.get("power_saving").get(
+                        "wakeup_sensitivity"
+                    )
                     self._sleep_timeout = state.get("power_saving").get("standby_sec")
                 self._last_update_type = RemoteUpdateType.CONFIGURATION
             if data["msg"] == "power_mode_change":
@@ -1389,17 +1429,25 @@ class Remote:
             if (
                 data["msg_data"]["entity_type"] == "activity"
                 and data["msg_data"]["new_state"]["attributes"]["state"] == "RUNNING"
-                and data["msg_data"]["new_state"]["attributes"]["step"]["entity"]["type"]
+                and data["msg_data"]["new_state"]["attributes"]["step"]["entity"][
+                    "type"
+                ]
                 == "media_player"
-                and data["msg_data"]["new_state"]["attributes"]["step"]["command"]["cmd_id"]
+                and data["msg_data"]["new_state"]["attributes"]["step"]["command"][
+                    "cmd_id"
+                ]
                 == "media_player.on"
             ):
-                _LOGGER.debug("Unfoldded circle remote update link between activity and entities")
+                _LOGGER.debug(
+                    "Unfoldded circle remote update link between activity and entities"
+                )
                 activity_id = data["msg_data"]["entity_id"]
-                entity_id = data["msg_data"]["new_state"]["attributes"]["step"]["command"][
-                    "entity_id"
+                entity_id = data["msg_data"]["new_state"]["attributes"]["step"][
+                    "command"
+                ]["entity_id"]
+                entity_data = data["msg_data"]["new_state"]["attributes"]["step"][
+                    "entity"
                 ]
-                entity_data = data["msg_data"]["new_state"]["attributes"]["step"]["entity"]
                 entity_data["entity_id"] = entity_id
                 for activity in self.activities:
                     if activity._id == activity_id:
@@ -1421,12 +1469,12 @@ class Remote:
                     if activity._id == activity_id:
                         activity._state = new_state
                         # Check after included entities in activity
-                        if data["msg_data"]["new_state"].get("options") and data["msg_data"][
-                            "new_state"
-                        ]["options"].get("included_entities"):
-                            included_entities = data["msg_data"]["new_state"]["options"][
-                                "included_entities"
-                            ]
+                        if data["msg_data"]["new_state"].get("options") and data[
+                            "msg_data"
+                        ]["new_state"]["options"].get("included_entities"):
+                            included_entities = data["msg_data"]["new_state"][
+                                "options"
+                            ]["included_entities"]
                             self.update_activity_entities(activity, included_entities)
 
                 for activity_group in self.activity_groups:
@@ -1666,7 +1714,9 @@ class UCMediaPlayerEntity:
         if attributes.get("state", None):
             self._state = attributes.get("state", None)
             attributes_changed["state"] = self._state
-            if (self._state is None or self._state == "OFF") and self.activity.state == "ON":
+            if (
+                self._state is None or self._state == "OFF"
+            ) and self.activity.state == "ON":
                 self._state = "ON"
         if attributes.get("media_image_url", None):
             self._media_image_url = attributes.get("media_image_url", None)
@@ -2106,7 +2156,9 @@ class Activity:
     async def update_activity(self, options) -> None:
         async with (
             self._remote.client() as session,
-            session.patch(self._remote.url("activities/" + self.id), json=options) as response,
+            session.patch(
+                self._remote.url("activities/" + self.id), json=options
+            ) as response,
         ):
             await self._remote.raise_on_error(response)
             return await response.json()

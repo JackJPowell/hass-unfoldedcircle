@@ -96,7 +96,8 @@ async def async_setup_entry(
     coordinator = config_entry.runtime_data.coordinator
 
     async_add_entities(
-        UnfoldedCircleSensor(coordinator, description) for description in UNFOLDED_CIRCLE_SENSOR
+        UnfoldedCircleSensor(coordinator, description)
+        for description in UNFOLDED_CIRCLE_SENSOR
     )
 
 

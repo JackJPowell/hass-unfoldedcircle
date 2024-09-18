@@ -47,7 +47,9 @@ class RuntimeData:
 type UnfoldedCircleConfigEntry = ConfigEntry[RuntimeData]
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: UnfoldedCircleConfigEntry) -> bool:
+async def async_setup_entry(
+    hass: HomeAssistant, entry: UnfoldedCircleConfigEntry
+) -> bool:
     """Set up Unfolded Circle Remote from a config entry."""
 
     try:
@@ -159,7 +161,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: UnfoldedCircleConfigEntr
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: UnfoldedCircleConfigEntry) -> bool:
+async def async_unload_entry(
+    hass: HomeAssistant, entry: UnfoldedCircleConfigEntry
+) -> bool:
     """Unload a config entry."""
     try:
         coordinator = entry.runtime_data.coordinator
@@ -204,13 +208,18 @@ def _update_config_entry(
     return True
 
 
-def _migrate_device_identifiers(hass: HomeAssistant, entry_id: str, coordinator) -> None:
+def _migrate_device_identifiers(
+    hass: HomeAssistant, entry_id: str, coordinator
+) -> None:
     """Migrate old device identifiers."""
     dev_reg = dr.async_get(hass)
     devices: list[dr.DeviceEntry] = dr.async_entries_for_config_entry(dev_reg, entry_id)
     for device in devices:
         old_identifier = list(next(iter(device.identifiers)))
-        if "ucr" not in old_identifier[1].lower() and "ucd" not in old_identifier[1].lower():
+        if (
+            "ucr" not in old_identifier[1].lower()
+            and "ucd" not in old_identifier[1].lower()
+        ):
             new_identifier = {
                 (
                     DOMAIN,

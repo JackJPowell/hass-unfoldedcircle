@@ -126,7 +126,8 @@ async def async_setup_entry(
     )
 
     async_add_entities(
-        UCRemoteConfigSwitch(coordinator, configSwitch) for configSwitch in UNFOLDED_CIRCLE_SWITCH
+        UCRemoteConfigSwitch(coordinator, configSwitch)
+        for configSwitch in UNFOLDED_CIRCLE_SWITCH
     )
 
     @service.verify_domain_control(hass, DOMAIN)
@@ -144,12 +145,14 @@ async def async_setup_entry(
 
         if service_call.service == UPDATE_ACTIVITY_SERVICE:
             coordinator = config_entry.runtime_data.coordinator
-            await coordinator.api.get_activity_by_id(entity.unique_id).edit(service_call.data)
+            await coordinator.api.get_activity_by_id(entity.unique_id).edit(
+                service_call.data
+            )
             test = 1 + 1
 
-    prevent_sleep_schema = cv.make_entity_service_schema({
-        vol.Optional(ATTR_PREVENT_SLEEP, default=False): cv.boolean
-    })
+    prevent_sleep_schema = cv.make_entity_service_schema(
+        {vol.Optional(ATTR_PREVENT_SLEEP, default=False): cv.boolean}
+    )
 
     hass.services.async_register(
         DOMAIN,
@@ -212,7 +215,9 @@ class UCRemoteConfigSwitch(UnfoldedCircleEntity, SwitchEntity):
 
     entity_description = UNFOLDED_CIRCLE_SWITCH
 
-    def __init__(self, coordinator, description: UnfoldedCircleSwitchEntityDescription) -> None:
+    def __init__(
+        self, coordinator, description: UnfoldedCircleSwitchEntityDescription
+    ) -> None:
         """Initialize a switch."""
         super().__init__(coordinator)
         self._description = description

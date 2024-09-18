@@ -17,15 +17,19 @@ async def async_setup_entry(
     """Set up entity in HA."""
     coordinator = config_entry.runtime_data.coordinator
     dock_coordinators = config_entry.runtime_data.dock_coordinators
-    async_add_entities([
-        RebootButton(coordinator),
-        UpdateCheckButton(coordinator),
-    ])
+    async_add_entities(
+        [
+            RebootButton(coordinator),
+            UpdateCheckButton(coordinator),
+        ]
+    )
     for dock_coordinator in dock_coordinators:
-        async_add_entities([
-            RebootDockButton(dock_coordinator),
-            IdentifyDockButton(dock_coordinator),
-        ])
+        async_add_entities(
+            [
+                RebootDockButton(dock_coordinator),
+                IdentifyDockButton(dock_coordinator),
+            ]
+        )
 
 
 class RebootButton(UnfoldedCircleEntity, ButtonEntity):
@@ -35,9 +39,7 @@ class RebootButton(UnfoldedCircleEntity, ButtonEntity):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._attr_has_entity_name = True
-        self._attr_unique_id = (
-            f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_restart_button"
-        )
+        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_restart_button"
         self._attr_name = "Restart"
         self._attr_entity_category = EntityCategory.CONFIG
         self._attr_icon = "mdi:gesture-tap-button"

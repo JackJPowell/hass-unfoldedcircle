@@ -10,7 +10,9 @@ from .coordinator import UnfoldedCircleDockCoordinator
 from . import UnfoldedCircleConfigEntry
 
 
-async def async_setup_entry(hass: HomeAssistant, config_entry: UnfoldedCircleConfigEntry):
+async def async_setup_entry(
+    hass: HomeAssistant, config_entry: UnfoldedCircleConfigEntry
+):
     """Add sensors for passed config_entry in HA."""
     coordinator = config_entry.runtime_data.coordinator
 

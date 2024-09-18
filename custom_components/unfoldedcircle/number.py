@@ -151,7 +151,9 @@ async def async_setup_entry(
     # Setup connection with devices
     coordinator = config_entry.runtime_data.coordinator
     dock_coordinators = config_entry.runtime_data.dock_coordinators
-    async_add_entities(UCRemoteNumber(coordinator, Number) for Number in UNFOLDED_CIRCLE_NUMBER)
+    async_add_entities(
+        UCRemoteNumber(coordinator, Number) for Number in UNFOLDED_CIRCLE_NUMBER
+    )
 
     for dock_coordinator in dock_coordinators:
         async_add_entities(
@@ -165,7 +167,9 @@ class UCRemoteNumber(UnfoldedCircleEntity, NumberEntity):
 
     entity_description = UNFOLDED_CIRCLE_NUMBER
 
-    def __init__(self, coordinator, description: UnfoldedCircleNumberEntityDescription) -> None:
+    def __init__(
+        self, coordinator, description: UnfoldedCircleNumberEntityDescription
+    ) -> None:
         """Initialize a Number."""
         super().__init__(coordinator)
         self._description = description
@@ -197,7 +201,9 @@ class UCRemoteNumber(UnfoldedCircleEntity, NumberEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        self._attr_native_value = getattr(self.coordinator.api, self.entity_description.key)
+        self._attr_native_value = getattr(
+            self.coordinator.api, self.entity_description.key
+        )
         self.async_write_ha_state()
 
 
@@ -248,7 +254,9 @@ class UCDockNumber(UnfoldedCircleDockEntity, NumberEntity):
 
     entity_description = UNFOLDED_CIRCLE_NUMBER
 
-    def __init__(self, coordinator, description: UnfoldedCircleNumberEntityDescription) -> None:
+    def __init__(
+        self, coordinator, description: UnfoldedCircleNumberEntityDescription
+    ) -> None:
         """Initialize a Number."""
         super().__init__(coordinator)
         self._description = description
@@ -280,5 +288,7 @@ class UCDockNumber(UnfoldedCircleDockEntity, NumberEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        self._attr_native_value = getattr(self.coordinator.api, self.entity_description.key)
+        self._attr_native_value = getattr(
+            self.coordinator.api, self.entity_description.key
+        )
         self.async_write_ha_state()
