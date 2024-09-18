@@ -69,11 +69,11 @@
   },
   "issues": {
     "dock_password": {
-      "title": "Supply {name} Password",
+      "title": "Supply dock password for {name}",
       "fix_flow": {
         "step": {
           "confirm": {
-            "title": "Supply {name} Password",
+            "title": "Supply dock password for {name}",
             "description": "Your dock password is needed to offer learning support",
             "data": {
               "password": "{name} Password"
