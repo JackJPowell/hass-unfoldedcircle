@@ -9,9 +9,11 @@ import re
 import socket
 import time
 from urllib.parse import urljoin, urlparse
+from wakeonlan import send_magic_packet
 
 import aiohttp
 import zeroconf
+
 
 from .const import (
     AUTH_APIKEY_NAME,
@@ -48,6 +50,15 @@ class SystemCommandNotFound(BaseException):
     def __init__(self, message) -> None:
         """Raise command no found error."""
         self.message = message
+        super().__init__(self.message)
+
+
+class RemoteIsSleeping(ConnectionError):
+    """Raised when the remote doesn't wake from sleep."""
+
+    def __init__(self) -> None:
+        """Raise remote is asleep"""
+        self.message = "The remote did not respond to the WOL packet"
         super().__init__(self.message)
 
 
@@ -104,7 +115,9 @@ class RemoteGroup(list):
 class Remote:
     """Unfolded Circle Remote Class."""
 
-    def __init__(self, api_url, pin=None, apikey=None) -> None:
+    def __init__(
+        self, api_url, pin=None, apikey=None, wake_if_asleep: bool = True
+    ) -> None:
         """Create a new UC Remote Object."""
         self.endpoint = self.validate_url(api_url)
         self.configuration_url = self.derive_configuration_url()
@@ -161,6 +174,8 @@ class Remote:
         self._last_update_type = RemoteUpdateType.NONE
         self._is_simulator = None
         self._docks: list[Dock] = []
+        self._wake_if_asleep = wake_if_asleep
+        self._wake_on_lan_retries = 5
 
     @property
     def name(self):
@@ -380,6 +395,15 @@ class Remote:
         """Last update type from received message."""
         return self._last_update_type
 
+    @property
+    def wake_on_lan_retries(self):
+        """The number of tries to connect after a WOL attempt"""
+        return self._wake_on_lan_retries
+
+    @wake_on_lan_retries.setter
+    def wake_on_lan_retries(self, value):
+        self._wake_on_lan_retries = value
+
     ### URL Helpers ###
     def validate_url(self, uri):
         """Validate passed in URL and attempts to correct api endpoint if path isn't supplied."""
@@ -440,7 +464,7 @@ class Remote:
                 auth=auth, timeout=aiohttp.ClientTimeout(total=2)
             )
 
-    async def can_connect(self) -> bool:
+    async def validate_connection(self) -> bool:
         """Validate we can communicate with the remote given the supplied information."""
         async with (
             self.client() as session,
@@ -449,6 +473,19 @@ class Remote:
             if response.status == 401:
                 raise AuthenticationError
             return response.status == 200
+
+    async def wake(self, wait_for_confirmation: bool = True) -> bool:
+        """Sends a magic packet to attempt to wake the device while asleep."""
+        send_magic_packet(self._mac_address)
+        if wait_for_confirmation is False:
+            return True
+        attempt = 0
+        while attempt < self._wake_on_lan_retries:
+            if await self.validate_connection():
+                return True
+            attempt += 1
+            await asyncio.sleep(1)
+        return False
 
     async def raise_on_error(self, response):
         """Raise an HTTP error if the response returns poorly."""
@@ -844,6 +881,10 @@ class Remote:
         self, auto_brightness=None, brightness=None
     ) -> bool:
         """Update remote display settings"""
+        if self._wake_if_asleep:
+            if not await self.wake():
+                raise ConnectionError
+
         display_settings = await self.get_remote_display_settings()
         if auto_brightness is not None:
             display_settings["auto_brightness"] = auto_brightness
@@ -874,6 +915,10 @@ class Remote:
         self, auto_brightness=None, brightness=None
     ) -> bool:
         """Update remote button settings"""
+        if self._wake_if_asleep:
+            if not await self.wake():
+                raise RemoteIsSleeping
+
         button_settings = await self.get_remote_button_settings()
         if auto_brightness is not None:
             button_settings["auto_brightness"] = auto_brightness
@@ -904,6 +949,10 @@ class Remote:
         self, sound_effects=None, sound_effects_volume=None
     ) -> bool:
         """Update remote sound settings"""
+        if self._wake_if_asleep:
+            if not await self.wake():
+                raise RemoteIsSleeping
+
         sound_settings = await self.get_remote_sound_settings()
         if sound_effects is not None:
             sound_settings["enabled"] = sound_effects
@@ -931,6 +980,10 @@ class Remote:
 
     async def patch_remote_haptic_settings(self, haptic_feedback=None) -> bool:
         """Update remote haptic settings"""
+        if self._wake_if_asleep:
+            if not await self.wake():
+                raise RemoteIsSleeping
+
         haptic_settings = await self.get_remote_haptic_settings()
         if haptic_feedback is not None:
             haptic_settings["enabled"] = haptic_feedback
@@ -960,6 +1013,10 @@ class Remote:
         self, display_timeout=None, wakeup_sensitivity=None, sleep_timeout=None
     ) -> bool:
         """Update remote power saving settings"""
+        if self._wake_if_asleep:
+            if not await self.wake():
+                raise RemoteIsSleeping
+
         power_saving_settings = await self.get_remote_power_saving_settings()
         if display_timeout is not None:
             power_saving_settings["display_off_sec"] = display_timeout
@@ -1131,6 +1188,10 @@ class Remote:
     async def post_system_command(self, cmd) -> str:
         """POST a system command to the remote."""
         if cmd in SYSTEM_COMMANDS:
+            if self._wake_if_asleep:
+                if not await self.wake():
+                    raise RemoteIsSleeping
+
             async with (
                 self.client() as session,
                 session.post(self.url("system?cmd=" + cmd)) as response,
@@ -1287,6 +1348,10 @@ class Remote:
             raise NoEmitterFound("No emitter could be found with the supplied criteria")
 
         body_merged = {**body, **body_repeat, **body_port}
+
+        if self._wake_if_asleep:
+            if not await self.wake():
+                raise RemoteIsSleeping
 
         async with (
             self.client() as session,
@@ -1756,6 +1821,10 @@ class UCMediaPlayerEntity:
 
     async def turn_on(self) -> None:
         """Turn on the media player."""
+        if self._remote._wake_if_asleep:
+            if not await self._remote.wake():
+                raise RemoteIsSleeping
+
         entity_id = self.id
         body = {"entity_id": entity_id, "cmd_id": "media_player.on"}
         if self.activity.power_command:
@@ -1773,6 +1842,10 @@ class UCMediaPlayerEntity:
 
     async def turn_off(self) -> None:
         """Turn off the media player."""
+        if self._remote._wake_if_asleep:
+            if not await self._remote.wake():
+                raise RemoteIsSleeping
+
         entity_id = self.id
         body = {"entity_id": self._id, "cmd_id": "media_player.off"}
         if self.activity.power_command:
@@ -1790,6 +1863,10 @@ class UCMediaPlayerEntity:
 
     async def select_source(self, source) -> None:
         """Select source of the media player."""
+        if self._remote._wake_if_asleep:
+            if not await self._remote.wake():
+                raise RemoteIsSleeping
+
         body = {
             "entity_id": self._id,
             "cmd_id": "media_player.select_source",
@@ -1806,6 +1883,10 @@ class UCMediaPlayerEntity:
 
     async def volume_up(self) -> None:
         """Raise volume of the media player."""
+        if self._remote._wake_if_asleep:
+            if not await self._remote.wake():
+                raise RemoteIsSleeping
+
         entity_id = self.id
         body = {"entity_id": entity_id, "cmd_id": "media_player.volume_up"}
         if self.activity.volume_up_command:
@@ -1822,6 +1903,10 @@ class UCMediaPlayerEntity:
 
     async def volume_down(self) -> None:
         """Decrease the volume of the media player."""
+        if self._remote._wake_if_asleep:
+            if not await self._remote.wake():
+                raise RemoteIsSleeping
+
         entity_id = self.id
         body = {"entity_id": entity_id, "cmd_id": "media_player.volume_down"}
         if self.activity.volume_down_command:
@@ -1838,6 +1923,10 @@ class UCMediaPlayerEntity:
 
     async def mute(self) -> None:
         """Mute the volume of the media player."""
+        if self._remote._wake_if_asleep:
+            if not await self._remote.wake():
+                raise RemoteIsSleeping
+
         entity_id = self.id
         body = {"entity_id": entity_id, "cmd_id": "media_player.mute_toggle"}
         if self.activity.volume_mute_command:
@@ -1854,6 +1943,10 @@ class UCMediaPlayerEntity:
 
     async def volume_set(self, volume: int) -> None:
         """Raise volume of the media player."""
+        if self._remote._wake_if_asleep:
+            if not await self._remote.wake():
+                raise RemoteIsSleeping
+
         int_volume = int(volume)
         entity_id = self.id
         body = {
@@ -1880,6 +1973,10 @@ class UCMediaPlayerEntity:
 
     async def play_pause(self) -> None:
         """Play pause the media player."""
+        if self._remote._wake_if_asleep:
+            if not await self._remote.wake():
+                raise RemoteIsSleeping
+
         entity_id = self.id
         body = {"entity_id": entity_id, "cmd_id": "media_player.play_pause"}
         if self.activity.play_pause_command:
@@ -1896,6 +1993,10 @@ class UCMediaPlayerEntity:
 
     async def next(self) -> None:
         """Next track/chapter of the media player."""
+        if self._remote._wake_if_asleep:
+            if not await self._remote.wake():
+                raise RemoteIsSleeping
+
         entity_id = self.id
         body = {"entity_id": entity_id, "cmd_id": "media_player.next"}
         if self.activity.next_track_command:
@@ -1912,6 +2013,10 @@ class UCMediaPlayerEntity:
 
     async def previous(self) -> None:
         """Previous track/chapter of the media player."""
+        if self._remote._wake_if_asleep:
+            if not await self._remote.wake():
+                raise RemoteIsSleeping
+
         entity_id = self.id
         body = {"entity_id": entity_id, "cmd_id": "media_player.previous"}
         if self.activity.prev_track_command:
@@ -1928,6 +2033,10 @@ class UCMediaPlayerEntity:
 
     async def stop(self) -> None:
         """Stop the media player."""
+        if self._remote._wake_if_asleep:
+            if not await self._remote.wake():
+                raise RemoteIsSleeping
+
         entity_id = self.id
         body = {"entity_id": entity_id, "cmd_id": "media_player.stop"}
         if self.activity.stop_command:
@@ -1944,6 +2053,10 @@ class UCMediaPlayerEntity:
 
     async def seek(self, position: float) -> None:
         """Skip to given media position of the media player."""
+        if self._remote._wake_if_asleep:
+            if not await self._remote.wake():
+                raise RemoteIsSleeping
+
         entity_id = self.id
         body = {
             "entity_id": entity_id,
@@ -2110,6 +2223,10 @@ class Activity:
 
     async def turn_on(self) -> None:
         """Turn on an Activity."""
+        if self._remote._wake_if_asleep:
+            if not await self._remote.wake():
+                raise RemoteIsSleeping
+
         body = {"entity_id": self._id, "cmd_id": "activity.on"}
 
         async with (
@@ -2123,6 +2240,10 @@ class Activity:
 
     async def turn_off(self) -> None:
         """Turn off an Activity."""
+        if self._remote._wake_if_asleep:
+            if not await self._remote.wake():
+                raise RemoteIsSleeping
+
         body = {"entity_id": self._id, "cmd_id": "activity.off"}
 
         async with (
