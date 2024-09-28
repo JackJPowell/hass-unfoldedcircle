@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er, issue_registry
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
+from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 from .const import DOMAIN
 from .coordinator import (
@@ -54,7 +54,7 @@ async def async_setup_entry(
 
     try:
         remote_api = Remote(entry.data["host"], entry.data["pin"], entry.data["apiKey"])
-        await remote_api.can_connect()
+        await remote_api.validate_connection()
         await remote_api.get_remote_information()
 
     except AuthenticationError as err:

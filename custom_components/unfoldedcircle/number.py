@@ -8,16 +8,11 @@ from homeassistant.components.number import (
     NumberEntity,
     NumberEntityDescription,
 )
-from homeassistant.config_entries import ConfigEntry
+
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import (
-    DOMAIN,
-    UNFOLDED_CIRCLE_COORDINATOR,
-    UNFOLDED_CIRCLE_DOCK_COORDINATORS,
-)
 from .coordinator import (
     UnfoldedCircleRemoteCoordinator,
     UnfoldedCircleDockCoordinator,
@@ -216,7 +211,7 @@ async def update_dock_led_brightness(
 async def update_dock_ethernet_led_brightness(
     coordinator: UnfoldedCircleDockCoordinator, value: int
 ) -> None:
-    await coordinator.api.patch_remote_button_settings(
+    await coordinator.api.send_command(
         command="SET_ETHERNET_LED_BRIGHTNESS", command_value=value
     )
 
