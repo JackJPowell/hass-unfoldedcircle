@@ -15,12 +15,12 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.network import get_url
-from .pyUnfoldedCircleRemote.const import (
+from pyUnfoldedCircleRemote.const import (
     AUTH_APIKEY_NAME,
     SIMULATOR_MAC_ADDRESS,
 )
 from .helpers import validate_dock_password
-from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
+from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 from .const import (
     CONF_ACTIVITIES_AS_SWITCHES,
