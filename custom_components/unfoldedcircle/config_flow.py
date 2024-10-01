@@ -83,10 +83,10 @@ async def validate_input(
         remote = Remote(data["host"], data["pin"])
 
     try:
-        await remote.can_connect()
+        await remote.validate_connection()
     except AuthenticationError as err:
         raise InvalidAuth from err
-    except CannotConnect as ex:  # pylint: disable=broad-except
+    except ConnectionError as ex:
         raise CannotConnect from ex
 
     for key in await remote.get_api_keys():

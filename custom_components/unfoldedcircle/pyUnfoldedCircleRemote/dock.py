@@ -104,7 +104,7 @@ class Dock:
         state: str = "",
         is_learning_active: bool = False,
     ) -> None:
-        """Create a new UC Remote Object."""
+        """Create a new UC Dock Object."""
 
         self._ws_endpoint = ws_url
         self._id = dock_id
@@ -358,7 +358,7 @@ class Dock:
                 headers=headers, timeout=aiohttp.ClientTimeout(total=5)
             )
 
-    async def can_connect(self) -> bool:
+    async def validate_connection(self) -> bool:
         """Validate we can communicate with the remote given the supplied information."""
         async with (
             self.client() as session,
