@@ -176,7 +176,10 @@ class Remote:
         self._is_simulator = None
         self._docks: list[Dock] = []
         self._wake_if_asleep = wake_if_asleep
+        self._wake_on_lan: bool = True
         self._wake_on_lan_retries = 3
+        self._bt_enabled: bool = True
+        self._wifi_enabled: bool = True
 
     @property
     def name(self):
@@ -408,6 +411,11 @@ class Remote:
     @wake_on_lan_retries.setter
     def wake_on_lan_retries(self, value):
         self._wake_on_lan_retries = value
+
+    @property
+    def wake_on_lan(self):
+        """Is Wake on Lan Enabled"""
+        return self._wake_on_lan
 
     ### URL Helpers ###
     def validate_url(self, uri):
@@ -1031,7 +1039,7 @@ class Remote:
         self, auto_brightness=None, brightness=None
     ) -> bool:
         """Update remote display settings"""
-        if self._wake_if_asleep:
+        if self._wake_if_asleep and self._wake_on_lan:
             if not await self.wake():
                 raise ConnectionError
 
@@ -1065,7 +1073,7 @@ class Remote:
         self, auto_brightness=None, brightness=None
     ) -> bool:
         """Update remote button settings"""
-        if self._wake_if_asleep:
+        if self._wake_if_asleep and self._wake_on_lan:
             if not await self.wake():
                 raise RemoteIsSleeping
 
@@ -1099,7 +1107,7 @@ class Remote:
         self, sound_effects=None, sound_effects_volume=None
     ) -> bool:
         """Update remote sound settings"""
-        if self._wake_if_asleep:
+        if self._wake_if_asleep and self._wake_on_lan:
             if not await self.wake():
                 raise RemoteIsSleeping
 
@@ -1130,7 +1138,7 @@ class Remote:
 
     async def patch_remote_haptic_settings(self, haptic_feedback=None) -> bool:
         """Update remote haptic settings"""
-        if self._wake_if_asleep:
+        if self._wake_if_asleep and self._wake_on_lan:
             if not await self.wake():
                 raise RemoteIsSleeping
 
@@ -1163,7 +1171,7 @@ class Remote:
         self, display_timeout=None, wakeup_sensitivity=None, sleep_timeout=None
     ) -> bool:
         """Update remote power saving settings"""
-        if self._wake_if_asleep:
+        if self._wake_if_asleep and self._wake_on_lan:
             if not await self.wake():
                 raise RemoteIsSleeping
 
@@ -1273,6 +1281,48 @@ class Remote:
                     pass
             return information
 
+    async def get_remote_network_settings(self) -> str:
+        """Get remote network settings"""
+        async with (
+            self.client() as session,
+            session.get(self.url("cfg/network")) as response,
+        ):
+            await self.raise_on_error(response)
+            settings = await response.json()
+            self._wake_on_lan = settings.get("wake_on_wlan").get("enabled")
+            self._bt_enabled = settings.get("bt_enabled")
+            self._wifi_enabled = settings.get("wifi_enabled")
+            return settings
+
+    async def patch_remote_network_settings(
+        self,
+        bt_enabled: bool = None,
+        wifi_enabled: bool = None,
+        wake_on_lan: bool = None,
+    ) -> bool:
+        """Update remote network settings"""
+        if self._wake_if_asleep and self._wake_on_lan:
+            if not await self.wake():
+                raise ConnectionError
+
+        network_settings = await self.get_remote_network_settings()
+        if bt_enabled is not None:
+            network_settings["bt_enabled"] = bt_enabled
+        if wifi_enabled is not None:
+            network_settings["wifi_enabled"] = wifi_enabled
+        if wake_on_lan is not None:
+            network_settings["wake_on_wlan"]["enabled"] = wake_on_lan
+
+        async with (
+            self.client() as session,
+            session.patch(self.url("cfg/network"), json=network_settings) as response,
+        ):
+            await self.raise_on_error(response)
+            response = await response.json()
+            # Until wake_on_lan is added to websocket message
+            self._wake_on_lan = wake_on_lan
+            return True
+
     async def update_remote(self, download_only: bool = False) -> str:
         """Update Remote."""
         # If we only want to download the firmware, check the status.
@@ -1338,7 +1388,7 @@ class Remote:
     async def post_system_command(self, cmd) -> str:
         """POST a system command to the remote."""
         if cmd in SYSTEM_COMMANDS:
-            if self._wake_if_asleep:
+            if self._wake_if_asleep and self._wake_on_lan:
                 if not await self.wake():
                     raise RemoteIsSleeping
 
@@ -1502,7 +1552,7 @@ class Remote:
 
         body_merged = {**body, **body_repeat, **body_port}
 
-        if self._wake_if_asleep:
+        if self._wake_if_asleep and self._wake_on_lan:
             if not await self.wake():
                 raise RemoteIsSleeping
 
@@ -1769,6 +1819,7 @@ class Remote:
             self.get_remote_haptic_settings(),
             self.get_remote_power_saving_settings(),
             self.get_remote_update_settings(),
+            self.get_remote_network_settings(),
             self.get_activities(),
             self.get_remote_codesets(),
             self.get_ir_emitters(),
@@ -1806,6 +1857,7 @@ class Remote:
             self.get_remote_haptic_settings(),
             self.get_remote_power_saving_settings(),
             self.get_remote_update_settings(),
+            self.get_remote_network_settings(),
             self.get_activities_state(),
         ]
         for coroutine in asyncio.as_completed(tasks):
