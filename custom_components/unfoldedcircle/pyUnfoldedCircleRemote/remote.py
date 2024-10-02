@@ -1319,8 +1319,6 @@ class Remote:
         ):
             await self.raise_on_error(response)
             response = await response.json()
-            # Until wake_on_lan is added to websocket message
-            self._wake_on_lan = wake_on_lan
             return True
 
     async def update_remote(self, download_only: bool = False) -> str:
@@ -1663,6 +1661,10 @@ class Remote:
                         "wakeup_sensitivity"
                     )
                     self._sleep_timeout = state.get("power_saving").get("standby_sec")
+                if state.get("network") is not None:
+                    self._wake_on_lan = (
+                        state.get("network").get("wake_on_wlan").get("enabled")
+                    )
                 self._last_update_type = RemoteUpdateType.CONFIGURATION
             if data["msg"] == "power_mode_change":
                 _LOGGER.debug("Unfolded circle Power Mode change")
