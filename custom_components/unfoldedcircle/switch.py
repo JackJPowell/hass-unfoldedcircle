@@ -58,6 +58,13 @@ async def update_remote_haptic_settings(
     await coordinator.api.patch_remote_haptic_settings(enable)
 
 
+async def update_remote_network_settings(
+    coordinator: UnfoldedCircleRemoteCoordinator, enable: bool
+) -> None:
+    """Update remote network settings"""
+    await coordinator.api.patch_remote_network_settings(wake_on_lan=enable)
+
+
 UNFOLDED_CIRCLE_SWITCH: tuple[UnfoldedCircleSwitchEntityDescription, ...] = (
     UnfoldedCircleSwitchEntityDescription(
         key="display_auto_brightness",
@@ -94,6 +101,15 @@ UNFOLDED_CIRCLE_SWITCH: tuple[UnfoldedCircleSwitchEntityDescription, ...] = (
         unique_id="haptic_feedback",
         icon="mdi:vibrate",
         control_fn=update_remote_haptic_settings,
+    ),
+    UnfoldedCircleSwitchEntityDescription(
+        key="wake_on_lan",
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.CONFIG,
+        name="Wake on Lan",
+        unique_id="wake_on_lan",
+        icon="mdi:lan-check",
+        control_fn=update_remote_network_settings,
     ),
 )
 
@@ -240,7 +256,7 @@ class UCRemoteConfigSwitch(UnfoldedCircleEntity, SwitchEntity):
 
     @property
     def should_poll(self) -> bool:
-        return True
+        return False
 
     async def async_turn_on(self, **kwargs) -> None:
         """Instruct the switch to turn on."""
