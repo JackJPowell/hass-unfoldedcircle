@@ -1,8 +1,9 @@
 # Home Assistant
-homeassistant>=2024.8.3
+homeassistant>=2024.10.1
 PyTurboJPEG
 
 # Development
 colorlog==6.7.0
 pip>=24.2
 ruff>=0.5.3
+aiohttp_fast_zlib

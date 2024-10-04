@@ -1,8 +1,8 @@
 // See https://aka.ms/vscode-remote/devcontainer.json for format details.
 {
   "name": "Home Assistant integration development",
-  "image": "mcr.microsoft.com/vscode/devcontainers/python:3.12-bullseye",
-  "postCreateCommand": ".devcontainer/setup",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bullseye",
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install libturbojpeg0",
   "postAttachCommand": ".devcontainer/setup",
   "forwardPorts": [8123],
   "runArgs": ["-e", "GIT_EDITOR=code --wait", "--network=host"],
