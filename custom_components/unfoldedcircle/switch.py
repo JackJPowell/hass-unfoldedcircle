@@ -141,9 +141,17 @@ async def async_setup_entry(
         for switch in filter(lambda a: a not in activities, coordinator.api.activities)
     )
 
+    # Remove WOL switch if it is not available on the remote
+    switches: list = []
+    if not coordinator.api._wake_on_lan_available:
+        for item in UNFOLDED_CIRCLE_SWITCH:
+            if item.key != "wake_on_lan":
+                switches.append(item)
+    else:
+        switches = UNFOLDED_CIRCLE_SWITCH
+
     async_add_entities(
-        UCRemoteConfigSwitch(coordinator, configSwitch)
-        for configSwitch in UNFOLDED_CIRCLE_SWITCH
+        UCRemoteConfigSwitch(coordinator, configSwitch) for configSwitch in switches
     )
 
     @service.verify_domain_control(hass, DOMAIN)
@@ -228,8 +236,6 @@ class UCRemoteSwitch(UnfoldedCircleEntity, SwitchEntity):
 
 class UCRemoteConfigSwitch(UnfoldedCircleEntity, SwitchEntity):
     """Class representing an unfolded circle setting."""
-
-    entity_description = UNFOLDED_CIRCLE_SWITCH
 
     def __init__(
         self, coordinator, description: UnfoldedCircleSwitchEntityDescription
