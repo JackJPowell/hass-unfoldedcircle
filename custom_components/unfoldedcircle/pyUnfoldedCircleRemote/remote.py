@@ -176,10 +176,11 @@ class Remote:
         self._is_simulator = None
         self._docks: list[Dock] = []
         self._wake_if_asleep = wake_if_asleep
-        self._wake_on_lan: bool = True
-        self._wake_on_lan_retries = 3
-        self._bt_enabled: bool = True
-        self._wifi_enabled: bool = True
+        self._wake_on_lan: bool = False
+        self._wake_on_lan_retries = 2
+        self._wake_on_lan_available: bool = False
+        self._bt_enabled: bool = False
+        self._wifi_enabled: bool = False
 
     @property
     def name(self):
@@ -1289,9 +1290,15 @@ class Remote:
         ):
             await self.raise_on_error(response)
             settings = await response.json()
-            self._wake_on_lan = settings.get("wake_on_wlan").get("enabled")
+
             self._bt_enabled = settings.get("bt_enabled")
             self._wifi_enabled = settings.get("wifi_enabled")
+
+            try:
+                self._wake_on_lan = settings.get("wake_on_wlan").get("enabled")
+                self._wake_on_lan_available = True
+            except AttributeError:
+                self._wake_on_lan = False
             return settings
 
     async def patch_remote_network_settings(
@@ -1310,7 +1317,7 @@ class Remote:
             network_settings["bt_enabled"] = bt_enabled
         if wifi_enabled is not None:
             network_settings["wifi_enabled"] = wifi_enabled
-        if wake_on_lan is not None:
+        if wake_on_lan is not None and self._sw_version >= 2:
             network_settings["wake_on_wlan"]["enabled"] = wake_on_lan
 
         async with (
