@@ -85,6 +85,7 @@ After the device is configured, the integration will expose 22 entities plus the
 - Switches
   - A switch is created for every activity defined that is not apart of an activity group.
     - An option exists to create a switch for each activity regardless of activity group.
+  - Settings for each configuration option on the remote are also exposed as switches
 - Select
   - A select is created for every activity group defined.
     - An option exists to suppress the creation of activity groups
@@ -202,9 +203,13 @@ Additional options have been added to the intergration for further customization
 Your Remote Two will now be automatically discovered on the network.
 **Zeroconf handling has been significantly improved and should now properly detect when a device has already been configured.**
 
+## Wake on lan
+
+Wake on lan support is now available for remotes running firmware version 2.0.0 or higher. Once your remote has been upgraded, and you've turned the feature on, anytime you take a direct action within home assistant to communicate with the remote, it will first attempt to wake the remote up. 
+
 ## Future Ideas
 
-- [ ] Once WOL is added by the remote developers, implement it in the hass integration to wake the remote prior to sending commands
+- [X] Wake on lan was added by the remote developers and has been implemented 
 
 ## Notes
 
