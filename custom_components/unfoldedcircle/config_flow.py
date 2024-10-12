@@ -1,26 +1,30 @@
 """Config flow for Unfolded Circle Remote integration."""
 
+import asyncio
 import logging
 import re
-from datetime import timedelta
-from typing import Any
+from typing import Any, Awaitable, Callable, Type
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN
 from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.config_entries import ConfigEntry, ConfigFlow
 from homeassistant.const import CONF_HOST, CONF_MAC, CONF_NAME, CONF_PORT
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.network import get_url
-from pyUnfoldedCircleRemote.const import (
-    AUTH_APIKEY_NAME,
-    SIMULATOR_MAC_ADDRESS,
+from homeassistant.helpers.selector import (
+    EntitySelector,
+    EntitySelectorConfig,
 )
-from .helpers import validate_dock_password
-from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
+from voluptuous import Optional, Required
+
+from .helpers import (
+    validate_dock_password,
+    get_ha_websocket_url,
+    generate_token,
+    remove_token,
+)
 
 from .const import (
     CONF_ACTIVITIES_AS_SWITCHES,
@@ -30,111 +34,267 @@ from .const import (
     CONF_SERIAL,
     CONF_SUPPRESS_ACTIVITIY_GROUPS,
     DOMAIN,
+    HA_SUPPORTED_DOMAINS,
+    UC_HA_TOKEN_ID,
+    UC_HA_SYSTEM,
+    UC_HA_DRIVER_ID,
+    CONF_HA_WEBSOCKET_URL,
 )
-
+from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
+from .pyUnfoldedCircleRemote.remote import (
+    AuthenticationError,
+    Remote,
+    RemoteConnectionError,
+    HTTPError,
+)
+from .websocket import SubscriptionEvent, UCWebsocketClient
 
 _LOGGER = logging.getLogger(__name__)
 
-STEP_USER_DATA_SCHEMA = vol.Schema(
-    {
-        vol.Required("host"): str,
-        vol.Required("pin"): str,
-    }
-)
 
-STEP_ZEROCONF_DATA_SCHEMA = vol.Schema({vol.Required("pin"): str})
+async def async_step_select_entities(
+    config_flow: ConfigFlow | config_entries.OptionsFlow,
+    hass: HomeAssistant,
+    remote: Remote,
+    finish_callback: Callable[[dict[str, Any] | None], Awaitable[FlowResult]],
+    user_input: dict[str, Any] | None = None,
+) -> FlowResult:
+    """Handle the selected entities to subscribe to for both setup and config flows."""
+    errors: dict[str, str] = {}
+    subscribed_entities_subscription: SubscriptionEvent | None = None
+    configure_entities_subscription: SubscriptionEvent | None = None
+    websocket_client = UCWebsocketClient(hass)
+    filtered_domains = HA_SUPPORTED_DOMAINS
+    _LOGGER.debug("Extracted remote information %s", await remote.get_version())
+    _LOGGER.debug(
+        'Using remote ID "%s" to get and set subscribed entities', remote.hostname
+    )
 
+    if user_input is None:
+        # First find the active HA drivers on the remote
+        error_message = None
+        await remote.get_remote_configuration()
+        integrations = await remote.get_integrations()
+        _LOGGER.debug("Extraction of remote's integrations %s", integrations)
+        for integration in integrations:
+            integration_id: str | None = integration.get("integration_id", None)
+            if integration_id is None:  # or not integration.get("enabled", False):
+                continue
+            # TODO hack to reload only HA integrations including external ones
+            if not integration_id.startswith(UC_HA_DRIVER_ID):
+                continue
+            # Force reload of all the integrations entities as we don't know which one to address
+            try:
+                # If the HA driver is disconnected, request connection in order to retrieve and update entities
+                if integration.get("device_state", "") != "CONNECTED":
+                    _LOGGER.debug(
+                        "Home assistant driver is disconnected, connect it..."
+                    )
+                    try:
+                        await remote.put_integration(
+                            integration.get("integration_id"), command="CONNECT"
+                        )
+                    except HTTPError as ex:
+                        error_message = ex.message
+                        errors["base"] = "ha_driver_failure"
+                        _LOGGER.error(
+                            "Error while trying to connect remote and driver : %s", ex
+                        )
 
-async def generate_token(hass: HomeAssistant, name):
-    """Generate a token for Unfolded Circle to use with HA API"""
-    user = await hass.auth.async_get_owner()
-    try:
-        token = await hass.auth.async_create_refresh_token(
-            user=user,
-            client_name=name,
-            client_icon="",
-            token_type=TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN,
-            access_token_expiration=timedelta(days=3652),
+                _LOGGER.debug("Refresh the integration entities of %s", integration_id)
+                integration_entities = await remote.get_remote_integration_entities(
+                    integration_id, True
+                )
+                _LOGGER.debug(
+                    "Integration entities of %s : %s",
+                    integration_id,
+                    integration_entities,
+                )
+            except Exception as ex:
+                _LOGGER.warning(
+                    "Error while refreshing integration entities of integration: %s, %s",
+                    integration_id,
+                    ex,
+                )
+                errors["base"] = "ha_driver_failure"
+                error_message = str(ex)
+
+        # Wait until 5 seconds so that the driver connects to HA and subscribe to events
+        retries = 5
+        while retries > 0:
+            await asyncio.sleep(1)
+            retries -= 1
+            try:
+                subscribed_entities_subscription = (
+                    websocket_client.get_subscribed_entities(remote.hostname)
+                )
+                configure_entities_subscription = (
+                    websocket_client.get_driver_subscription(remote.hostname)
+                )
+                if (
+                    subscribed_entities_subscription is not None
+                    and configure_entities_subscription is not None
+                ):
+                    break
+                _LOGGER.debug(
+                    "Waiting for current subscribed entities from HA driver... (%s)",
+                    retries,
+                )
+            except Exception as ex:
+                _LOGGER.error("Error while waiting for websocket events: %s", ex)
+
+        if configure_entities_subscription is None:
+            _LOGGER.error(
+                "The remote's websocket didn't subscribe to configuration event, unable to retrieve and update entities"
+            )
+            if error_message is None:
+                error_message = "remote's driver didn't respond to requests"
+            # TODO : improve errors display with placeholders (but not working with menu ?)
+            return config_flow.async_show_menu(
+                step_id="select_entities",
+                menu_options=["error", "finish"],
+                description_placeholders={"message": error_message},
+            )
+        _LOGGER.debug(
+            "Found configuration subscription for remote : %s",
+            configure_entities_subscription,
         )
-    except ValueError:
-        _LOGGER.warning("There is already a long lived token with %s name", name)
-        return None
+        subscribed_entities: list[str] = []
+        if subscribed_entities_subscription:
+            _LOGGER.debug(
+                "Found subscribed entities for remote : %s",
+                subscribed_entities_subscription,
+            )
+            subscribed_entities = subscribed_entities_subscription.entity_ids
 
-    return hass.auth.async_create_access_token(token)
+        config: EntitySelectorConfig = {
+            "exclude_entities": subscribed_entities,
+            "filter": [{"domain": filtered_domains}],
+            "multiple": True,
+        }
 
+        data_schema: dict[any, any] = {"add_entities": EntitySelector(config)}
+        if len(subscribed_entities) > 0:
+            config: EntitySelectorConfig = {
+                "include_entities": subscribed_entities,
+                "filter": [{"domain": filtered_domains}],
+                "multiple": True,
+            }
+            data_schema.update({"remove_entities": EntitySelector(config)})
 
-async def remove_token(hass: HomeAssistant, token):
-    """Remove api token from remote"""
-    _LOGGER.debug("Removing refresh token")
-    refresh_token = await hass.auth.async_get_refresh_token_by_token(token)
-    await hass.auth.async_remove_refresh_token(refresh_token)
+        _LOGGER.debug("Add/removal of entities %s", data_schema)
+        return config_flow.async_show_form(
+            step_id="select_entities",
+            data_schema=vol.Schema(data_schema),
+            description_placeholders={"remote_name": remote.name},
+            errors=errors,
+        )
+    if user_input is not None:
+        configure_entities_subscription = websocket_client.get_driver_subscription(
+            remote.hostname
+        )
+        subscribed_entities_subscription = websocket_client.get_subscribed_entities(
+            remote.hostname
+        )
+        if configure_entities_subscription is None:
+            _LOGGER.error(
+                "The remote's websocket didn't subscribe to configuration event, unable to retrieve and update entities"
+            )
+            return config_flow.async_show_menu(
+                step_id="select_entities",
+                menu_options=["not_connected", "finish"],
+            )
+        subscribed_entities: list[str] = []
+        if subscribed_entities_subscription:
+            _LOGGER.debug(
+                "Found subscribed entities for remote : %s",
+                subscribed_entities_subscription,
+            )
+            subscribed_entities = subscribed_entities_subscription.entity_ids
 
+        add_entities = user_input.get("add_entities", [])
+        remove_entities = user_input.get("remove_entities", [])
+        final_list = set(subscribed_entities) - set(remove_entities)
+        final_list.update(add_entities)
+        final_list = list(final_list)
 
-async def validate_input(
-    hass: HomeAssistant, data: dict[str, Any], host: str = ""
-) -> dict[str, Any]:
-    """Validate the user input allows us to connect.
+        _LOGGER.debug(
+            "Selected entities to subscribe to : add %s, remove %s => %s",
+            add_entities,
+            remove_entities,
+            final_list,
+        )
 
-    Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
-    """
-    if host != "":
-        remote = Remote(host, data["pin"])
-    else:
-        remote = Remote(data["host"], data["pin"])
+        entity_states = []
+        for entity_id in final_list:
+            state = hass.states.get(entity_id)
+            if state is not None:
+                entity_states.append(state)
+        try:
+            result = await websocket_client.send_configuration_to_remote(
+                remote.hostname, entity_states
+            )
+            if not result:
+                _LOGGER.error(
+                    "Failed to notify remote with the new entities %s",
+                    remote.hostname,
+                )
+                return config_flow.async_show_menu(
+                    step_id="select_entities",
+                    menu_options=["notify_failed", "finish"],
+                )
+            # Subscribe to the new entities
+            integrations = await remote.get_integrations()
+            _LOGGER.debug("Remote list of integrations %s", integrations)
+            try:
+                ha_driver_instance = next(
+                    filter(
+                        lambda instance: instance.get("driver_id", None)
+                        == subscribed_entities_subscription.driver_id,
+                        integrations,
+                    )
+                )
 
-    try:
-        await remote.validate_connection()
-    except AuthenticationError as err:
-        raise InvalidAuth from err
-    except ConnectionError as ex:
-        raise CannotConnect from ex
-
-    for key in await remote.get_api_keys():
-        if key.get("name") == AUTH_APIKEY_NAME:
-            await remote.revoke_api_key()
-
-    url = get_url(hass)
-    key = await remote.create_api_key()
-    await remote.get_remote_information()
-    await remote.get_remote_configuration()
-    await remote.get_remote_wifi_info()
-    await remote.get_docks()
-    # token = await generate_token(hass, remote.name)
-    # token_id = await remote.set_token_for_external_system(
-    #     "hass",
-    #     "hass_id",
-    #     token,
-    #     "Home Assistant",
-    #     "Home Assistant Long Lived Access Token",
-    #     url,
-    #     "data",
-    # )
-
-    if not key:
-        raise InvalidAuth("Unable to login: failed to create API key")
-
-    mac_address = None
-    if remote.mac_address:
-        mac_address = remote.mac_address.replace(":", "").lower()
-
-    docks = []
-    for dock in remote._docks:
-        docks.append({"id": dock.id, "name": dock.name, "password": ""})
-
-    # Return info that you want to store in the config entry.
-    return {
-        "title": remote.name,
-        "apiKey": key,
-        "host": remote.endpoint,
-        "pin": data["pin"],
-        "mac_address": remote.mac_address,
-        "ip_address": remote.ip_address,
-        # "token": token,
-        # "token_id": token_id,
-        CONF_SERIAL: remote.serial_number,
-        CONF_MAC: mac_address,
-        "docks": docks,
-    }, remote
+                integration_id = ha_driver_instance.get("integration_id", "")
+                _LOGGER.debug(
+                    "Refresh the available/subscribed entities on the remote after the emission of new subscribed entities %s...",
+                    ha_driver_instance,
+                )
+                await remote.get_remote_integration_entities(integration_id, True)
+                await asyncio.sleep(3)
+                # Subscribe to all available entities sent before
+                _LOGGER.debug(
+                    "Set all available entities as subscribed %s", ha_driver_instance
+                )
+                await remote.set_remote_integration_entities(integration_id, [])
+                _LOGGER.debug(
+                    "Entities registered successfully for integration : %s",
+                    integration_id,
+                )
+            except StopIteration:
+                _LOGGER.error(
+                    "Failed to notify remote with the new entities %s for driver id %s",
+                    remote.hostname,
+                    subscribed_entities_subscription.driver_id,
+                )
+                return config_flow.async_show_menu(
+                    step_id="select_entities",
+                    description_placeholders={"driver_id", UC_HA_DRIVER_ID},
+                    menu_options=["driver_failure", "finish"],
+                )
+        except Exception as ex:  # pylint: disable=broad-except
+            _LOGGER.error(
+                "Error while sending new entities to the remote %s (%s) %s",
+                remote.ip_address,
+                final_list,
+                ex,
+            )
+            return config_flow.async_show_menu(
+                step_id="select_entities",
+                menu_options=["try_again", "finish"],
+            )
+        _LOGGER.debug("Entities registered successfully, finishing config flow")
+        return await finish_callback(None)
 
 
 class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -147,11 +307,171 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
 
     def __init__(self) -> None:
         """Unfolded Circle Config Flow."""
-        self.api: Remote = None
-        self.api_keyname: str = None
+        self.api_keyname: str | None = None
         self.discovery_info: dict[str, Any] = {}
+        self._data = None
+        self._remote: Remote | None = None
+        self._websocket_client: UCWebsocketClient | None = None
         self.dock_count: int = 0
         self.info: dict[str, any] = {}
+
+        self.zero_config_data_schema: dict[Required | Optional, Type] = vol.Schema(
+            {
+                vol.Required("pin"): str,
+                vol.Optional(
+                    CONF_HA_WEBSOCKET_URL, default=get_ha_websocket_url(self.hass)
+                ): str,
+            }
+        )
+
+        self.user_data_schema = vol.Schema(
+            {
+                vol.Required("host"): str,
+                vol.Required("pin"): str,
+                vol.Optional(
+                    CONF_HA_WEBSOCKET_URL, default=get_ha_websocket_url(self.hass)
+                ): str,
+            }
+        )
+
+    async def validate_input(
+        self, data: dict[str, Any], host: str = ""
+    ) -> dict[str, Any]:
+        """Validate the user input allows us to connect.
+
+        Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
+        """
+        self._websocket_client = UCWebsocketClient(self.hass)
+        if host != "":
+            self._remote = Remote(host, data["pin"])
+        else:
+            self._remote = Remote(data["host"], data["pin"])
+
+        # Websocket Home Assistant URL
+        websocket_url = data.get(CONF_HA_WEBSOCKET_URL, get_ha_websocket_url(self.hass))
+
+        try:
+            await self._remote.validate_connection()
+            _LOGGER.debug("Connection successful to %s", self._remote.endpoint)
+        except AuthenticationError as err:
+            raise InvalidAuth from err
+        except RemoteConnectionError as ex:  # pylint: disable=broad-except
+            raise CannotConnect from ex
+        except ConnectionError as ex:
+            raise CannotConnect from ex
+
+        try:
+            for key in await self._remote.get_api_keys():
+                if key.get("name") == AUTH_APIKEY_NAME:
+                    await self._remote.revoke_api_key()
+        except Exception as ex:
+            _LOGGER.warning(
+                "Could not revoke existing API key %s: %s", AUTH_APIKEY_NAME, ex
+            )
+
+        key = None
+        try:
+            key = await self._remote.create_api_key()
+        except Exception as ex:
+            _LOGGER.warning(
+                "Could not create an API key %s on the remote: %s",
+                AUTH_APIKEY_NAME,
+                ex,
+            )
+
+        if not key:
+            raise InvalidAuth("Unable to login: failed to create API key")
+        _LOGGER.debug("Remote registered successfully, retrieving information...")
+
+        try:
+            await self._remote.get_version()
+            await self._remote.get_remote_information()
+            await self._remote.get_remote_configuration()
+            await self._remote.get_remote_wifi_info()
+            await self._remote.get_docks()
+        except Exception as ex:
+            _LOGGER.error("Error during extraction of remote information: %s", ex)
+
+        _LOGGER.debug("Remote information extracted successfully, generating token...")
+
+        # If this part (register a new HA token and send it to the remote) fails, we should let the config flow continue
+        # It will let have the remote entities inside HA, but it will not let configure the HA entities on the remote
+        token = None
+        try:
+            token = await generate_token(
+                self.hass, f"{self._remote.name}  ({self._remote.serial_number})"
+            )
+            _LOGGER.debug(
+                "Generated token for remote : %s  (%s), with websocket url %s",
+                self._remote.name,
+                self._remote.serial_number,
+                websocket_url,
+            )
+            await self._remote.set_token_for_external_system(
+                system=UC_HA_SYSTEM,
+                token_id=UC_HA_TOKEN_ID,
+                token=token,
+                name="Home Assistant Access token",
+                description="URL and long lived access token for Home Assistant WebSocket API",
+                url=websocket_url,
+                data="",
+            )
+
+            remote_drivers_instances = await self._remote.get_integrations()
+            _LOGGER.debug("Remote list of integrations %s", remote_drivers_instances)
+            try:
+                ha_driver_instance = next(
+                    filter(
+                        lambda instance: instance.get("driver_id", None)
+                        == UC_HA_DRIVER_ID,
+                        remote_drivers_instances,
+                    )
+                )
+                _LOGGER.debug(
+                    "Home assistant driver instance found %s", ha_driver_instance
+                )
+            except StopIteration:
+                _LOGGER.debug(
+                    "No Home assistant driver instance (%s), create one",
+                    UC_HA_DRIVER_ID,
+                )
+                await self._remote.create_driver_instance(
+                    UC_HA_DRIVER_ID,
+                    {
+                        "name": {"en": "Home Assistant"},
+                        "icon": "uc:hass",
+                        "enabled": True,
+                    },
+                )
+        except Exception as ex:
+            _LOGGER.error(
+                "Error during the driver registration to the remote %s, keep on config flow",
+                ex,
+            )
+            raise CannotCreateHAToken from ex
+
+        mac_address = None
+        if self._remote.mac_address:
+            mac_address = self._remote.mac_address.replace(":", "").lower()
+
+        docks = []
+        for dock in self._remote._docks:
+            docks.append({"id": dock.id, "name": dock.name, "password": ""})
+
+        # Return info that you want to store in the config entry.
+        return {
+            "title": self._remote.name,
+            "apiKey": key,
+            "host": self._remote.endpoint,
+            "pin": data["pin"],
+            "mac_address": self._remote.mac_address,
+            "ip_address": self._remote.ip_address,
+            "token": token,
+            "token_id": UC_HA_TOKEN_ID,
+            CONF_SERIAL: self._remote.serial_number,
+            CONF_MAC: mac_address,
+            "docks": docks,
+        }
 
     @staticmethod
     @callback
@@ -169,24 +489,40 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         name = discovery_info.name
         model = discovery_info.properties.get("model")
         endpoint = f"http://{host}:{port}/api/"
-
-        mac_address = None
+        # Best location to initialize websocket instance : it will run even if no integrations are configured
+        self._websocket_client = UCWebsocketClient(self.hass)
+        # TODO : check RemoteThree regex see with @markus
         try:
-            mac_address = re.match(r"RemoteTwo-(.*?)\.", hostname).group(1).lower()
+            mac_address = (
+                re.match(r"(?:RemoteTwo|RemoteThree)-(.*?)\.", hostname)
+                .group(1)
+                .lower()
+            )
         except Exception:
             try:
-                mac_address = re.match(r"RemoteTwo-(.*?)\.", name).group(1).lower()
+                mac_address = (
+                    re.match(r"(?:RemoteTwo|RemoteThree)-(.*?)\.", name)
+                    .group(1)
+                    .lower()
+                )
             except Exception:
-                if model != "UCR2-simulator":
+                if (
+                    discovery_info.properties.get("model") != "UCR2-simulator"
+                    and discovery_info.properties.get("model") != "UCR3-simulator"
+                ):
                     return self.async_abort(reason="no_mac")
                 _LOGGER.debug("Zeroconf from the Simulator %s", discovery_info)
                 mac_address = SIMULATOR_MAC_ADDRESS.replace(":", "").lower()
 
+        remote_name = "Remote Two"
+        # TODO handle remote 3 name
+        if "Remote 3" in hostname:
+            remote_name = "Remote 3"
         self.discovery_info.update(
             {
                 CONF_HOST: host,
                 CONF_PORT: port,
-                CONF_NAME: f"Remote Two ({host})",
+                CONF_NAME: f"{remote_name} ({host})",
                 CONF_MAC: mac_address,
             }
         )
@@ -225,6 +561,23 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 configuration_url = (
                     f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
                 )
+            case "UCR3":
+                device_name = "Remote 3"
+                configuration_url = (
+                    f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
+                )
+                try:
+                    response = await Remote.get_version_information(endpoint)
+                    device_name = response.get("device_name", None)
+                    if not device_name:
+                        device_name = "Remote Two"
+                except Exception:
+                    pass
+            case "UCR3-simulator":
+                device_name = "Remote 3 Simulator"
+                configuration_url = (
+                    f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
+                )
 
         self.context.update(
             {
@@ -247,14 +600,21 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         """Confirm discovery."""
         errors: dict[str, str] = {}
         if user_input is None or user_input == {}:
+            name = "Remote Two"
+            if self.discovery_info.get("model") == "UCR2":
+                name = "Remote Two"
+            else:
+                name = "Remote 3"
+
             return self.async_show_form(
                 step_id="zeroconf_confirm",
-                data_schema=STEP_ZEROCONF_DATA_SCHEMA,
+                data_schema=self.zero_config_data_schema,
+                description_placeholders={"name": name},
                 errors={},
             )
         try:
             host = f"{self.discovery_info[CONF_HOST]}:{self.discovery_info[CONF_PORT]}"
-            info, self.api = await validate_input(self.hass, user_input, host)
+            info = await self.validate_input(user_input, host)
             self.discovery_info.update({CONF_MAC: info[CONF_MAC]})
             # Check unique ID here based on serial number
             await self._async_set_unique_id_and_abort_if_already_configured(
@@ -265,6 +625,8 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             errors["base"] = "cannot_connect"
         except InvalidAuth:
             errors["base"] = "invalid_auth"
+        except CannotCreateHAToken:
+            errors["base"] = "cannot_create_ha_token"
         else:
             if info["docks"]:
                 return await self.async_step_dock(info=info, first_call=True)
@@ -273,7 +635,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="zeroconf_confirm",
-            data_schema=STEP_ZEROCONF_DATA_SCHEMA,
+            data_schema=self.zero_config_data_schema,
             errors=errors,
         )
 
@@ -281,17 +643,26 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step."""
+        self._websocket_client = UCWebsocketClient(self.hass)
         errors: dict[str, str] = {}
         if user_input is None or user_input == {}:
+            schema: dict[Required | Optional, Type] = {
+                vol.Required("host"): str,
+                vol.Required("pin"): str,
+                vol.Optional(
+                    CONF_HA_WEBSOCKET_URL, default=get_ha_websocket_url(self.hass)
+                ): str,
+            }
             return self.async_show_form(
-                step_id="user",
-                data_schema=STEP_USER_DATA_SCHEMA,
-                errors=errors,
-                last_step=False,
+                step_id="user", data_schema=vol.Schema(schema), errors=errors
             )
 
         try:
-            info, self.api = await validate_input(self.hass, user_input, "")
+            _LOGGER.debug(
+                "Trying to connect to the remote from manual user input %s", user_input
+            )
+            info = await self.validate_input(user_input, "")
+            self._data = info
             self.discovery_info.update({CONF_MAC: info[CONF_MAC]})
             await self._async_set_unique_id_and_abort_if_already_configured(
                 info[CONF_MAC]
@@ -300,20 +671,31 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             errors["base"] = "cannot_connect"
         except InvalidAuth:
             errors["base"] = "invalid_auth"
+        except CannotCreateHAToken:
+            errors["base"] = "cannot_create_ha_token"
         except Exception:  # pylint: disable=broad-except
             _LOGGER.exception("Unexpected exception")
             errors["base"] = "unknown"
         else:
             if info["docks"]:
                 return await self.async_step_dock(info=info, first_call=True)
+            return await self.async_step_select_entities(None)
 
-            return self.async_create_entry(title=info["title"], data=info)
+        current_host = None
+        if user_input and user_input.get("host"):
+            current_host = user_input.get("host")
 
+        current_ha_url = get_ha_websocket_url(self.hass)
+        if user_input and user_input.get(CONF_HA_WEBSOCKET_URL):
+            current_ha_url = user_input.get(CONF_HA_WEBSOCKET_URL)
+
+        schema: dict[Required | Optional, Type] = {
+            vol.Required("host", default=current_host): str,
+            vol.Required("pin"): str,
+            vol.Optional(CONF_HA_WEBSOCKET_URL, default=current_ha_url): str,
+        }
         return self.async_show_form(
-            step_id="user",
-            data_schema=STEP_USER_DATA_SCHEMA,
-            errors=errors,
-            last_step=False,
+            step_id="user", data_schema=vol.Schema(schema), errors=errors
         )
 
     async def async_step_dock(
@@ -325,6 +707,8 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         """Called if there are docks associated with the remote"""
         schema = {}
         errors: dict[str, str] = {}
+        dock_info: dict[str, any] | None = None
+        placeholder: dict[str, any] | None = None
         if info:
             self.info = info
 
@@ -342,9 +726,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 if first_call is False:
                     self.dock_count += 1
                     if dock_total == self.dock_count:
-                        return self.async_create_entry(
-                            title=self.info["title"], data=self.info
-                        )
+                        return await self.async_step_select_entities(None)
                 return self.async_show_form(
                     step_id="dock",
                     data_schema=vol.Schema(schema),
@@ -355,7 +737,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
 
         try:
             self.info["docks"][self.dock_count]["password"] = user_input["password"]
-            is_valid = await validate_dock_password(self.api, dock_info)
+            is_valid = await validate_dock_password(self._remote, dock_info)
             if is_valid:
                 self.dock_count += 1
             else:
@@ -371,7 +753,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             errors["base"] = "unknown"
 
         if dock_total == self.dock_count:
-            return self.async_create_entry(title=self.info["title"], data=self.info)
+            return await self.async_step_select_entities(None)
 
         return self.async_show_form(
             step_id="dock",
@@ -402,6 +784,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Dialog that informs the user that reauth is required."""
+        self._websocket_client = UCWebsocketClient(self.hass)
         errors = {}
         if user_input is None:
             user_input = {}
@@ -410,20 +793,20 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             self.context["entry_id"]
         )
 
-        _LOGGER.debug("RC2 async_step_reauth_confirm %s", self.reauth_entry)
+        _LOGGER.debug("UC async_step_reauth_confirm %s", self.reauth_entry)
 
         if user_input.get("pin") is None:
             return self.async_show_form(
-                step_id="reauth_confirm", data_schema=STEP_ZEROCONF_DATA_SCHEMA
+                step_id="reauth_confirm", data_schema=self.zero_config_data_schema
             )
 
         try:
             existing_entry = await self.async_set_unique_id(
                 self.reauth_entry.unique_id, raise_on_progress=False
             )
-            _LOGGER.debug("RC2 existing_entry %s", existing_entry)
-            info, self.api = await validate_input(
-                self.hass, user_input, self.reauth_entry.data[CONF_HOST]
+            _LOGGER.debug("UC existing_entry %s", existing_entry)
+            info = await self.validate_input(
+                user_input, self.reauth_entry.data[CONF_HOST]
             )
         except CannotConnect:
             _LOGGER.exception("Cannot Connect")
@@ -431,6 +814,9 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         except InvalidAuth:
             _LOGGER.exception("Invalid PIN")
             errors["base"] = "Invalid PIN"
+        except CannotCreateHAToken:
+            _LOGGER.exception("Cannot register HA token")
+            errors["base"] = "cannot_create_ha_token"
         except Exception as ex:  # pylint: disable=broad-except
             _LOGGER.exception(ex)
             errors["base"] = "unknown"
@@ -447,11 +833,32 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 title=info["title"],
                 data=info,
             )
+
         return self.async_show_form(
             step_id="reauth_confirm",
-            data_schema=STEP_ZEROCONF_DATA_SCHEMA,
+            data_schema=self.zero_config_data_schema,
             errors=errors,
         )
+
+    async def async_step_select_entities(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle the selected entities to subscribe to."""
+        return await async_step_select_entities(
+            self, self.hass, self._remote, self.async_step_finish, user_input
+        )
+
+    async def async_step_finish(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        _LOGGER.debug("Create registry entry")
+        try:
+            result = self.async_create_entry(title=self._data["title"], data=self._data)
+            _LOGGER.debug("Registry entry creation result : %s", result)
+            return result
+        except Exception as ex:
+            _LOGGER.error("Error while creating registry entry %s", ex)
+            raise ex
 
 
 class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
@@ -461,39 +868,34 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         """Initialize options flow."""
         self.config_entry = config_entry
         self.options = dict(config_entry.options)
+        self._remote: Remote | None = None
+        self._websocket_client: UCWebsocketClient | None = None
+        self._entity_ids: list[str] | None = None
+
+    async def async_connect_remote(self) -> any:
+        self._remote = Remote(
+            self.config_entry.data["host"],
+            self.config_entry.data["pin"],
+            self.config_entry.data["apiKey"],
+        )
+        await self._remote.validate_connection()
+        await self._remote.get_version()
+        await self._remote.get_remote_configuration()
+        return await self._remote.get_remote_information()
 
     async def async_step_init(self, user_input=None):  # pylint: disable=unused-argument
         """Manage the options."""
+        self._websocket_client = UCWebsocketClient(self.hass)
+        await self.async_connect_remote()
+        if self._remote.external_entity_configuration_available:
+            return self.async_show_menu(
+                step_id="init",
+                menu_options=["select_entities", "activities"],
+                description_placeholders={"remote": self._remote.name},
+            )
         return await self.async_step_activities()
 
-    async def async_step_activities(self, user_input=None):
-        """Handle options step two flow initialized by the user."""
-        if user_input is not None:
-            self.options.update(user_input)
-            return await self.async_step_media_player()
-
-        return self.async_show_form(
-            step_id="activities",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_ACTIVITIES_AS_SWITCHES,
-                        default=self.config_entry.options.get(
-                            CONF_ACTIVITIES_AS_SWITCHES, False
-                        ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_SUPPRESS_ACTIVITIY_GROUPS,
-                        default=self.config_entry.options.get(
-                            CONF_SUPPRESS_ACTIVITIY_GROUPS, False
-                        ),
-                    ): bool,
-                }
-            ),
-            last_step=False,
-        )
-
-    async def async_step_media_player(self, user_input=None):
+    async def async_step_media_player(self, user_input=None) -> FlowResult:
         """Handle a flow initialized by the user."""
         if user_input is not None:
             self.options.update(user_input)
@@ -526,9 +928,142 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
             last_step=True,
         )
 
+    async def async_step_activities(self, user_input=None):
+        """Handle options step two flow initialized by the user."""
+        if user_input is not None:
+            self.options.update(user_input)
+            return await self.async_step_media_player()
+
+        return self.async_show_form(
+            step_id="activities",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_ACTIVITIES_AS_SWITCHES,
+                        default=self.config_entry.options.get(
+                            CONF_ACTIVITIES_AS_SWITCHES, False
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_SUPPRESS_ACTIVITIY_GROUPS,
+                        default=self.config_entry.options.get(
+                            CONF_SUPPRESS_ACTIVITIY_GROUPS, False
+                        ),
+                    ): bool,
+                }
+            ),
+            last_step=False,
+        )
+
     async def _update_options(self):
         """Update config entry options."""
         return self.async_create_entry(title="", data=self.options)
+
+    async def async_step_select_entities(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle the selected entities to subscribe to."""
+
+        # If user asks to configure entities, the HA driver may not have been configured at all
+        # so we need to regenerate the HA token and check for a HA driver instance and create it if none
+        # Websocket Home Assistant URL
+        if user_input is None:
+            websocket_url = get_ha_websocket_url(self.hass)
+        else:
+            websocket_url = user_input.get(
+                CONF_HA_WEBSOCKET_URL, get_ha_websocket_url(self.hass)
+            )
+        token = await generate_token(
+            self.hass, f"{self._remote.name}  ({self._remote.serial_number})"
+        )
+        _LOGGER.debug(
+            "Generated token : %s",
+            f"{self._remote.name}  ({self._remote.serial_number})",
+        )
+        try:
+            await self._remote.set_token_for_external_system(
+                system=UC_HA_SYSTEM,
+                token_id=UC_HA_TOKEN_ID,
+                token=token,
+                name="Home Assistant Access token",
+                description="URL and long lived access token for Home Assistant WebSocket API",
+                url=websocket_url,
+                data="",
+            )
+        except Exception as ex:
+            _LOGGER.error("Error during token registration %s", ex)
+            raise CannotConnect from ex
+        try:
+            remote_drivers_instances = await self._remote.get_integrations()
+            _LOGGER.debug("Remote list of integrations %s", remote_drivers_instances)
+            try:
+                ha_driver_instance = next(
+                    filter(
+                        lambda instance: instance.get("driver_id", None)
+                        == UC_HA_DRIVER_ID,
+                        remote_drivers_instances,
+                    )
+                )
+                _LOGGER.debug(
+                    "Home assistant driver instance found %s", ha_driver_instance
+                )
+                # If the HA driver is disconnected, request connection in order to retrieve and update entities
+                if ha_driver_instance.get("device_state", "") != "CONNECTED":
+                    _LOGGER.debug(
+                        "Home assistant driver is disconnected, connect it..."
+                    )
+                    try:
+                        await self._remote.put_integration(
+                            ha_driver_instance.get("integration_id"), command="CONNECT"
+                        )
+                    except HTTPError as ex:
+                        _LOGGER.error(
+                            "Error while trying to connect remote and driver %s", ex
+                        )
+            except StopIteration:
+                _LOGGER.debug(
+                    "No Home assistant driver instance (%s), create one",
+                    UC_HA_DRIVER_ID,
+                )
+                await self._remote.create_driver_instance(
+                    UC_HA_DRIVER_ID,
+                    {
+                        "name": {"en": "Home Assistant"},
+                        "icon": "uc:hass",
+                        "enabled": True,
+                    },
+                )
+        except Exception as ex:
+            _LOGGER.error("Error during driver registration %s", ex)
+            return self.async_show_menu(
+                step_id="remote_websocket",
+                menu_options=["remote_websocket", "finish"],
+            )
+
+        return await async_step_select_entities(
+            self, self.hass, self._remote, self.async_step_finish, user_input
+        )
+
+    async def async_step_remote_websocket(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle the configuration of HA websocket URL."""
+        return self.async_show_form(
+            step_id="select_entities",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_HA_WEBSOCKET_URL, default=get_ha_websocket_url(self.hass)
+                    ): str
+                }
+            ),
+            last_step=False,
+        )
+
+    async def async_step_finish(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        return await self._update_options()
 
 
 class CannotConnect(HomeAssistantError):
@@ -541,3 +1076,7 @@ class InvalidAuth(HomeAssistantError):
 
 class InvalidDockPassword(HomeAssistantError):
     """Error to indicate an invalid dock password was supplied"""
+
+
+class CannotCreateHAToken(HomeAssistantError):
+    """Error to indicate there the creation of HA token failed."""

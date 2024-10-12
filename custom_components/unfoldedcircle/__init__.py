@@ -11,9 +11,9 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er, issue_registry
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
+from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
-from .const import DOMAIN
+from .const import DOMAIN, UC_HA_SYSTEM, UC_HA_TOKEN_ID
 from .coordinator import (
     UnfoldedCircleRemoteCoordinator,
     UnfoldedCircleDockCoordinator,
@@ -176,6 +176,25 @@ async def async_unload_entry(
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     return unload_ok
+
+
+async def async_remove_entry(hass, entry) -> None:
+    """Handle removal of an entry."""
+    try:
+        _LOGGER.debug("Removing remote from Home assistant for entry %s", entry)
+        remote_api = Remote(entry.data["host"], entry.data["pin"], entry.data["apiKey"])
+        try:
+            results = await remote_api.delete_token_for_external_system(
+                UC_HA_SYSTEM, UC_HA_TOKEN_ID
+            )
+            _LOGGER.debug(f"Results of token deletion : %s", results)
+        except ConnectionError:
+            _LOGGER.error(
+                "Remote is unavailable, the HA token cannot be checked and won't be removed"
+            )
+        # TODO also delete HA token from HA
+    except Exception as ex:
+        _LOGGER.error("Unfolded Circle Remote async_remove_entry error: %s", ex)
 
 
 async def update_listener(hass: HomeAssistant, entry: ConfigEntry):

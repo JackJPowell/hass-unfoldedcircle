@@ -167,12 +167,11 @@ async def async_setup_entry(
         for entity in entities:
             assert isinstance(entity, UCRemoteSwitch)
 
-        if service_call.service == UPDATE_ACTIVITY_SERVICE:
-            coordinator = config_entry.runtime_data.coordinator
-            await coordinator.api.get_activity_by_id(entity.unique_id).edit(
-                service_call.data
-            )
-            test = 1 + 1
+            if service_call.service == UPDATE_ACTIVITY_SERVICE:
+                coordinator = config_entry.runtime_data.coordinator
+                await coordinator.api.get_activity_by_id(entity.unique_id).edit(
+                    service_call.data
+                )
 
     prevent_sleep_schema = cv.make_entity_service_schema(
         {vol.Optional(ATTR_PREVENT_SLEEP, default=False): cv.boolean}

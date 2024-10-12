@@ -10,10 +10,10 @@ import socket
 import time
 from urllib.parse import urljoin, urlparse
 from wakeonlan import send_magic_packet
+from packaging.version import Version
 
 import aiohttp
 import zeroconf
-
 
 from .const import (
     AUTH_APIKEY_NAME,
@@ -24,27 +24,32 @@ from .const import (
     ZEROCONF_TIMEOUT,
     RemotePowerModes,
     RemoteUpdateType,
+    SIMULATOR_NAMES,
 )
 from .dock import Dock
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class HTTPError(BaseException):
+class HTTPError(Exception):
     """Raised when an HTTP operation fails."""
 
-    def __init__(self, status_code, message) -> None:
+    def __init__(self, status_code, message: str) -> None:
         """Raise HTTP Error."""
         self.status_code = status_code
         self.message = message
-        super().__init__(self.message, self.status_code)
+        super().__init__(message)
 
 
-class AuthenticationError(BaseException):
+class RemoteConnectionError(Exception):
+    """Raised when HTTP connection fails."""
+
+
+class AuthenticationError(Exception):
     """Raised when HTTP login fails."""
 
 
-class SystemCommandNotFound(BaseException):
+class SystemCommandNotFound(Exception):
     """Raised when an invalid system command is supplied."""
 
     def __init__(self, message) -> None:
@@ -62,7 +67,7 @@ class RemoteIsSleeping(ConnectionError):
         super().__init__(self.message)
 
 
-class ExternalSystemNotRegistered(BaseException):
+class ExternalSystemNotRegistered(Exception):
     """Raised when an unregistered external system is supplied."""
 
     def __init__(self, message) -> None:
@@ -71,7 +76,7 @@ class ExternalSystemNotRegistered(BaseException):
         super().__init__(self.message)
 
 
-class InvalidIRFormat(BaseException):
+class InvalidIRFormat(Exception):
     """Raised when invalid or insufficient IR details are passed."""
 
     def __init__(self, message) -> None:
@@ -80,7 +85,7 @@ class InvalidIRFormat(BaseException):
         super().__init__(self.message)
 
 
-class NoEmitterFound(BaseException):
+class NoEmitterFound(Exception):
     """Raised when no emitter could be identified from criteria given."""
 
     def __init__(self, message) -> None:
@@ -89,7 +94,7 @@ class NoEmitterFound(BaseException):
         super().__init__(self.message)
 
 
-class ApiKeyNotFound(BaseException):
+class ApiKeyNotFound(Exception):
     """Raised when API Key with given name can't be found.
 
     Attributes:
@@ -179,6 +184,7 @@ class Remote:
         self._wake_on_lan: bool = False
         self._wake_on_lan_retries = 2
         self._wake_on_lan_available: bool = False
+        self._external_entity_configuration_available: bool = False
         self._bt_enabled: bool = False
         self._wifi_enabled: bool = False
 
@@ -418,6 +424,10 @@ class Remote:
         """Is Wake on Lan Enabled"""
         return self._wake_on_lan
 
+    @property
+    def external_entity_configuration_available(self):
+        return self._external_entity_configuration_available
+
     ### URL Helpers ###
     def validate_url(self, uri):
         """Validate passed in URL and attempts to correct api endpoint if path isn't supplied."""
@@ -484,6 +494,8 @@ class Remote:
             self.client() as session,
             session.head(self.url("activities")) as response,
         ):
+            if response.status == 503:
+                raise RemoteConnectionError
             if response.status == 401:
                 raise AuthenticationError
             return response.status == 200
@@ -671,7 +683,11 @@ class Remote:
         system: str,
         token_id: str,
     ) -> str:
-        """Deletes supplied token for the given system"""
+        """Deletes supplied token for the given system."""
+
+        if self._wake_if_asleep and self._wake_on_lan:
+            if not await self.wake():
+                raise ConnectionError
 
         if await self.is_external_system_valid(system):
             async with (
@@ -686,7 +702,7 @@ class Remote:
 
     async def is_external_system_valid(self, system) -> bool:
         """Checks against the registered external systems on the remote
-        to validate the supplied system name"""
+        to validate the supplied system name."""
         registered_systems = await self.get_registered_external_systems()
         _LOGGER.debug("Remote registered systems %s", registered_systems)
         for rs in registered_systems:
@@ -694,7 +710,7 @@ class Remote:
                 return True
 
     async def get_integrations(self) -> list[dict]:
-        """Retrieves the list of integration instances"""
+        """Retrieves the list of integration instances."""
         async with self.client() as session:
             page = 1
             data: list[dict] = []
@@ -708,6 +724,20 @@ class Remote:
                     break
                 page += 1
             return data
+
+    async def put_integration(self, integration_id: str, command: str | None = None):
+        """Update the given integration instance."""
+        async with self.client() as session:
+            if command:
+                response = await session.put(
+                    self.url(f"intg/instances/{integration_id}?cmd={command}")
+                )
+            else:
+                response = await session.put(
+                    self.url(f"intg/instances/{integration_id}")
+                )
+            await self.raise_on_error(response)
+            return await response.json()
 
     async def get_driver_instance(self, driver_id: str) -> dict[str]:
         """Retrieves the driver instance from its driver id"""
@@ -749,6 +779,20 @@ class Remote:
         ):
             information = await response.json()
             self._hostname = information.get("hostname", "")
+            self._mac_address = information.get("address", "")
+
+            if self._mac_address == "":  # We may be dealing with the simulator
+                await self.get_remote_information()
+
+            if self._is_simulator is True:
+                core = information.get("core", "")
+                # We only care about the beginning of the version for this compare
+                if Version(core[0:4]) >= Version("0.49"):
+                    self._external_entity_configuration_available = True
+            else:
+                self._sw_version = information.get("os", "")
+                if Version(self._sw_version) >= Version("2.0.0"):
+                    self._external_entity_configuration_available = True
             return information
 
     async def get_remote_wifi_info(self) -> dict[str, any]:
@@ -782,7 +826,7 @@ class Remote:
             self._serial_number = information.get("serial_number")
             self._hw_revision = information.get("hw_revision")
 
-            if self._model_name == "Remote Two Simulator":
+            if self._model_name in SIMULATOR_NAMES:
                 self._is_simulator = True
             return information
 
@@ -1317,7 +1361,7 @@ class Remote:
             network_settings["bt_enabled"] = bt_enabled
         if wifi_enabled is not None:
             network_settings["wifi_enabled"] = wifi_enabled
-        if wake_on_lan is not None and self._sw_version >= 2:
+        if wake_on_lan is not None and Version(self._sw_version) >= Version("2.0.0"):
             network_settings["wake_on_wlan"]["enabled"] = wake_on_lan
 
         async with (
