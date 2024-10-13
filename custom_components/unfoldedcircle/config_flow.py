@@ -148,8 +148,8 @@ async def async_step_select_entities(
                 "The remote's websocket didn't subscribe to configuration event, unable to retrieve and update entities"
             )
             if error_message is None:
-                error_message = "remote's driver didn't respond to requests"
-            # TODO : improve errors display with placeholders (but not working with menu ?)
+                error_message = "The remote didn't respond to our requests."
+
             return config_flow.async_show_menu(
                 step_id="select_entities",
                 menu_options=["error", "finish"],
@@ -314,25 +314,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self._websocket_client: UCWebsocketClient | None = None
         self.dock_count: int = 0
         self.info: dict[str, any] = {}
-
-        self.zero_config_data_schema: dict[Required | Optional, Type] = vol.Schema(
-            {
-                vol.Required("pin"): str,
-                vol.Optional(
-                    CONF_HA_WEBSOCKET_URL, default=get_ha_websocket_url(self.hass)
-                ): str,
-            }
-        )
-
-        self.user_data_schema = vol.Schema(
-            {
-                vol.Required("host"): str,
-                vol.Required("pin"): str,
-                vol.Optional(
-                    CONF_HA_WEBSOCKET_URL, default=get_ha_websocket_url(self.hass)
-                ): str,
-            }
-        )
 
     async def validate_input(
         self, data: dict[str, Any], host: str = ""
@@ -606,9 +587,18 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             else:
                 name = "Remote 3"
 
+            zero_config_data_schema: dict[Required | Optional, Type] = vol.Schema(
+                {
+                    vol.Required("pin"): str,
+                    vol.Optional(
+                        CONF_HA_WEBSOCKET_URL, default=get_ha_websocket_url(self.hass)
+                    ): str,
+                }
+            )
+
             return self.async_show_form(
                 step_id="zeroconf_confirm",
-                data_schema=self.zero_config_data_schema,
+                data_schema=zero_config_data_schema,
                 description_placeholders={"name": name},
                 errors={},
             )
@@ -633,9 +623,18 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
 
             return self.async_create_entry(title=info["title"], data=info)
 
+        zero_config_data_schema: dict[Required | Optional, Type] = vol.Schema(
+            {
+                vol.Required("pin"): str,
+                vol.Optional(
+                    CONF_HA_WEBSOCKET_URL, default=get_ha_websocket_url(self.hass)
+                ): str,
+            }
+        )
+
         return self.async_show_form(
             step_id="zeroconf_confirm",
-            data_schema=self.zero_config_data_schema,
+            data_schema=zero_config_data_schema,
             errors=errors,
         )
 
@@ -646,15 +645,17 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self._websocket_client = UCWebsocketClient(self.hass)
         errors: dict[str, str] = {}
         if user_input is None or user_input == {}:
-            schema: dict[Required | Optional, Type] = {
-                vol.Required("host"): str,
-                vol.Required("pin"): str,
-                vol.Optional(
-                    CONF_HA_WEBSOCKET_URL, default=get_ha_websocket_url(self.hass)
-                ): str,
-            }
+            schema: dict[Required | Optional, Type] = vol.Schema(
+                {
+                    vol.Required("host"): str,
+                    vol.Required("pin"): str,
+                    vol.Optional(
+                        CONF_HA_WEBSOCKET_URL, default=get_ha_websocket_url(self.hass)
+                    ): str,
+                }
+            )
             return self.async_show_form(
-                step_id="user", data_schema=vol.Schema(schema), errors=errors
+                step_id="user", data_schema=schema, errors=errors
             )
 
         try:
@@ -689,14 +690,14 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input and user_input.get(CONF_HA_WEBSOCKET_URL):
             current_ha_url = user_input.get(CONF_HA_WEBSOCKET_URL)
 
-        schema: dict[Required | Optional, Type] = {
-            vol.Required("host", default=current_host): str,
-            vol.Required("pin"): str,
-            vol.Optional(CONF_HA_WEBSOCKET_URL, default=current_ha_url): str,
-        }
-        return self.async_show_form(
-            step_id="user", data_schema=vol.Schema(schema), errors=errors
+        schema: dict[Required | Optional, Type] = vol.Schema(
+            {
+                vol.Required("host", default=current_host): str,
+                vol.Required("pin"): str,
+                vol.Optional(CONF_HA_WEBSOCKET_URL, default=current_ha_url): str,
+            }
         )
+        return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
 
     async def async_step_dock(
         self,
@@ -796,8 +797,17 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         _LOGGER.debug("UC async_step_reauth_confirm %s", self.reauth_entry)
 
         if user_input.get("pin") is None:
+            zero_config_data_schema: dict[Required | Optional, Type] = vol.Schema(
+                {
+                    vol.Required("pin"): str,
+                    vol.Optional(
+                        CONF_HA_WEBSOCKET_URL, default=get_ha_websocket_url(self.hass)
+                    ): str,
+                }
+            )
+
             return self.async_show_form(
-                step_id="reauth_confirm", data_schema=self.zero_config_data_schema
+                step_id="reauth_confirm", data_schema=zero_config_data_schema
             )
 
         try:
@@ -834,9 +844,18 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 data=info,
             )
 
+        zero_config_data_schema: dict[Required | Optional, Type] = vol.Schema(
+            {
+                vol.Required("pin"): str,
+                vol.Optional(
+                    CONF_HA_WEBSOCKET_URL, default=get_ha_websocket_url(self.hass)
+                ): str,
+            }
+        )
+
         return self.async_show_form(
             step_id="reauth_confirm",
-            data_schema=self.zero_config_data_schema,
+            data_schema=zero_config_data_schema,
             errors=errors,
         )
 
@@ -853,7 +872,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         _LOGGER.debug("Create registry entry")
         try:
-            result = self.async_create_entry(title=self._data["title"], data=self._data)
+            result = self.async_create_entry(title=self.info["title"], data=self.info)
             _LOGGER.debug("Registry entry creation result : %s", result)
             return result
         except Exception as ex:

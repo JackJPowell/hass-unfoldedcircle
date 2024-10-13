@@ -11,13 +11,15 @@
       "invalid_dock_password": "Incorrect dock password. Submit with an empty password to skip",
       "invalid_auth": "Incorrect pin supplied. Please try again",
       "unknown": "Unexpected error",
-      "ha_driver_failure": "Unexpected error when configuring remote entities"
+      "ha_driver_failure": "Unexpected error when configuring remote entities",
+      "cannot_create_ha_token": "Unable to create Home Assistant Token"
     },
     "step": {
       "user": {
         "data": {
           "host": "Host",
-          "pin": "PIN Code"
+          "pin": "PIN Code",
+          "ha_ws_url": "Home Assistant Websocket URL"
         }
       },
       "dock": {
@@ -32,17 +34,28 @@
         "data": {
           "add_entities": "Entities to share with Remote",
           "remove_entities": "Entities to remove from Remote"
+        },
+        "menu_options": {
+          "remote_websocket": "Remote is not connected, try to reconfigure the URL",
+          "finish": "Ignore this step and finish",
+          "error": "{message} Retry?",
+          "not_connected": "Remote driver is not connected, retry",
+          "notify_failed": "Failed to notify the remote with the new entities. Try again",
+          "driver_failure": "Failed to notify the remote with the new entities (driver {UC_HA_DRIVER_ID} not found). Try again",
+          "try_again": "Try again"
         }
       },
       "zeroconf_confirm": {
         "data": {
-          "pin": "PIN Code"
+          "pin": "PIN Code",
+          "ha_ws_url": "Home Assistant Websocket URL"
         },
         "title": "Remote Two"
       },
       "reauth_confirm": {
         "data": {
-          "pin": "PIN Code"
+          "pin": "PIN Code",
+          "ha_ws_url": "Home Assistant Websocket URL"
         },
         "title": "Reauthenticate with PIN"
       }

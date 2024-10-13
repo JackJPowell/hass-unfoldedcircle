@@ -20,6 +20,8 @@ def get_ha_websocket_url(hass: HomeAssistant) -> str:
         hass_url: str = get_url(hass)
     except NoURLAvailableError:
         hass_url = DEFAULT_HASS_URL
+    except AttributeError:
+        hass_url = DEFAULT_HASS_URL
     url = urlparse(hass_url)
     return urljoin(f"ws://{url.netloc}", "/api/websocket")
 
