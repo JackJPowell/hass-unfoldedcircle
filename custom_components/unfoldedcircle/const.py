@@ -26,6 +26,7 @@ HA_SUPPORTED_DOMAINS = [
     "light",
     "media_player",
     "remote",
+    "script",
 ]
 UC_HA_TOKEN_ID = "ws-ha-api"
 
