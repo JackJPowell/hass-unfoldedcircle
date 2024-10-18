@@ -91,9 +91,7 @@ class RemoteDockSensor(UnfoldedCircleDockEntity, RemoteEntity):
 
     entity_description: ToggleEntityDescription
     _attr_supported_features: RemoteEntityFeature = (
-        RemoteEntityFeature.ACTIVITY
-        | RemoteEntityFeature.LEARN_COMMAND
-        | RemoteEntityFeature.DELETE_COMMAND
+        RemoteEntityFeature.LEARN_COMMAND | RemoteEntityFeature.DELETE_COMMAND
     )
 
     def __init__(self, coordinator) -> None:
@@ -103,7 +101,7 @@ class RemoteDockSensor(UnfoldedCircleDockEntity, RemoteEntity):
         self._attr_has_entity_name = True
         self._attr_name = "Remote"
         self._attr_activity_list = []
-        self._extra_state_attributes = {}
+        self._extra_state_attributes = None
         self._attr_is_on = False
         self._attr_icon = "mdi:remote"
 
