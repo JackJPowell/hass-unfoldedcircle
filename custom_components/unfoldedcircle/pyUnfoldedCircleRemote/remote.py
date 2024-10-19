@@ -1388,7 +1388,7 @@ class Remote:
         ):
             if response.ok:
                 information = await response.json()
-                if information.get("state") == "DOWNLOAD":
+                if information.get("state") in ["DOWNLOAD", "DOWNLOADED"]:
                     self._update_in_progress = False
 
                 if information.get("state") == "START":
@@ -1402,16 +1402,14 @@ class Remote:
     async def get_update_status(self) -> str:
         """Update remote status."""
         # WIP: Gets Update Status -- Only supports latest."
-        self._download_percent = 0
         async with (
             self.client() as session,
             session.get(self.url("system/update/latest")) as response,
         ):
             information = await response.json()
             if response.ok:
-                self._download_percent = information.get("download_percent")
                 return information
-            return {"state": "UNKNOWN", "download_percent": 0}
+            return {"state": "UNKNOWN"}
 
     async def get_activity_state(self, entity_id) -> str:
         """Get activity state for a remote entity."""
@@ -1672,7 +1670,10 @@ class Remote:
                         case "DONE":
                             self._update_in_progress = False
                             self._update_percent = 0
+                            self._download_percent = 0
                             self._sw_version = self.latest_sw_version
+                        case "DOWNLOAD":
+                            self._download_percent = progress.get("download_percent")
                         case _:
                             self._update_in_progress = False
                             self._update_percent = 0
