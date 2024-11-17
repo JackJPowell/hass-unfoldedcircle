@@ -3,9 +3,8 @@
   "name": "Unfolded Circle",
   "codeowners": ["@jackjpowell"],
   "config_flow": true,
-  "dependencies": ["network", "zeroconf"],
+  "dependencies": ["zeroconf"],
   "documentation": "https://github.com/JackJPowell/hass-unfoldedcircle",
-  "homekit": {},
   "integration_type": "device",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/JackJPowell/hass-unfoldedcircle/issues",
@@ -14,7 +13,6 @@
     "pyUnfoldedCircleRemote==0.11.12",
     "wakeonlan==3.1.0"
   ],
-  "ssdp": [],
   "version": "0.13.1",
   "zeroconf": ["_uc-remote._tcp.local."]
 }
