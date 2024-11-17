@@ -1354,7 +1354,7 @@ class Remote:
         """Update remote network settings"""
         if self._wake_if_asleep and self._wake_on_lan:
             if not await self.wake():
-                raise ConnectionError
+                raise RemoteIsSleeping
 
         network_settings = await self.get_remote_network_settings()
         if bt_enabled is not None:
