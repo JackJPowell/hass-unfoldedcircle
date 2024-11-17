@@ -385,6 +385,10 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self, unique_id: str
     ) -> None:
         """Set the unique ID and abort if already configured."""
+        index = unique_id.find("-")
+        if index > 0:
+            unique_id = unique_id[0:index]
+
         await self.async_set_unique_id(unique_id, raise_on_progress=False)
         self._abort_if_unique_id_configured(
             updates={CONF_MAC: self.discovery_info[CONF_MAC]},
