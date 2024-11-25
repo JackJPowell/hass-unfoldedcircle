@@ -45,6 +45,18 @@ class RemoteConnectionError(Exception):
     """Raised when HTTP connection fails."""
 
 
+class ExternalSystemAlreadyRegistered(Exception):
+    """Raised when the supplied external system is already registered"""
+
+
+class TokenRegistrationError(Exception):
+    """Raised when token registration fails"""
+
+
+class IntegrationNotFound(Exception):
+    """Supplied Integration is not found"""
+
+
 class AuthenticationError(Exception):
     """Raised when HTTP login fails."""
 
@@ -107,6 +119,14 @@ class ApiKeyNotFound(Exception):
         self.name = name
         self.message = message
         super().__init__(self.message)
+
+
+class ApiKeyRevokeError(Exception):
+    """Raised when failing to revoke existing api key"""
+
+
+class ApiKeyCreateError(Exception):
+    """Raised when unable to create api key"""
 
 
 class RemoteGroup(list):
@@ -425,6 +445,11 @@ class Remote:
         return self._wake_on_lan
 
     @property
+    def docks(self):
+        """Return list of docks"""
+        return self._docks
+
+    @property
     def external_entity_configuration_available(self):
         return self._external_entity_configuration_available
 
@@ -470,6 +495,13 @@ class Remote:
         if parsed_url.scheme == "https":
             return True
         return False
+
+    @staticmethod
+    def name_from_model_id(model_id) -> str:
+        """Returns the Remote Model name for a given model ID"""
+        if model_id == "UCR2":
+            return "Remote Two"
+        return "Remote 3"
 
     ### HTTP methods ###
     def client(self) -> aiohttp.ClientSession:
@@ -565,6 +597,22 @@ class Remote:
         ):
             await self.raise_on_error(response)
 
+    async def create_api_key_revoke_if_exists(
+        self, api_key_name=AUTH_APIKEY_NAME
+    ) -> str:
+        """Creates an API key and revokes any that presently exists"""
+        try:
+            for key in await self.get_api_keys():
+                if key.get("name") == api_key_name:
+                    await self.revoke_api_key()
+        except Exception as ex:
+            raise ApiKeyRevokeError from ex
+
+        try:
+            return await self.create_api_key()
+        except Exception as ex:
+            raise ApiKeyCreateError from ex
+
     async def get_registered_external_systems(self) -> dict:
         """Returns an array of dict[system,name] representing
         the registered external systems on the remote"""
@@ -577,13 +625,13 @@ class Remote:
             await self.raise_on_error(response)
             return await response.json()
 
-    async def get_tokens_for_external_system(
+    async def get_registered_external_system(
         self,
         system: str,
     ) -> str:
         """Lists available token information for the given system"""
 
-        if self.is_external_system_valid(system):
+        if await self.is_external_system_valid(system):
             async with (
                 self.client() as session,
                 session.get(self.url(f"auth/external/{system}")) as response,
@@ -709,6 +757,14 @@ class Remote:
             if system == rs.get("system"):
                 return True
 
+    async def external_system_has_token(self, system) -> bool:
+        """Checks against the external system on the remote
+        to see if a token has been registered."""
+        external_system = await self.get_registered_external_system(system)
+        if external_system:
+            _LOGGER.debug("Remote external system with token: %s", external_system)
+            return True
+
     async def get_integrations(self) -> list[dict]:
         """Retrieves the list of integration instances."""
         async with self.client() as session:
@@ -756,6 +812,21 @@ class Remote:
         ):
             await self.raise_on_error(response)
             return await response.json()
+
+    async def get_integration_instance_by_driver_id(self, driver_id: str) -> dict:
+        """Returns driver information for a given integration instance ID"""
+        remote_drivers_instances = await self.get_integrations()
+        _LOGGER.debug("Remote list of integrations %s", remote_drivers_instances)
+        try:
+            ha_driver_instance = next(
+                filter(
+                    lambda instance: instance.get("driver_id", None) == driver_id,
+                    remote_drivers_instances,
+                )
+            )
+            return ha_driver_instance
+        except StopIteration as ex:
+            raise IntegrationNotFound from ex
 
     @staticmethod
     async def get_version_information(base_url) -> dict[str]:
@@ -843,6 +914,17 @@ class Remote:
         async with (
             self.client() as session,
             session.get(self.url("intg/drivers")) as response,
+        ):
+            await self.raise_on_error(response)
+            return await response.json()
+
+    async def start_driver_by_id(self, integration_id) -> list[dict[str, any]]:
+        """Issue a command to the supplied integrations drivers on the remote."""
+        async with (
+            self.client() as session,
+            session.put(
+                self.url(f"intg/drivers/{integration_id}?cmd=START")
+            ) as response,
         ):
             await self.raise_on_error(response)
             return await response.json()
