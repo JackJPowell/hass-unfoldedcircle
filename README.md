@@ -134,12 +134,6 @@ To get started, add a new device or click the configure button. See the video be
 
 https://github.com/user-attachments/assets/96fa94e8-a5ad-4833-9a49-0bf85373eae0
 
-
-
-
-
-
-
 ## IR Remote Commands
 
 How to interact with the Remote Service:
@@ -154,7 +148,10 @@ target:
   entity_id: remote.remote_two_remote
 ```
 
-> [!TIP] > **device:** will match the case-sensitive name of your remote defined in the web configurator on the remote page. **command** will match the case-senstitive name of the pre-defined (custom or codeset) command defined for that remote. **num_repeats** is optional.
+> [!TIP]
+**device:** will match the case-sensitive name of your remote defined in the web configurator on the remote page.
+  **command** will match the case-senstitive name of the pre-defined (custom or codeset) command defined for that remote.
+  **num_repeats** is optional.
 
 ## Additional Actions
 
