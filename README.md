@@ -121,6 +121,25 @@ During a config flow, if you are unsure of your password, you can skip adding th
 
 If you are unsure of the password you set, you can change it via the web configurator. Click on the Integrations and Dock menu and then select the dock you need to change the password for. Once changed, come back to the repair and let home assistant know what you set it to.
 
+## External Entity Management
+***This is currently in Beta***
+
+Home Assistant now has the ability to manage the entities it shares with your Unfolded Circle Remote. When setting up a new device or when reconfiguring an existing device, you will be taken through an optional step to configure which Home Assistant entities are available on the remote. This functionality mirrors the same options on the integrations page on your remote. 
+
+To get started, add a new device or click the configure button. See the video below for a quick demo. 
+- You must be running v2.0.0 or greater on your unfolded circle remote for this functionality to be available.
+  - v2.0+ is currently in beta (But it's very stable)
+- This release should work fine for anyone not running the remote beta, but it has only been lightly tested.
+  - It will not contain any new functionality
+
+https://github.com/user-attachments/assets/96fa94e8-a5ad-4833-9a49-0bf85373eae0
+
+
+
+
+
+
+
 ## IR Remote Commands
 
 How to interact with the Remote Service:
@@ -150,8 +169,6 @@ data:
 ```
 
 ## IR Learning
-
-**_BETA: This will be available in the wide release soon_**
 
 You can now rapidly learn IR commands through your dock. To get started, go to your developer tools and then to the services tab and recreate the example below with your data. Start by providing a remote entity of the dock you want to learn through. Then add information about the remote to be created in the Unfolded Circle Software (name, icon, and description). Follow that with your IR dataset. Give it a name and a list of commands you would like to learn.
 
@@ -201,7 +218,7 @@ Additional options have been added to the intergration for further customization
 ## Zeroconf
 
 Your Remote Two will now be automatically discovered on the network.
-**Zeroconf handling has been significantly improved and should now properly detect when a device has already been configured.**
+**For real this time! Zeroconf handling has been significantly improved and should now properly detect when a device has already been configured.**
 
 ## Wake on lan
 
@@ -214,11 +231,11 @@ Wake on lan support is now available for remotes running firmware version 2.0.0 
 ## Notes
 
 - The remote entity does not need to be "on" for it to send commands.
-- The Remote Two will go to sleep when unpowered. When this occurs, Home Assistant is unable to communicate with the remote and retrieve updates.
+- The Remote Two will go to sleep when unpowered. If you have wake on lan enabled on your remote, Home Assistant will attempt to wake your remote prior to issuing a command. Only commands initiated by you will attempt to wake the remote. 
 - The remote can now generate its own diagnostic data to aid in debugging via the overflow menu in the Device Info section
 - The integration supports multiple Languages: English, French
 - The integration will now identify a repair and prompt for a new PIN if it can no longer authenticate to the remote
 
 ## About This Project
 
-I am not associated with Unfolded Circle, and provide this custom component purely for your own enjoyment and home automation needs. Those guys are awesome though!
+I am now working with the Unfolded Circle staff but am not affiliated with them, and provide this custom component purely for your own enjoyment and home automation needs. Those guys are still awesome!
