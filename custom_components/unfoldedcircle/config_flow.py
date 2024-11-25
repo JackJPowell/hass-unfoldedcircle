@@ -112,20 +112,21 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.error("Error during extraction of remote information: %s", ex)
 
         # Call helper to register a new external system with the remote if needed
-        try:
-            await validate_and_register_system_and_driver(
-                self._remote,
-                self.hass,
-                websocket_url,
-            )
-        except ExternalSystemAlreadyRegistered as ex:
-            _LOGGER.debug("External system already registered %s", ex)
-        except TokenRegistrationError as ex:
-            _LOGGER.error("Error during external system registration %s", ex)
-        except Exception as ex:
-            _LOGGER.error(
-                "Error during driver registration, continue config flow: %s", ex
-            )
+        if self._remote.external_entity_configuration_available:
+            try:
+                await validate_and_register_system_and_driver(
+                    self._remote,
+                    self.hass,
+                    websocket_url,
+                )
+            except ExternalSystemAlreadyRegistered as ex:
+                _LOGGER.debug("External system already registered %s", ex)
+            except TokenRegistrationError as ex:
+                _LOGGER.error("Error during external system registration %s", ex)
+            except Exception as ex:
+                _LOGGER.error(
+                    "Error during driver registration, continue config flow: %s", ex
+                )
 
         mac_address = None
         if self._remote.mac_address:
@@ -295,7 +296,9 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         else:
             if info["docks"]:
                 return await self.async_step_dock(info=info, first_call=True)
-            return await self.async_step_select_entities(None)
+            if self._remote.external_entity_configuration_available:
+                return await self.async_step_select_entities(None)
+            return await self.async_step_finish(None)
 
         schema: dict[Required | Optional, Type] = vol.Schema(
             {
@@ -336,7 +339,9 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 if first_call is False:
                     self.dock_count += 1
                     if dock_total == self.dock_count:
-                        return await self.async_step_select_entities(None)
+                        if self._remote.external_entity_configuration_available:
+                            return await self.async_step_select_entities(None)
+                        return await self.async_step_finish(None)
 
                 return self.async_show_form(
                     step_id="dock",
@@ -364,7 +369,9 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             errors["base"] = "unknown"
 
         if dock_total == self.dock_count:
-            return await self.async_step_select_entities(None)
+            if self._remote.external_entity_configuration_available:
+                return await self.async_step_select_entities(None)
+            return await self.async_step_finish(None)
 
         return self.async_show_form(
             step_id="dock",

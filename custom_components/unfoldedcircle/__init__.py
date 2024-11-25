@@ -158,7 +158,10 @@ async def async_setup_entry(
 
     # If websocket_url is present, we've setup the new flow for the remote
     # This means it's safe to validate and register the connection if needed
-    if entry.data.get("websocket_url", "") != "":
+    if (
+        entry.data.get("websocket_url", "") != ""
+        and coordinator.api.external_entity_configuration_available
+    ):
         await validate_and_register_system_and_driver(
             coordinator.api, hass, entry.data.get("websocket_url", "")
         )
