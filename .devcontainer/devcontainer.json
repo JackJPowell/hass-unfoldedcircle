@@ -18,8 +18,7 @@
         "visualstudioexptteam.vscodeintellicode",
         "redhat.vscode-yaml",
         "esbenp.prettier-vscode",
-        "GitHub.vscode-pull-request-github",
-        "GitHub.copilot"
+        "GitHub.vscode-pull-request-github"
       ],
       "settings": {
         "python.experiments.optOutFrom": ["pythonTestAdapter"],
