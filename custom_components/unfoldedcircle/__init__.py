@@ -19,6 +19,8 @@ from .coordinator import (
     UnfoldedCircleDockCoordinator,
 )
 
+from .helpers import validate_and_register_system_and_driver
+
 
 PLATFORMS: list[Platform] = [
     Platform.SWITCH,
@@ -154,6 +156,13 @@ async def async_setup_entry(
 
     await coordinator.async_config_entry_first_refresh()
 
+    # If websocket_url is present, we've setup the new flow for the remote
+    # This means it's safe to validate and register the connection if needed
+    if entry.data.get("websocket_url", "") != "":
+        await validate_and_register_system_and_driver(
+            coordinator.api, hass, entry.data.get("websocket_url", "")
+        )
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(update_listener))
     await zeroconf.async_get_async_instance(hass)
@@ -169,7 +178,7 @@ async def async_unload_entry(
         coordinator = entry.runtime_data.coordinator
         await coordinator.close_websocket()
 
-        for dock in coordinator.api._docks:
+        for dock in coordinator.api.docks:
             issue_registry.async_delete_issue(hass, DOMAIN, f"dock_password_{dock.id}")
     except Exception as ex:
         _LOGGER.error("Unfolded Circle Remote async_unload_entry error: %s", ex)
@@ -178,7 +187,9 @@ async def async_unload_entry(
     return unload_ok
 
 
-async def async_remove_entry(hass, entry) -> None:
+async def async_remove_entry(
+    hass: HomeAssistant, entry: UnfoldedCircleConfigEntry
+) -> None:
     """Handle removal of an entry."""
     try:
         _LOGGER.debug("Removing remote from Home assistant for entry %s", entry)
@@ -187,7 +198,7 @@ async def async_remove_entry(hass, entry) -> None:
             results = await remote_api.delete_token_for_external_system(
                 UC_HA_SYSTEM, UC_HA_TOKEN_ID
             )
-            _LOGGER.debug(f"Results of token deletion : %s", results)
+            _LOGGER.debug("Results of token deletion : %s", results)
         except ConnectionError:
             _LOGGER.error(
                 "Remote is unavailable, the HA token cannot be checked and won't be removed"
@@ -217,7 +228,7 @@ def _update_config_entry(
     """Update config entry with dock information"""
     if "docks" not in config_entry.data:
         docks = []
-        for dock in coordinator.api._docks:
+        for dock in coordinator.api.docks:
             docks.append({"id": dock.id, "name": dock.name, "password": ""})
 
         updated_data = {**config_entry.data}

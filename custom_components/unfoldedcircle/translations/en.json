@@ -38,11 +38,7 @@
         "menu_options": {
           "remote_websocket": "Remote is not connected, try to reconfigure the URL",
           "finish": "Ignore this step and finish",
-          "error": "{message} Retry?",
-          "not_connected": "Remote driver is not connected, retry",
-          "notify_failed": "Failed to notify the remote with the new entities. Try again",
-          "driver_failure": "Failed to notify the remote with the new entities (driver {UC_HA_DRIVER_ID} not found). Try again",
-          "try_again": "Try again"
+          "error": "Unable to communicate with the remote. Retry?"
         }
       },
       "zeroconf_confirm": {
@@ -96,11 +92,7 @@
         "menu_options": {
           "remote_websocket": "Remote is not connected, try to reconfigure the URL",
           "finish": "Ignore this step and finish",
-          "error": "Error {message}, retry",
-          "not_connected": "Remote driver is not connected, retry",
-          "notify_failed": "Failed to notify the remote with the new entities. Try again",
-          "driver_failure": "Failed to notify the remote with the new entities (driver {UC_HA_DRIVER_ID} not found). Try again",
-          "try_again": "Try again"
+          "error": "Unable to communicate with the remote. Retry?"
         }
       }
     }
