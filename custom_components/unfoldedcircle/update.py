@@ -84,9 +84,9 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
                 )
                 return
 
-            while update_information.get("state") != "START" and retry_count < 6:
+            while update_information.get("state") != "START" and retry_count < 10:
                 self._is_downloading = True
-                await asyncio.sleep(5)
+                await asyncio.sleep(6)
                 download_percentage = await self.update_download_status()
                 if download_percentage == previous_download_percentage:
                     retry_count = retry_count + 1
@@ -110,8 +110,8 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
                 if self._download_progress > 0:
                     self._attr_in_progress = self._download_progress
 
-            # If 6 attempts were made with no progress, cancel install
-            if retry_count == 6:
+            # If 10 attempts were made with no progress, cancel install
+            if retry_count == 10:
                 self._attr_in_progress = False
 
         except HTTPError as ex:
@@ -126,9 +126,9 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
         self.async_write_ha_state()
 
     async def update_download_status(self) -> int:
-        """Calls system/update/latest to retrieve current download / udpate status"""
+        """Calls system/update/latest to retrieve current download / update status"""
         status_information = await self.coordinator.api.get_update_status()
-        download_percentage = status_information.get("download_percent")
+        download_percentage = self.coordinator.api.download_percent
 
         # Unsure if download percentage stays at 100 post download
         if status_information.get("state") == "DOWNLOADED":
@@ -154,6 +154,7 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
         if (
             self.coordinator.api.update_in_progress is True
             or self._is_downloading is True
+            or self.coordinator.api.download_percent > 0
         ):
             # If a download was needed, continue to show that percent
             # until the actual update percent exceeds it

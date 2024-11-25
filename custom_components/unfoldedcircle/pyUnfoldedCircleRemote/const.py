@@ -8,6 +8,7 @@ WS_RECONNECTION_DELAY = 30  # seconds
 ZEROCONF_TIMEOUT = 3
 ZEROCONF_SERVICE_TYPE = "_uc-remote._tcp.local."
 SIMULATOR_MAC_ADDRESS = "aa:bb:cc:dd:ee:ff"
+SIMULATOR_NAMES = ["Remote Two Simulator", "Remote 3 Simulator"]
 
 SYSTEM_COMMANDS = [
     "STANDBY",

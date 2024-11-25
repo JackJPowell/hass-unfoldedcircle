@@ -10,13 +10,16 @@
       "cannot_connect": "Failed to connect",
       "invalid_dock_password": "Incorrect dock password. Submit with an empty password to skip",
       "invalid_auth": "Incorrect pin supplied. Please try again",
-      "unknown": "Unexpected error"
+      "unknown": "Unexpected error",
+      "ha_driver_failure": "Unexpected error when configuring remote entities",
+      "cannot_create_ha_token": "Unable to create Home Assistant Token"
     },
     "step": {
       "user": {
         "data": {
           "host": "Host",
-          "pin": "PIN Code"
+          "pin": "PIN Code",
+          "ha_ws_url": "Home Assistant Websocket URL"
         }
       },
       "dock": {
@@ -26,15 +29,29 @@
           "password": "Password"
         }
       },
+      "select_entities": {
+        "title": "Configure Entities (Optional)",
+        "data": {
+          "add_entities": "Entities to share with Remote",
+          "remove_entities": "Entities to remove from Remote"
+        },
+        "menu_options": {
+          "remote_websocket": "Remote is not connected, try to reconfigure the URL",
+          "finish": "Ignore this step and finish",
+          "error": "Unable to communicate with the remote. Retry?"
+        }
+      },
       "zeroconf_confirm": {
         "data": {
-          "pin": "PIN Code"
+          "pin": "PIN Code",
+          "ha_ws_url": "Home Assistant Websocket URL"
         },
         "title": "Remote Two"
       },
       "reauth_confirm": {
         "data": {
-          "pin": "PIN Code"
+          "pin": "PIN Code",
+          "ha_ws_url": "Home Assistant Websocket URL"
         },
         "title": "Reauthenticate with PIN"
       }
@@ -43,9 +60,10 @@
   "options": {
     "step": {
       "init": {
-        "data": {
-          "host": "Host",
-          "pin": "PIN Code"
+        "title": "Unfolded Circle Options",
+        "menu_options": {
+          "select_entities": "Configure entities to share with {remote}",
+          "activities": "Configure this integration"
         }
       },
       "media_player": {
@@ -63,6 +81,18 @@
         "data": {
           "activities_as_switches": "Create all activities as switch entities",
           "suppress_activity_groups": "Suppress creation of activity group entities"
+        }
+      },
+      "select_entities": {
+        "title": "Configure Entities",
+        "data": {
+          "add_entities": "Entities to share with Remote",
+          "remove_entities": "Entities to remove from Remote"
+        },
+        "menu_options": {
+          "remote_websocket": "Remote is not connected, try to reconfigure the URL",
+          "finish": "Ignore this step and finish",
+          "error": "Unable to communicate with the remote. Retry?"
         }
       }
     }
