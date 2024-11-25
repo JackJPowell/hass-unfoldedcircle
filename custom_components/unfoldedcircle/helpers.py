@@ -1,23 +1,25 @@
 """Helper functions for Unfolded Circle Devices"""
 
-import re
 import asyncio
-import logging
-from urllib.parse import urljoin, urlparse
 from datetime import timedelta
-from homeassistant.core import HomeAssistant
-from homeassistant.components.zeroconf import ZeroconfServiceInfo
-from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN, RefreshToken
-from homeassistant.helpers.network import get_url, NoURLAvailableError
-from custom_components.unfoldedcircle.const import DEFAULT_HASS_URL
+import logging
+import re
+from urllib.parse import urljoin, urlparse
+
 from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
 from pyUnfoldedCircleRemote.remote import (
-    Remote,
-    TokenRegistrationError,
     HTTPError,
     IntegrationNotFound,
+    Remote,
+    TokenRegistrationError,
 )
-from .const import UC_HA_SYSTEM, UC_HA_TOKEN_ID
+
+from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN, RefreshToken
+from homeassistant.components.zeroconf import ZeroconfServiceInfo
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.network import NoURLAvailableError, get_url
+
+from .const import UC_HA_SYSTEM, UC_HA_TOKEN_ID, DEFAULT_HASS_URL
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -4,7 +4,19 @@ import asyncio
 import logging
 from typing import Any, Awaitable, Callable, Type
 
+from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
+from pyUnfoldedCircleRemote.remote import (
+    ApiKeyCreateError,
+    ApiKeyRevokeError,
+    AuthenticationError,
+    ExternalSystemAlreadyRegistered,
+    Remote,
+    RemoteConnectionError,
+    TokenRegistrationError,
+)
 import voluptuous as vol
+from voluptuous import Optional, Required
+
 from homeassistant import config_entries
 from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.config_entries import ConfigEntry, ConfigFlow
@@ -12,43 +24,28 @@ from homeassistant.const import CONF_HOST, CONF_MAC, CONF_NAME, CONF_PORT
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.selector import (
-    EntitySelector,
-    EntitySelectorConfig,
-)
-from voluptuous import Optional, Required
-
-from .helpers import (
-    validate_dock_password,
-    get_ha_websocket_url,
-    validate_and_register_system_and_driver,
-    connect_integration,
-    mac_address_from_discovery_info,
-    device_info_from_discovery_info,
-    IntegrationNotFound,
-    UnableToExtractMacAddress,
-)
+from homeassistant.helpers.selector import EntitySelector, EntitySelectorConfig
 
 from .const import (
     CONF_ACTIVITIES_AS_SWITCHES,
     CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
     CONF_ACTIVITY_MEDIA_ENTITIES,
     CONF_GLOBAL_MEDIA_ENTITY,
+    CONF_HA_WEBSOCKET_URL,
     CONF_SERIAL,
     CONF_SUPPRESS_ACTIVITIY_GROUPS,
     DOMAIN,
     HA_SUPPORTED_DOMAINS,
-    CONF_HA_WEBSOCKET_URL,
 )
-from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
-from pyUnfoldedCircleRemote.remote import (
-    AuthenticationError,
-    Remote,
-    RemoteConnectionError,
-    TokenRegistrationError,
-    ExternalSystemAlreadyRegistered,
-    ApiKeyCreateError,
-    ApiKeyRevokeError,
+from .helpers import (
+    IntegrationNotFound,
+    UnableToExtractMacAddress,
+    connect_integration,
+    device_info_from_discovery_info,
+    get_ha_websocket_url,
+    mac_address_from_discovery_info,
+    validate_and_register_system_and_driver,
+    validate_dock_password,
 )
 from .websocket import SubscriptionEvent, UCWebsocketClient
 
