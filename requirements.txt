@@ -1,5 +1,5 @@
 # Home Assistant
-homeassistant>=2024.10.1
+homeassistant>=2024.11.3
 PyTurboJPEG
 
 # Development
@@ -7,3 +7,5 @@ colorlog==6.7.0
 pip>=24.2
 ruff>=0.5.3
 aiohttp_fast_zlib
+zlib_ng
+isal
