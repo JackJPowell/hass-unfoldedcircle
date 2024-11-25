@@ -10,8 +10,8 @@ from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN, RefreshToken
 from homeassistant.helpers.network import get_url, NoURLAvailableError
 from custom_components.unfoldedcircle.const import DEFAULT_HASS_URL
-from .pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
-from .pyUnfoldedCircleRemote.remote import (
+from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
+from pyUnfoldedCircleRemote.remote import (
     Remote,
     TokenRegistrationError,
     HTTPError,

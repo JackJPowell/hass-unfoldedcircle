@@ -40,8 +40,8 @@ from .const import (
     HA_SUPPORTED_DOMAINS,
     CONF_HA_WEBSOCKET_URL,
 )
-from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
-from .pyUnfoldedCircleRemote.remote import (
+from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
+from pyUnfoldedCircleRemote.remote import (
     AuthenticationError,
     Remote,
     RemoteConnectionError,
