@@ -7,6 +7,7 @@ from typing import Any, Mapping
 import logging
 
 import voluptuous as vol
+from voluptuous import Any
 from homeassistant.util import dt as dt_util
 
 from homeassistant.components.remote import (
@@ -19,14 +20,17 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import service, entity_platform
 from homeassistant.helpers.entity import ToggleEntityDescription
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from pyUnfoldedCircleRemote.remote import AuthenticationError
+from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
+from .pyUnfoldedCircleRemote.remote import AuthenticationError
 
 from .const import (
     DOMAIN,
     LEARN_IR_COMMAND_SERVICE,
+    SEND_IR_COMMAND_SERVICE,
 )
 from .entity import UnfoldedCircleEntity, UnfoldedCircleDockEntity
 from . import UnfoldedCircleConfigEntry
+from .coordinator import UnfoldedCircleCoordinator, UnfoldedCircleDockCoordinator
 
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
@@ -57,6 +61,25 @@ async def async_setup_entry(
     for dock_coordinator in dock_coordinators:
         async_add_entities([RemoteDockSensor(dock_coordinator)])
 
+    def get_dock_name(dock_coordinator: UnfoldedCircleDockCoordinator):
+        return dock_coordinator.api.name
+
+    send_codeset_schema = cv.make_entity_service_schema(
+        {
+            vol.Required("device"): str,
+            vol.Required("command"): Any(str, list[str]),
+            vol.Optional("codeset"): str,
+            vol.Optional("num_repeats"): str,
+            vol.Optional("dock"): SelectSelector(
+                SelectSelectorConfig(
+                    options=list(map(get_dock_name, dock_coordinators)), sort=True
+                )
+            ),
+            vol.Optional("port"): str,
+        },
+        extra=vol.ALLOW_EXTRA,
+    )
+
     @service.verify_domain_control(hass, DOMAIN)
     async def async_service_handle(service_call: ServiceCall) -> None:
         """Handle dispatched services."""
@@ -68,21 +91,38 @@ async def async_setup_entry(
             return
 
         for entity in entities:
-            assert isinstance(entity, RemoteDockSensor)
+            assert isinstance(entity, (RemoteSensor, RemoteDockSensor))
 
         if service_call.service == LEARN_IR_COMMAND_SERVICE:
             dock_coordinators = config_entry.runtime_data.dock_coordinators
 
             for coor in dock_coordinators:
                 coordinator = coor
-            ir = IR(coordinator, hass, data=service_call.data)
+            ir = IR(None, coordinator, hass, data=service_call.data)
             await ir.async_learn_command()
+
+        if service_call.service == SEND_IR_COMMAND_SERVICE:
+            coordinator = config_entry.runtime_data.coordinator
+            dock_coordinators = config_entry.runtime_data.dock_coordinators
+
+            for coor in dock_coordinators:
+                dock_coordinator = coor
+
+            ir = IR(coordinator, dock_coordinator, hass, data=service_call.data)
+            await ir.async_send_command()
 
     hass.services.async_register(
         DOMAIN,
         LEARN_IR_COMMAND_SERVICE,
         async_service_handle,
         CREATE_CODESET_SCHEMA,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SEND_IR_COMMAND_SERVICE,
+        async_service_handle,
+        send_codeset_schema,
     )
 
 
@@ -218,15 +258,22 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
 
 
 class IR:
-    def __init__(self, coordinator, hass, data):
+    def __init__(
+        self,
+        coordinator: UnfoldedCircleCoordinator | None,
+        dock_coordinator: UnfoldedCircleDockCoordinator | None,
+        hass,
+        data,
+    ):
         self.coordinator = coordinator
+        self.dock_coordinator = dock_coordinator
         self.hass = hass
         self.data = data
 
     async def async_learn_command(self, **kwargs: Any) -> None:
         """Learn a list of commands from a remote."""
 
-        await self.coordinator.api.get_remotes_complete()
+        await self.dock_coordinator.api.get_remotes()
 
         name = self.data.get("remote").get("name")
         description = self.data.get("remote").get("description")
@@ -234,7 +281,7 @@ class IR:
         subdevice = self.data.get("ir_dataset").get("name")
         for command in self.data.get("ir_dataset").get("command"):
             try:
-                code = await self._async_learn_ir_command(
+                await self._async_learn_ir_command(
                     command, subdevice, name, description, icon
                 )
 
@@ -250,7 +297,7 @@ class IR:
         """Learn an infrared command."""
 
         try:
-            await self.coordinator.api.start_ir_learning()
+            await self.dock_coordinator.api.start_ir_learning()
 
         except (Exception, OSError) as err:
             _LOGGER.debug("Failed to enter learning mode: %s", err)
@@ -265,14 +312,14 @@ class IR:
 
         is_existing_list = False
         remote_entity_id = ""
-        for remote in self.coordinator.api.remotes_complete:
+        for remote in self.dock_coordinator.api.remotes_complete:
             if remote.get("options").get("ir").get("codeset").get("name") == device:
                 remote_entity_id = remote.get("entity_id")
                 is_existing_list = True
 
         if not is_existing_list:
             try:
-                new_remote = await self.coordinator.api.create_remote(
+                new_remote = await self.dock_coordinator.api.create_remote(
                     name=name,
                     device=device,
                     description=description,
@@ -281,8 +328,10 @@ class IR:
                 remote_entity_id = new_remote.get("entity_id")
                 # Refresh the list of remotes (We are shortcutting to save time. This
                 # probably should just call the get_remotes_complete() method)
-                await self.coordinator.api._remotes_complete.append(new_remote.copy())
-            except Exception as ex:
+                await self.dock_coordinator.api._remotes_complete.append(
+                    new_remote.copy()
+                )
+            except Exception:
                 pass
 
         try:
@@ -290,20 +339,20 @@ class IR:
             while (dt_util.utcnow() - start_time) < LEARNING_TIMEOUT:
                 await asyncio.sleep(1)
                 try:
-                    if self.coordinator.api.learned_code:
+                    if self.dock_coordinator.api.learned_code:
                         ir_format = "HEX"
-                        learned_code: str = self.coordinator.api.learned_code
+                        learned_code: str = self.dock_coordinator.api.learned_code
                         if "0x" not in learned_code.lower():
                             ir_format = "PRONTO"
 
-                        await self.coordinator.api.add_remote_command_to_codeset(
+                        await self.dock_coordinator.api.add_remote_command_to_codeset(
                             remote_entity_id,
                             command,
                             learned_code,
                             ir_format,
                         )
-                        self.coordinator.api._learned_code = None
-                        return self.coordinator.api._learned_code
+                        self.dock_coordinator.api._learned_code = None
+                        return self.dock_coordinator.api._learned_code
                 except AuthenticationError:
                     continue
 
@@ -315,3 +364,58 @@ class IR:
             persistent_notification.async_dismiss(
                 self.hass, notification_id="learn_command"
             )
+
+    async def async_send_command(self, **kwargs: Any) -> None:
+        """Send a list of commands from a remote."""
+
+        await self.coordinator.api.get_remotes()
+
+        device = self.data.get("device")
+        codeset = self.data.get("codeset")
+        repeat = self.data.get("num_repeats", 0)
+        dock = self.data.get("dock", None)
+        port = self.data.get("port", None)
+
+        if not dock:
+            dock = self.dock_coordinator.api.name
+
+        if port:
+            port = self.translate_port(port)
+
+        commands: list[str] = []
+        if type(self.data.get("command")) is list:
+            commands = self.data.get("command")
+        else:
+            commands.append(self.data.get("command"))
+
+        for command in commands:
+            try:
+                await self.coordinator.api.send_remote_command(
+                    device, command, repeat, codeset, dock=dock, port=port
+                )
+            except (AuthenticationError, OSError) as err:
+                _LOGGER.error("Failed to learn '%s': %s", command, err)
+                break
+
+            except Exception as err:
+                _LOGGER.error("Failed to learn '%s': %s", command, err)
+                continue
+
+    def translate_port(self, port_name) -> str:
+        match port_name:
+            case "Dock Top":
+                return "2"
+            case "Dock Bottom":
+                return "1"
+            case "Ext 1":
+                return "4"
+            case "Ext 2":
+                return "8"
+            case "Ext 1 & 2":
+                return "12"
+            case "Dock Bottom & Ext 1":
+                return "5"
+            case "Dock Bottom & Ext 2":
+                return "9"
+            case _default:
+                return "0"

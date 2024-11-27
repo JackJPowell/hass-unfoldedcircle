@@ -1643,11 +1643,12 @@ class Remote:
             return self._ir_emitters
 
     async def send_remote_command(
-        self, device="", command="", repeat=0, **kwargs
+        self, device="", command="", repeat=0, codeset="", **kwargs
     ) -> bool:
         """Send a remote command to the dock kwargs: code,format,dock,port."""
         body_port = {}
         body_repeat = {}
+        codeset_id = ""
         if "code" in kwargs and "format" in kwargs:
             # Send an IR command (HEX/PRONTO)
             body = {"code": kwargs.get("code"), "format": kwargs.get("format")}
@@ -1655,9 +1656,25 @@ class Remote:
             # Send a predefined code
             ir_code = next(
                 (code for code in self._ir_codesets if code.get("name") == device),
-                dict,
+                None,
             )
-            body = {"codeset_id": ir_code.get("device_id"), "cmd_id": command}
+            if ir_code:
+                codeset_id = ir_code.get("device_id")
+            # Check if user sent in a delivered code
+            if not codeset_id != "" and codeset != "":
+                manufacturers: list = await self.get_ir_manufacturers(device)
+                for manufacturer in manufacturers:
+                    codesets = await self.get_ir_manufacturer_codesets(
+                        manufacturer.get("id")
+                    )
+                    for cs in codesets:
+                        if cs.get("name") == codeset:
+                            codeset_id = cs.get("id")
+
+            if codeset_id == "":
+                raise InvalidIRFormat("No predefined code found")
+
+            body = {"codeset_id": codeset_id, "cmd_id": command}
         else:
             raise InvalidIRFormat("Supply (code and format) or (device and command)")
 
@@ -1668,15 +1685,20 @@ class Remote:
             body_port = {"port_id": kwargs.get("port")}
 
         if "dock" in kwargs:
-            dock_name = kwargs.get("dock")
+            dock_name: str = kwargs.get("dock")
             emitter = next(
-                (dock for dock in self._ir_emitters if dock.get("name") == dock_name),
+                (
+                    dock
+                    for dock in self._ir_emitters
+                    if dock.get("name", "").lower() == dock_name.lower()
+                ),
                 None,
             )
+            emitter_id = emitter.get("device_id")
         else:
-            emitter = self._ir_emitters[0].get("device_id")
+            emitter_id = self._ir_emitters[0].get("device_id")
 
-        if emitter is None:
+        if emitter_id is None:
             raise NoEmitterFound("No emitter could be found with the supplied criteria")
 
         body_merged = {**body, **body_repeat, **body_port}
@@ -1688,12 +1710,44 @@ class Remote:
         async with (
             self.client() as session,
             session.put(
-                self.url("ir/emitters/" + emitter + "/send"), json=body_merged
+                self.url("ir/emitters/" + emitter_id + "/send"), json=body_merged
             ) as response,
         ):
             await self.raise_on_error(response)
             response = await response.json()
             return response == 200
+
+    async def get_ir_manufacturers(self, manufacturer: str) -> dict[str, str]:
+        if self._wake_if_asleep and self._wake_on_lan:
+            if not await self.wake():
+                raise RemoteIsSleeping
+
+        async with (
+            self.client() as session,
+            session.get(
+                self.url(f"ir/codes/manufacturers?page=1&limit=100&q={manufacturer}"),
+            ) as response,
+        ):
+            await self.raise_on_error(response)
+            response = await response.json()
+            return response
+
+    async def get_ir_manufacturer_codesets(
+        self, manufacturer_id: str
+    ) -> dict[str, str]:
+        if self._wake_if_asleep and self._wake_on_lan:
+            if not await self.wake():
+                raise RemoteIsSleeping
+
+        async with (
+            self.client() as session,
+            session.get(
+                self.url(f"ir/codes/manufacturers/{manufacturer_id}?page=1&limit=100"),
+            ) as response,
+        ):
+            await self.raise_on_error(response)
+            response = await response.json()
+            return response
 
     def update_from_message(self, message: any) -> None:
         """Update internal data from received websocket messages
