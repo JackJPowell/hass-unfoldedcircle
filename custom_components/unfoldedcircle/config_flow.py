@@ -4,16 +4,6 @@ import asyncio
 import logging
 from typing import Any, Awaitable, Callable, Type
 
-from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
-from pyUnfoldedCircleRemote.remote import (
-    ApiKeyCreateError,
-    ApiKeyRevokeError,
-    AuthenticationError,
-    ExternalSystemAlreadyRegistered,
-    Remote,
-    RemoteConnectionError,
-    TokenRegistrationError,
-)
 import voluptuous as vol
 from voluptuous import Optional, Required
 
@@ -46,6 +36,16 @@ from .helpers import (
     mac_address_from_discovery_info,
     validate_and_register_system_and_driver,
     validate_dock_password,
+)
+from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
+from pyUnfoldedCircleRemote.remote import (
+    ApiKeyCreateError,
+    ApiKeyRevokeError,
+    AuthenticationError,
+    ExternalSystemAlreadyRegistered,
+    Remote,
+    RemoteConnectionError,
+    TokenRegistrationError,
 )
 from .websocket import SubscriptionEvent, UCWebsocketClient
 

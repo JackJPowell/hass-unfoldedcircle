@@ -18,6 +18,7 @@ UNFOLDED_CIRCLE_DOCK_COORDINATOR = "unfolded_circle_dock_coordinator"
 UNFOLDED_CIRCLE_API = "unfolded_circle_api"
 UPDATE_ACTIVITY_SERVICE = "update_activity"
 LEARN_IR_COMMAND_SERVICE = "learn_ir_command"
+SEND_IR_COMMAND_SERVICE = "send_ir_command"
 HA_SUPPORTED_DOMAINS = [
     "button",
     "switch",

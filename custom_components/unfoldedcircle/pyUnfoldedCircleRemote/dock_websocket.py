@@ -33,6 +33,9 @@ class DockWebsocket(Websocket):
         super().__init__(api_url, api_key, dock_password)
         self.endpoint = api_url
         self.awaits_password = True
+        self.events_to_subscribe = [
+            "all",
+        ]
 
     async def init_websocket(
         self,
@@ -65,13 +68,14 @@ class DockWebsocket(Websocket):
                         # useful to extract fresh information with APIs after a
                         # long period of disconnection (sleep)
                         asyncio.ensure_future(reconnection_callback())
+                    asyncio.ensure_future(self.subscribe_events())
 
                     while True:
                         async for message in websocket:
                             try:
                                 data = json.loads(message)
                                 _LOGGER.debug("RC2 received websocket message %s", data)
-                                if data["type"] == "auth_required":
+                                if data.get("type", "") == "auth_required":
                                     asyncio.ensure_future(
                                         self.send_message(
                                             {
@@ -80,12 +84,13 @@ class DockWebsocket(Websocket):
                                             }
                                         )
                                     )
-                                asyncio.ensure_future(receive_callback(self, message))
+                                asyncio.ensure_future(receive_callback(message))
                             except Exception as ex:
-                                _LOGGER.debug(
+                                _LOGGER.error(
                                     "UnfoldedCircleRemote exception in websocket receive callback %s",
                                     ex,
                                 )
+                                raise Exception from ex
                 except websockets.ConnectionClosed as error:
                     _LOGGER.debug(
                         "UnfoldedCircleRemote websocket closed. Waiting before reconnecting... %s",

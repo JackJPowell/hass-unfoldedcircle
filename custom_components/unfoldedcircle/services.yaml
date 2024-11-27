@@ -29,3 +29,60 @@ learn_ir_command:
       name: IR Codeset Information
       description: IR Codeset Dictionary containing -> Name and a list of commands
       required: true
+
+send_ir_command:
+  name: Send IR Commands
+  description: Allows for the automated sending of a sequence of IR commands
+  target:
+    entity:
+      - integration: unfoldedcircle
+        domain: remote
+  fields:
+    device:
+      name: Device Name / Manufacturer
+      description: Custom Codeset Device Name / Manufacturer
+      required: true
+      selector:
+        text:
+    codeset:
+      name: Manufacturer Codeset Name
+      description: The name of the manufacturer codeset
+      required: false
+      selector:
+        text:
+    command:
+      name: IR Command
+      description: Predefined IR command
+      required: true
+      selector:
+          text:
+    num_repeats:
+      name: Repeat Count
+      description: Number of times to repeat sending the command
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 20
+          unit_of_measurement: times
+          mode: box
+    dock:
+      name: Dock Name
+      description: The name of the Dock to send the command to
+      required: false
+      selector:
+        text:
+    port:
+      name: Dock Port
+      description: The port to send the command to
+      required: false
+      selector:
+        select:
+          options:
+            - "Dock Top"
+            - "Dock Bottom"
+            - "Ext 1"
+            - "Ext 2"
+            - "Ext 1 & 2"
+            - "Dock Bottom & Ext 1"
+            - "Dock Bottom & Ext 2"
