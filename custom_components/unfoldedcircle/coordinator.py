@@ -212,9 +212,67 @@ class UnfoldedCircleDockCoordinator(
 
     async def init_websocket(self):
         """Initialize the Web Socket"""
+        self.websocket.events_to_subscribe = [
+            "all",
+            *list(self.subscribe_events.keys()),
+        ]
+
         self.websocket_task = asyncio.create_task(
             self.websocket.init_websocket(self.receive_data, self.reconnection_ws)
         )
 
-    def debug_structure(self):
-        pass
+    async def reconnection_ws(self):
+        """Reconnect WS Connection if dropped"""
+        _LOGGER.debug(
+            "Unfolded Circle Remote coordinator refresh data after a period of disconnection"
+        )
+        try:
+            await self.api.update()
+            self.async_set_updated_data(vars(self.api))
+        except Exception as ex:
+            _LOGGER.error(
+                "Unfolded Circle Remote reconnection_ws error while updating entities: %s",
+                ex,
+            )
+
+    async def receive_data(self, message: any):
+        """Update data received from WS"""
+        try:
+            # Update internal data from the message
+            self.api.update_from_message(message)
+            # Trigger update of entities
+            self.async_set_updated_data(vars(self.api))
+            # asyncio.create_task(self._async_update_data()).result()
+        except Exception as ex:
+            _LOGGER.error(
+                "Unfolded Circle Remote error while updating entities: %s", ex
+            )
+
+    async def _async_update_data(self) -> dict[str, Any]:
+        """Get the latest data from the Unfolded Circle Remote."""
+        try:
+            if self.polling_data:
+                await self.api.update()
+
+            self.data = vars(self.api)
+            return vars(self.api)
+        except HTTPError as err:
+            if err.status_code == 401:
+                raise ConfigEntryAuthFailed(err) from err
+            raise UpdateFailed(
+                f"Error communicating with Unfolded Circle Remote API {err}"
+            ) from err
+        except Exception as ex:
+            raise UpdateFailed(
+                f"Error communicating with Unfolded Circle Remote API {ex}"
+            ) from ex
+
+    async def close_websocket(self):
+        """Close websocket"""
+        try:
+            if self.websocket_task:
+                self.websocket_task.cancel()
+            if self.websocket:
+                await self.websocket.close_websocket()
+        except Exception as ex:
+            _LOGGER.error("Unfolded Circle Remote while closing websocket: %s", ex)

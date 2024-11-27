@@ -129,6 +129,10 @@ class ApiKeyCreateError(Exception):
     """Raised when unable to create api key"""
 
 
+class DockNotFound(Exception):
+    """Raised when unable to translate dock name"""
+
+
 class RemoteGroup(list):
     """List of Unfolded Circle Remotes."""
 
