@@ -135,23 +135,39 @@ To get started, add a new device or click the configure button. See the video be
 https://github.com/user-attachments/assets/96fa94e8-a5ad-4833-9a49-0bf85373eae0
 
 ## IR Remote Commands
+***This is currently in Beta***
+The remote entity supports sending predefined IR commands using the unfoldedcircle.send_ir_command action. 
 
-How to interact with the Remote Service:
-The remote entity supports sending IR commands using the remote.send_command service.
+**device:** will match the case-sensitive name of your remote defined in the web configurator on the remote page. This will be your custom name or the manufacturer name selected.
+
+**codeset** (Optional) If you supplied a manufacturer name, you also need to supply the codeset name you are using. 
+
+**command** will match the case-senstitive name of the pre-defined (custom or codeset) command defined for that remote.
+
+**num_repeats** (Optional) The number of times to repeat sending the command.
+
+**dock_name** (Optional) The name of the dock you would like to send the command from. If not supplied, all docks will emit the IR signal.
+
+**port** (Optional) The location on the dock you want the IR signal to be emitted from. If not supplied, all ports are used.
+
+![image](https://github.com/user-attachments/assets/64adaf67-9025-46a8-aaab-f90c82fb8c6e)
+
+Yaml of the above image:
 
 ```
-service: remote.send_command
+action: unfoldedcircle.send_ir_command
 data:
-  device: Receiver
-  command: Power
+  device: Samsung
+  codeset: Generic TV 1
+  command: POWER_TOGGLE
+  dock: Remote Dock
+  port: Ext 1
 target:
   entity_id: remote.remote_two_remote
 ```
 
 > [!TIP]
-**device:** will match the case-sensitive name of your remote defined in the web configurator on the remote page.
-  **command** will match the case-senstitive name of the pre-defined (custom or codeset) command defined for that remote.
-  **num_repeats** is optional.
+You can still use the standard remote.send_command action, however, only custom defined remote codes can be sent due to a limitation with this action. 
 
 ## Additional Actions
 
