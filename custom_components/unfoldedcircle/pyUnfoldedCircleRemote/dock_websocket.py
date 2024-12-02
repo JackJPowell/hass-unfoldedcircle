@@ -90,7 +90,6 @@ class DockWebsocket(Websocket):
                                     "UnfoldedCircleRemote exception in websocket receive callback %s",
                                     ex,
                                 )
-                                raise Exception from ex
                 except websockets.ConnectionClosed as error:
                     _LOGGER.debug(
                         "UnfoldedCircleRemote websocket closed. Waiting before reconnecting... %s",
