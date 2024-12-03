@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er, issue_registry
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
+from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 from .const import DOMAIN, UC_HA_SYSTEM, UC_HA_TOKEN_ID
 from .coordinator import (
@@ -118,6 +118,30 @@ async def async_setup_entry(
         _update_config_entry(hass, entry, coordinator)
         hass.config_entries.async_update_entry(entry, version=2)
 
+    # Synchronize the list of docks from the registry with the docks reported by the remote
+    config_updated = False
+    for config_dock in list(entry.data["docks"]):
+        found = False
+        for dock in remote_api._docks:
+            if config_dock.get("id") == dock.id:
+                found = True
+                break
+        if not found:
+            entry.data["docks"].remove(config_dock)
+            config_updated = True
+
+    for dock in remote_api._docks:
+        found = False
+        for config_dock in entry.data["docks"]:
+            if config_dock.get("id") == dock.id:
+                found = True
+                break
+        if not found:
+            entry.data["docks"].append({"id": dock.id, "name": dock.name, "password": ""})
+            config_updated = True
+    if config_updated:
+        hass.config_entries.async_update_entry(entry, data=entry.data)
+
     # Retrieve info from Remote
     # Get Basic Device Information
     for dock in remote_api._docks:
@@ -125,13 +149,19 @@ async def async_setup_entry(
             if config_entry.get("id") == dock.id:
                 dock._password = config_entry.get("password")
                 break
+
         if dock.has_password:
             dock_coordinator = UnfoldedCircleDockCoordinator(hass, dock)
-            dock_coordinators.append(dock_coordinator)
-            await dock_coordinator.api.update()
-            await dock_coordinator.async_config_entry_first_refresh()
-            await dock_coordinator.init_websocket()
+            try:
+                await dock_coordinator.api.update()
+                await dock_coordinator.async_config_entry_first_refresh()
+                await dock_coordinator.init_websocket()
+                dock_coordinators.append(dock_coordinator)
+            except Exception as ex:
+                _LOGGER.error("Could not initialize connection to dock %s (%s): %s",  dock.name, dock.endpoint,
+                              ex)
         else:
+            _LOGGER.debug("Empty dock password %s (%s) for remote %s",  dock.name, dock.id, entry.title)
             issue_registry.async_create_issue(
                 hass,
                 DOMAIN,

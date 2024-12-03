@@ -21,7 +21,7 @@ from homeassistant.helpers import service, entity_platform
 from homeassistant.helpers.entity import ToggleEntityDescription
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
-from pyUnfoldedCircleRemote.remote import AuthenticationError, DockNotFound
+from .pyUnfoldedCircleRemote.remote import AuthenticationError, DockNotFound
 
 from .const import (
     DOMAIN,

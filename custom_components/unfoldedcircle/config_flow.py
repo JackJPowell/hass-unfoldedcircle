@@ -35,10 +35,10 @@ from .helpers import (
     get_ha_websocket_url,
     mac_address_from_discovery_info,
     validate_and_register_system_and_driver,
-    validate_dock_password,
+    validate_dock_password, synchronize_dock_password,
 )
-from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
-from pyUnfoldedCircleRemote.remote import (
+from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
+from .pyUnfoldedCircleRemote.remote import (
     ApiKeyCreateError,
     ApiKeyRevokeError,
     AuthenticationError,
@@ -356,6 +356,9 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             is_valid = await validate_dock_password(self._remote, dock_info)
             if is_valid:
                 self.dock_count += 1
+                # Update other config entries where the same dock may be registered too
+                # (same dock associated to multiple remotes)
+                await synchronize_dock_password(self.hass, dock_info, self.info["entry_id"])
             else:
                 self.info["docks"][self.dock_count]["password"] = ""
                 raise InvalidDockPassword
