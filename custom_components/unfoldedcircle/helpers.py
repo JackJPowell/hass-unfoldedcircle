@@ -4,6 +4,7 @@ import asyncio
 from datetime import timedelta
 import logging
 import re
+from typing import Any
 from urllib.parse import urljoin, urlparse
 
 from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
@@ -19,7 +20,7 @@ from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.network import NoURLAvailableError, get_url
 
-from .const import UC_HA_SYSTEM, UC_HA_TOKEN_ID, DEFAULT_HASS_URL
+from .const import UC_HA_SYSTEM, UC_HA_TOKEN_ID, DEFAULT_HASS_URL, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -241,6 +242,41 @@ async def validate_tokens(hass: HomeAssistant, remote: Remote) -> bool:
     if not remote_has_token or not refresh_token:
         return False
     return True
+
+
+async def synchronize_dock_password(
+    hass: HomeAssistant, dock_info: dict[str, Any], entry_id: str
+):
+    """Synchronize the updated dock password to other integrations where the same dock is used"""
+    existing_entries = hass.config_entries.async_entries(domain=DOMAIN)
+    _LOGGER.debug(
+        "Checking other config entries for dock registration: %s",
+        ", ".join([entry.title for entry in existing_entries]),
+    )
+    for uc_entry in existing_entries:
+        if (
+            uc_entry.entry_id == entry_id
+            or uc_entry.data is None
+            or uc_entry.data.get("docks", None) is None
+        ):
+            continue
+        for uc_dock in uc_entry.data["docks"]:
+            if uc_dock["id"] == dock_info["id"]:
+                _LOGGER.info(
+                    "Found similar dock %s to update password for another remote %s",
+                    uc_dock["id"],
+                    uc_entry.title,
+                )
+                # Set the same password for the other dock entry and update the registry
+                uc_dock["password"] = dock_info["password"]
+                try:
+                    hass.config_entries.async_update_entry(uc_entry, data=uc_entry.data)
+                except Exception as ex:
+                    _LOGGER.error(
+                        "Error while trying to synchronize dock password on other remote %s",
+                        ex,
+                    )
+                break
 
 
 class UnableToExtractMacAddress(Exception):
