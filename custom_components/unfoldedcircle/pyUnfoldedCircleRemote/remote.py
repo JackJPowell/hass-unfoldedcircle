@@ -2019,6 +2019,7 @@ class Remote:
             self.get_ir_emitters(),
             self.get_remote_wifi_info(),
             self.get_docks(),
+            self.get_version(),
         ]
         for coroutine in asyncio.as_completed(tasks):
             try:

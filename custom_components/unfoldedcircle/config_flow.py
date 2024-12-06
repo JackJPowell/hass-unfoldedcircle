@@ -4,6 +4,17 @@ import asyncio
 import logging
 from typing import Any, Awaitable, Callable, Type
 
+from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
+from pyUnfoldedCircleRemote.remote import (
+    ApiKeyCreateError,
+    ApiKeyRevokeError,
+    AuthenticationError,
+    ExternalSystemAlreadyRegistered,
+    ExternalSystemNotRegistered,
+    Remote,
+    RemoteConnectionError,
+    TokenRegistrationError,
+)
 import voluptuous as vol
 from voluptuous import Optional, Required
 
@@ -30,23 +41,17 @@ from .const import (
 from .helpers import (
     IntegrationNotFound,
     UnableToExtractMacAddress,
+    InvalidWebsocketAddress,
     connect_integration,
     device_info_from_discovery_info,
     get_ha_websocket_url,
+    get_registered_websocket_url,
     mac_address_from_discovery_info,
-    validate_and_register_system_and_driver,
-    validate_dock_password,
     synchronize_dock_password,
-)
-from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
-from pyUnfoldedCircleRemote.remote import (
-    ApiKeyCreateError,
-    ApiKeyRevokeError,
-    AuthenticationError,
-    ExternalSystemAlreadyRegistered,
-    Remote,
-    RemoteConnectionError,
-    TokenRegistrationError,
+    validate_and_register_system_and_driver,
+    register_system_and_driver,
+    validate_dock_password,
+    validate_websocket_address,
 )
 from .websocket import SubscriptionEvent, UCWebsocketClient
 
@@ -81,6 +86,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             self._remote = Remote(data["host"], data["pin"])
 
         websocket_url = data.get(CONF_HA_WEBSOCKET_URL, get_ha_websocket_url(self.hass))
+        validate_websocket_address(websocket_url)
 
         try:
             await self._remote.validate_connection()
@@ -124,6 +130,8 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.debug("External system already registered %s", ex)
             except TokenRegistrationError as ex:
                 _LOGGER.error("Error during external system registration %s", ex)
+            except InvalidWebsocketAddress as ex:
+                _LOGGER.error("Invalid websocket address supplied %s", ex)
             except Exception as ex:
                 _LOGGER.error(
                     "Error during driver registration, continue config flow: %s", ex
@@ -144,7 +152,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             "pin": data["pin"],
             "mac_address": self._remote.mac_address,
             "ip_address": self._remote.ip_address,
-            "websocket_url": websocket_url,
             CONF_SERIAL: self._remote.serial_number,
             CONF_MAC: mac_address,
             "docks": docks,
@@ -245,6 +252,8 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             errors["base"] = "invalid_auth"
         except CannotCreateHAToken:
             errors["base"] = "cannot_create_ha_token"
+        except InvalidWebsocketAddress:
+            errors["base"] = "invalid_websocket_address"
         else:
             if info["docks"]:
                 return await self.async_step_dock(info=info, first_call=True)
@@ -291,6 +300,8 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             errors["base"] = "invalid_auth"
         except CannotCreateHAToken:
             errors["base"] = "cannot_create_ha_token"
+        except InvalidWebsocketAddress:
+            errors["base"] = "invalid_websocket_address"
         except Exception:  # pylint: disable=broad-except
             _LOGGER.exception("Unexpected exception")
             errors["base"] = "unknown"
@@ -359,9 +370,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 self.dock_count += 1
                 # Update other config entries where the same dock may be registered too
                 # (same dock associated to multiple remotes)
-                await synchronize_dock_password(
-                    self.hass, dock_info, self.info["entry_id"]
-                )
+                await synchronize_dock_password(self.hass, dock_info, "")
             else:
                 self.info["docks"][self.dock_count]["password"] = ""
                 raise InvalidDockPassword
@@ -442,9 +451,9 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 user_input, self.reauth_entry.data[CONF_HOST]
             )
         except CannotConnect:
-            errors["base"] = "Cannot Connect"
+            errors["base"] = "cannot_connect"
         except InvalidAuth:
-            errors["base"] = "Invalid PIN"
+            errors["base"] = "invalid_auth"
         except CannotCreateHAToken:
             errors["base"] = "cannot_create_ha_token"
         except Exception as ex:  # pylint: disable=broad-except
@@ -478,7 +487,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             self,
             self.hass,
             self._remote,
-            self.info.get("websocket_url", ""),
             self.async_step_finish,
             user_input,
         )
@@ -505,7 +513,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                     self,
                     self.hass,
                     self._remote,
-                    self.info.get("websocket_url", ""),
                     self.async_step_finish,
                     user_input,
                 )
@@ -545,39 +552,6 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
             )
         return await self.async_step_activities()
 
-    async def async_step_media_player(self, user_input=None) -> FlowResult:
-        """Handle a flow initialized by the user."""
-        if user_input is not None:
-            self.options.update(user_input)
-            return await self._update_options()
-
-        return self.async_show_form(
-            step_id="media_player",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_GLOBAL_MEDIA_ENTITY,
-                        default=self.config_entry.options.get(
-                            CONF_GLOBAL_MEDIA_ENTITY, True
-                        ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
-                        default=self.config_entry.options.get(
-                            CONF_ACTIVITY_GROUP_MEDIA_ENTITIES, False
-                        ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_ACTIVITY_MEDIA_ENTITIES,
-                        default=self.config_entry.options.get(
-                            CONF_ACTIVITY_MEDIA_ENTITIES, False
-                        ),
-                    ): bool,
-                }
-            ),
-            last_step=True,
-        )
-
     async def async_step_activities(self, user_input=None):
         """Handle options step two flow initialized by the user."""
         if user_input is not None:
@@ -605,6 +579,91 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
             last_step=False,
         )
 
+    async def async_step_media_player(self, user_input=None) -> FlowResult:
+        """Handle a flow initialized by the user."""
+        if user_input is not None:
+            self.options.update(user_input)
+            if self._remote.external_entity_configuration_available:
+                return await self.async_step_websocket()
+            return await self._update_options()
+
+        return self.async_show_form(
+            step_id="media_player",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_GLOBAL_MEDIA_ENTITY,
+                        default=self.config_entry.options.get(
+                            CONF_GLOBAL_MEDIA_ENTITY, True
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
+                        default=self.config_entry.options.get(
+                            CONF_ACTIVITY_GROUP_MEDIA_ENTITIES, False
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_ACTIVITY_MEDIA_ENTITIES,
+                        default=self.config_entry.options.get(
+                            CONF_ACTIVITY_MEDIA_ENTITIES, False
+                        ),
+                    ): bool,
+                }
+            ),
+            last_step=False,
+        )
+
+    async def async_step_websocket(self, user_input=None):
+        """Handle a flow initialized by the user."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            try:
+                if validate_websocket_address(user_input.get("websocket_url")):
+                    try:
+                        await register_system_and_driver(
+                            self._remote,
+                            self.hass,
+                            user_input.get("websocket_url"),
+                        )
+                    except ExternalSystemNotRegistered as ex:
+                        _LOGGER.debug(
+                            "Error when registering the external system: %s", ex
+                        )
+                        errors["base"] = "ha_driver_failure"
+                    except TokenRegistrationError as ex:
+                        _LOGGER.error("Error during token creation: %s", ex)
+                        errors["base"] = "ha_driver_failure"
+                    except Exception as ex:
+                        _LOGGER.error(
+                            "Error during driver registration, continue config flow: %s",
+                            ex,
+                        )
+                    else:
+                        self.options.update(user_input)
+                        return await self._update_options()
+            except InvalidWebsocketAddress as ex:
+                _LOGGER.error("Invalid Websocket Address: %s", ex)
+                errors["base"] = "invalid_websocket_address"
+
+        url = get_ha_websocket_url(self.hass)
+        if user_input is not None:
+            url = user_input.get("websocket_url")
+
+        return self.async_show_form(
+            step_id="websocket",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        "websocket_url",
+                        default=url,
+                    ): str,
+                }
+            ),
+            last_step=True,
+            errors=errors,
+        )
+
     async def _update_options(self):
         """Update config entry options."""
         return self.async_create_entry(title="", data=self.options)
@@ -618,7 +677,6 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
             self,
             self.hass,
             self._remote,
-            self.config_entry.data.get("websocket_url"),
             self.async_step_finish,
             user_input,
         )
@@ -633,10 +691,12 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
                 self.hass,
                 get_ha_websocket_url(self.hass),
             )
-        except ExternalSystemAlreadyRegistered as ex:
-            _LOGGER.debug("External system already registered %s", ex)
+        except ExternalSystemNotRegistered as ex:
+            _LOGGER.debug("Error when registering the external system: %s", ex)
         except TokenRegistrationError as ex:
             _LOGGER.error("Error during external system registration %s", ex)
+        except InvalidWebsocketAddress as ex:
+            _LOGGER.error("Invalid websocket address supplied %s", ex)
         except Exception as ex:
             _LOGGER.error(
                 "Error during driver registration, continue config flow: %s", ex
@@ -647,7 +707,6 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
                     self,
                     self.hass,
                     self._remote,
-                    self.config_entry.data.get("websocket_url"),
                     self.async_step_finish,
                     user_input,
                 )
@@ -663,7 +722,6 @@ async def async_step_select_entities(
     config_flow: ConfigFlow | config_entries.OptionsFlow,
     hass: HomeAssistant,
     remote: Remote,
-    websocket_url: str,
     finish_callback: Callable[[dict[str, Any] | None], Awaitable[FlowResult]],
     user_input: dict[str, Any] | None = None,
 ) -> FlowResult:
@@ -677,6 +735,10 @@ async def async_step_select_entities(
     _LOGGER.debug(
         'Using remote ID "%s" to get and set subscribed entities', remote.hostname
     )
+
+    websocket_url = await get_registered_websocket_url(remote)
+    if websocket_url is None:
+        websocket_url = get_ha_websocket_url(hass)
 
     if user_input is None:
         integration_id = ""
@@ -694,6 +756,8 @@ async def async_step_select_entities(
             )
         except IntegrationNotFound:
             _LOGGER.error("Integration with name: %s not found", integration_id)
+        except InvalidWebsocketAddress as ex:
+            _LOGGER.error("Invalid websocket address supplied %s", ex)
         except Exception as ex:
             _LOGGER.warning(
                 "Error while refreshing integration entities of integration: %s, %s",

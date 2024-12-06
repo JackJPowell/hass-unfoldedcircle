@@ -11,8 +11,8 @@
       "invalid_dock_password": "Incorrect dock password. Submit with an empty password to skip",
       "invalid_auth": "Incorrect pin supplied. Please try again",
       "unknown": "Unexpected error",
-      "ha_driver_failure": "Unexpected error when configuring remote entities",
-      "cannot_create_ha_token": "Unable to create Home Assistant Token"
+      "cannot_create_ha_token": "Unable to create Home Assistant Token",
+      "invalid_websocket_address": "An invalid home assistant websocket address was supplied"
     },
     "step": {
       "user": {
@@ -58,6 +58,11 @@
     }
   },
   "options": {
+    "error": {
+      "ha_driver_failure": "Unexpected error when configuring remote entities",
+      "cannot_create_ha_token": "Unable to create Home Assistant Token",
+      "invalid_websocket_address": "An invalid home assistant websocket address was supplied"
+    },
     "step": {
       "init": {
         "title": "Unfolded Circle Options",
@@ -81,6 +86,13 @@
         "data": {
           "activities_as_switches": "Create all activities as switch entities",
           "suppress_activity_groups": "Suppress creation of activity group entities"
+        }
+      },
+      "websocket": {
+        "title": "Unfolded Circle Options",
+        "description": "Configure Websocket Address",
+        "data": {
+          "websocket_url": "Websocket Address for Home Assistant"
         }
       },
       "select_entities": {
