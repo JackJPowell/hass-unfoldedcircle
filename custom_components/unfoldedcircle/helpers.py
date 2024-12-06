@@ -84,40 +84,52 @@ async def remove_token(hass: HomeAssistant, token):
     hass.auth.async_remove_refresh_token(refresh_token)
 
 
-async def validate_and_register_system_and_driver(
+async def register_system_and_driver(
     remote: Remote, hass: HomeAssistant, websocket_url
+) -> str:
+    """Register remote system"""
+    try:
+        # This commented block will prevent the creation of a new external token
+        # if the user configured the remote manually. There is code in the hass
+        # integration flow on the remote to switch to the ws-ha-api flow if present
+        if not websocket_url:
+            websocket_url = get_ha_websocket_url(hass)
+
+        token = await generate_token(hass, f"UCR:{remote.name}")
+        await remote.set_token_for_external_system(
+            system=UC_HA_SYSTEM,
+            token_id=UC_HA_TOKEN_ID,
+            token=token,
+            name="Home Assistant Access token",
+            description="URL and long lived access token for Home Assistant WebSocket API",
+            url=websocket_url,
+            data="",
+        )
+    except Exception as ex:
+        _LOGGER.error("Error during token registration %s", ex)
+        raise TokenRegistrationError from ex
+
+    return await connect_integration(remote)
+
+
+async def validate_and_register_system_and_driver(
+    remote: Remote, hass: HomeAssistant, websocket_url: str | None
 ) -> str:
     """This method first tries to register the supplied external system and then
     creates the driver instance if one doesn't exist"""
-    # Check if tokens exists
-    integration_id = None
-    if not await validate_tokens(hass, remote):
-        try:
-            # This commented block will prevent the creation of a new external token
-            # if the user configured the remote manually. There is code in the hass
-            # integration flow on the remote to switch to the ws-ha-api flow if present
-            # ha_driver_instance = await remote.get_integration_instance_by_driver_id(
-            #     UC_HA_SYSTEM
-            # )
-            # if ha_driver_instance.get("device_state", "") != "CONNECTED":
-            if websocket_url == "" or websocket_url is None:
-                websocket_url = get_ha_websocket_url(hass)
+    if validate_websocket_address(websocket_url):
+        if not await validate_tokens(hass, remote):
+            return await register_system_and_driver(remote, hass, websocket_url)
+        return await connect_integration(remote, driver_id=UC_HA_SYSTEM)
 
-            token = await generate_token(hass, f"UCR:{remote.name}")
-            await remote.set_token_for_external_system(
-                system=UC_HA_SYSTEM,
-                token_id=UC_HA_TOKEN_ID,
-                token=token,
-                name="Home Assistant Access token",
-                description="URL and long lived access token for Home Assistant WebSocket API",
-                url=websocket_url,
-                data="",
-            )
-        except Exception as ex:
-            _LOGGER.error("Error during token registration %s", ex)
-            raise TokenRegistrationError from ex
+
+async def connect_integration(remote: Remote, driver_id=UC_HA_SYSTEM) -> str:
+    """Attempt to connect the Home Assistant Integration"""
     try:
-        integration_id = await connect_integration(remote)
+        ha_driver_instance = await remote.get_integration_instance_by_driver_id(
+            driver_id
+        )
+        _LOGGER.debug("Home assistant driver instance found %s", ha_driver_instance)
     except IntegrationNotFound:
         _LOGGER.debug(
             "No Home assistant driver instance (%s), create one",
@@ -131,17 +143,12 @@ async def validate_and_register_system_and_driver(
                 "enabled": True,
             },
         )
-        integration_id = await connect_integration(remote)
+        ha_driver_instance = await remote.get_integration_instance_by_driver_id(
+            driver_id
+        )
     except Exception as ex:
         _LOGGER.error("Error during driver registration %s", ex)
 
-    return integration_id
-
-
-async def connect_integration(remote: Remote, driver_id=UC_HA_SYSTEM) -> str:
-    """Attempt to connect the Home Assistant Integration"""
-    ha_driver_instance = await remote.get_integration_instance_by_driver_id(driver_id)
-    _LOGGER.debug("Home assistant driver instance found %s", ha_driver_instance)
     # If the HA driver is disconnected, request connection in order to retrieve and update entities
     integration_id = ha_driver_instance.get("integration_id")
     if ha_driver_instance.get("device_state", "") != "CONNECTED":
@@ -163,6 +170,14 @@ async def connect_integration(remote: Remote, driver_id=UC_HA_SYSTEM) -> str:
             except HTTPError as ex:
                 _LOGGER.error("Error while trying to connect remote and driver %s", ex)
     return integration_id
+
+
+async def get_registered_websocket_url(remote: Remote) -> str:
+    """Returns websocket url registered on remote"""
+    external_system = await remote.get_registered_external_system(UC_HA_SYSTEM)
+    if len(external_system) > 0:
+        return external_system[0].get("url", None)
+    return None
 
 
 @staticmethod
@@ -244,6 +259,14 @@ async def validate_tokens(hass: HomeAssistant, remote: Remote) -> bool:
     return True
 
 
+def validate_websocket_address(websocket_url: str | None) -> bool:
+    """Validates the given url conforms to the home assistant web socket scheme"""
+    if websocket_url:
+        if re.match(r"^(ws|wss):\/\/.*\/api\/websocket", websocket_url):
+            return True
+    raise InvalidWebsocketAddress
+
+
 async def synchronize_dock_password(
     hass: HomeAssistant, dock_info: dict[str, Any], entry_id: str
 ):
@@ -281,3 +304,7 @@ async def synchronize_dock_password(
 
 class UnableToExtractMacAddress(Exception):
     """Raised when no mac address could be determined for given input."""
+
+
+class InvalidWebsocketAddress(Exception):
+    """Raised when an invalid websocket url is supplied"""
