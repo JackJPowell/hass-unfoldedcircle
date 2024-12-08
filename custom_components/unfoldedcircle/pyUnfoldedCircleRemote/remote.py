@@ -972,6 +972,19 @@ class Remote:
             await self.raise_on_error(response)
             return True
 
+    async def delete_remote_entity(
+        self, entity_id: str
+    ) -> bool:
+        """Delete the given entity ID on the remote."""
+        async with (
+            self.client() as session,
+            session.delete(
+                self.url(f"entities/{entity_id}")
+            ) as response,
+        ):
+            await self.raise_on_error(response)
+            return True
+
     async def get_remote_subscribed_entities(
         self, integration_id: str
     ) -> list[dict[str, any]]:

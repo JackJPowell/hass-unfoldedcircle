@@ -1,5 +1,5 @@
 # Home Assistant
-homeassistant>=2024.12
+homeassistant~=2024.11.3
 PyTurboJPEG
 
 # Development
@@ -9,3 +9,14 @@ ruff>=0.5.3
 aiohttp_fast_zlib
 zlib_ng
 isal
+rel~=0.4.9.9
+logging~=0.4.9.6
+websockets~=12.0
+requests~=2.32.3
+Pygments~=2.17.2
+zeroconf~=0.131.0
+voluptuous~=0.15.2
+pyUnfoldedCircleRemote~=0.9.2
+aiohttp~=3.9.5
+wakeonlan~=3.1.0
+packaging~=24.0

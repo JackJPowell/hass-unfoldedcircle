@@ -4,8 +4,8 @@ import asyncio
 import logging
 from typing import Any, Awaitable, Callable, Type
 
-from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
-from pyUnfoldedCircleRemote.remote import (
+from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
+from .pyUnfoldedCircleRemote.remote import (
     ApiKeyCreateError,
     ApiKeyRevokeError,
     AuthenticationError,
@@ -67,7 +67,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         """Unfolded Circle Config Flow."""
         self.api_keyname: str | None = None
         self.discovery_info: dict[str, Any] = {}
-        self._data = None
         self._remote: Remote | None = None
         self._websocket_client: UCWebsocketClient | None = None
         self.dock_count: int = 0
@@ -289,7 +288,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         try:
             _LOGGER.debug("Connect with manual input: %s", user_input)
             info = await self.validate_input(user_input, "")
-            self._data = info
+            self.info = info
             self.discovery_info.update({CONF_MAC: info[CONF_MAC]})
             await self._async_set_unique_id_and_abort_if_already_configured(
                 info[CONF_MAC]
@@ -894,6 +893,19 @@ async def async_step_select_entities(
                 _LOGGER.debug(
                     "Entities registered successfully for: %s", integration_id
                 )
+
+                # TODO Trick to remove entities (not clean) : to be removed ?
+                # Remote entity ID = <integration_id> + '.' + <HA entity ID>
+                if len(remove_entities) > 0:
+                    _LOGGER.debug("Remove selected entities : %s", remove_entities)
+                    await asyncio.sleep(1)
+                    for entity_id in remove_entities:
+                        remote_entity_id = integration_id + "." + entity_id
+                        try:
+                            await remote.delete_remote_entity(remote_entity_id)
+                        except Exception as ex:
+                            _LOGGER.error("Error during the removal of selected entity %s : %s",
+                                          remote_entity_id, ex)
             except IntegrationNotFound:
                 _LOGGER.error(
                     "Failed to notify remote with the new entities %s for driver id %s",
