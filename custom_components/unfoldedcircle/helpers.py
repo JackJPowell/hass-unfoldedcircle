@@ -7,8 +7,8 @@ import re
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
-from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
-from pyUnfoldedCircleRemote.remote import (
+from .pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
+from .pyUnfoldedCircleRemote.remote import (
     HTTPError,
     IntegrationNotFound,
     Remote,
@@ -119,13 +119,16 @@ async def validate_and_register_system_and_driver(
     creates the driver instance if one doesn't exist"""
     if validate_websocket_address(websocket_url):
         if not await validate_tokens(hass, remote):
+            _LOGGER.debug("No valid external token, register one")
             return await register_system_and_driver(remote, hass, websocket_url)
         return await connect_integration(remote, driver_id=UC_HA_SYSTEM)
 
 
 async def connect_integration(remote: Remote, driver_id=UC_HA_SYSTEM) -> str:
     """Attempt to connect the Home Assistant Integration"""
+    ha_driver_instance = {}
     try:
+        _LOGGER.debug("Home assistant driver integration lookup for system %s", driver_id)
         ha_driver_instance = await remote.get_integration_instance_by_driver_id(
             driver_id
         )

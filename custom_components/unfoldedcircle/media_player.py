@@ -18,8 +18,8 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import UndefinedType
 from homeassistant.util import utcnow
-from pyUnfoldedCircleRemote.const import RemoteUpdateType
-from pyUnfoldedCircleRemote.remote import (
+from .pyUnfoldedCircleRemote.const import RemoteUpdateType
+from .pyUnfoldedCircleRemote.remote import (
     Activity,
     ActivityGroup,
     UCMediaPlayerEntity,
