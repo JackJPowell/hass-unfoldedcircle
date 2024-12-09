@@ -62,7 +62,7 @@ def ws_get_info(
             "success": True,
             "result": {"state": "CONNECTED", "cat": "DEVICE", "version": "1.0.0"},
             "message": msg.get("message"),
-            "data": data
+            "data": data,
         }
     )
 
@@ -77,7 +77,7 @@ def ws_get_states(
     """Handle get info command."""
     _LOGGER.debug("Unfolded Circle get entities states request from remote %s", msg)
     entity_ids: list[str] = msg.get("data", {}).get("entity_ids", [])
-    client_id: str|None = msg.get("data", {}).get("client_id", None)
+    client_id: str | None = msg.get("data", {}).get("client_id", None)
     entity_states = []
     # If entity_ids list is empty, send all entities
     if len(entity_ids) == 0:
@@ -88,12 +88,20 @@ def ws_get_states(
         if client_id:
             existing_entries = hass.config_entries.async_entries(domain=DOMAIN)
             try:
-                config_entry = next(config_entry for config_entry in existing_entries
-                                    if config_entry.data.get("client_id", "") == client_id)
+                config_entry = next(
+                    config_entry
+                    for config_entry in existing_entries
+                    if config_entry.data.get("client_id", "") == client_id
+                )
                 if config_entry:
-                    _LOGGER.debug("Unfolded circle get states from client %s, config entry found %s",
-                                  client_id, config_entry.title)
-                    available_entities = config_entry.data.get("available_entities", []).copy()
+                    _LOGGER.debug(
+                        "Unfolded circle get states from client %s, config entry found %s",
+                        client_id,
+                        config_entry.title,
+                    )
+                    available_entities = config_entry.data.get(
+                        "available_entities", []
+                    ).copy()
                     update_needed = False
                     for entity_id in entity_ids:
                         if entity_id not in available_entities:
@@ -102,20 +110,30 @@ def ws_get_states(
                     if update_needed:
                         data = dict(config_entry.data)
                         data["available_entities"] = available_entities
-                        _LOGGER.debug("Available entities need to be updated in registry as there is "
-                                      "a desync with the remote %s. "
-                                      "Remote : %s, HA registry : %s",
-                                      client_id,
-                                      config_entry.data.get("available_entities", []),
-                                      available_entities)
+                        _LOGGER.debug(
+                            "Available entities need to be updated in registry as there is "
+                            "a desync with the remote %s. "
+                            "Remote : %s, HA registry : %s",
+                            client_id,
+                            config_entry.data.get("available_entities", []),
+                            available_entities,
+                        )
                         hass.config_entries.async_update_entry(config_entry, data=data)
                 else:
-                    _LOGGER.debug("Unfolded circle get states from client %s : no config entry", client_id)
+                    _LOGGER.debug(
+                        "Unfolded circle get states from client %s : no config entry",
+                        client_id,
+                    )
             except StopIteration:
-                _LOGGER.debug("Unfolded circle get states from client %s : no config entry", client_id)
+                _LOGGER.debug(
+                    "Unfolded circle get states from client %s : no config entry",
+                    client_id,
+                )
                 pass
         else:
-            _LOGGER.debug("No client ID in the request from remote, cannot update the available entities in HA")
+            _LOGGER.debug(
+                "No client ID in the request from remote, cannot update the available entities in HA"
+            )
 
         # Add the missing available entities (normally the unsubscribed entities) to the get states command
         for entity_id in available_entities:
