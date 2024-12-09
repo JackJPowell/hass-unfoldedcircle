@@ -4,8 +4,8 @@ import asyncio
 import logging
 from typing import Any, Awaitable, Callable, Type
 
-from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
-from .pyUnfoldedCircleRemote.remote import (
+from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
+from pyUnfoldedCircleRemote.remote import (
     ApiKeyCreateError,
     ApiKeyRevokeError,
     AuthenticationError,
@@ -718,7 +718,8 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
 
 
 async def async_step_select_entities(
-    config_flow: UnfoldedCircleRemoteConfigFlow | UnfoldedCircleRemoteOptionsFlowHandler,
+    config_flow: UnfoldedCircleRemoteConfigFlow
+    | UnfoldedCircleRemoteOptionsFlowHandler,
     hass: HomeAssistant,
     remote: Remote,
     finish_callback: Callable[[dict[str, Any] | None], Awaitable[FlowResult]],
@@ -799,7 +800,7 @@ async def async_step_select_entities(
             "Found configuration subscription for remote %s (subscription_id %s) : entities %s",
             configure_entities_subscription.client_id,
             configure_entities_subscription.subscription_id,
-            configure_entities_subscription.entity_ids
+            configure_entities_subscription.entity_ids,
         )
         subscribed_entities: list[str] = []
         if subscribed_entities_subscription:
@@ -807,7 +808,7 @@ async def async_step_select_entities(
                 "Found subscribed entities for remote %s (subscription_id %s) : %s",
                 subscribed_entities_subscription.client_id,
                 subscribed_entities_subscription.subscription_id,
-                subscribed_entities_subscription.entity_ids
+                subscribed_entities_subscription.entity_ids,
             )
             subscribed_entities = subscribed_entities_subscription.entity_ids
 
@@ -817,8 +818,11 @@ async def async_step_select_entities(
 
         # Only in option flow : retrieve configured available entities stored in the integration
         # and add them to the list if not present
-        if (isinstance(config_flow, UnfoldedCircleRemoteOptionsFlowHandler) and config_flow.options
-                and config_flow.options.get("available_entities", None)):
+        if (
+            isinstance(config_flow, UnfoldedCircleRemoteOptionsFlowHandler)
+            and config_flow.options
+            and config_flow.options.get("available_entities", None)
+        ):
             entities = config_flow.options["available_entities"]
             for entity_id in entities:
                 if entity_id not in available_entities:
@@ -912,18 +916,28 @@ async def async_step_select_entities(
 
             # Entities sent successfully to the HA driver, store the list in the registry
             # If Option flow
-            if isinstance(config_flow, UnfoldedCircleRemoteOptionsFlowHandler) and config_flow.options:
+            if (
+                isinstance(config_flow, UnfoldedCircleRemoteOptionsFlowHandler)
+                and config_flow.options
+            ):
                 if config_flow.options is None:
                     config_flow.options = {}
                 config_flow.options["available_entities"] = final_list
                 if configure_entities_subscription:
-                    config_flow.options["client_id"] = subscribed_entities_subscription.client_id
-            elif isinstance(config_flow, UnfoldedCircleRemoteConfigFlow) and config_flow.info:
+                    config_flow.options["client_id"] = (
+                        subscribed_entities_subscription.client_id
+                    )
+            elif (
+                isinstance(config_flow, UnfoldedCircleRemoteConfigFlow)
+                and config_flow.info
+            ):
                 if config_flow.info is None:
                     config_flow.info = {}
                 config_flow.info["available_entities"] = final_list
                 if configure_entities_subscription:
-                    config_flow.info["client_id"] = subscribed_entities_subscription.client_id
+                    config_flow.info["client_id"] = (
+                        subscribed_entities_subscription.client_id
+                    )
 
             # Subscribe to the new entities : only if older version of HA driver
             if configure_entities_subscription.version is None or configure_entities_subscription.version == "":
