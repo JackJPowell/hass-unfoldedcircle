@@ -862,8 +862,7 @@ class Remote:
             if self._is_simulator is True:
                 core = information.get("core", "")
                 # We only care about the beginning of the version for this compare
-                if Version(core[0:4]) >= Version("0.49"):
-                    self._external_entity_configuration_available = True
+                self._external_entity_configuration_available = True
             else:
                 self._sw_version = information.get("os", "")
                 if Version(self._sw_version) >= Version("2.0.0"):
