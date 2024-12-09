@@ -20,7 +20,7 @@ from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.network import NoURLAvailableError, get_url
 
-from .const import UC_HA_SYSTEM, UC_HA_TOKEN_ID, DEFAULT_HASS_URL, DOMAIN
+from .const import UC_HA_SYSTEM, UC_HA_TOKEN_ID, DEFAULT_HASS_URL, DOMAIN, UC_HA_DRIVER_ID
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -121,10 +121,10 @@ async def validate_and_register_system_and_driver(
         if not await validate_tokens(hass, remote):
             _LOGGER.debug("No valid external token, register one")
             return await register_system_and_driver(remote, hass, websocket_url)
-        return await connect_integration(remote, driver_id=UC_HA_SYSTEM)
+        return await connect_integration(remote, driver_id=UC_HA_DRIVER_ID)
 
 
-async def connect_integration(remote: Remote, driver_id=UC_HA_SYSTEM) -> str:
+async def connect_integration(remote: Remote, driver_id=UC_HA_DRIVER_ID) -> str:
     """Attempt to connect the Home Assistant Integration"""
     ha_driver_instance = {}
     try:
