@@ -36,6 +36,7 @@ class SubscriptionEvent:
 
     client_id: str
     driver_id: str
+    version: str
     subscription_id: int
     cancel_subscription_callback: Callable
     notification_callback: Callable[[dict[any, any]], None]
@@ -455,10 +456,12 @@ class UCWebsocketClient(metaclass=Singleton):
         data = msg["data"]
         client_id = data.get("client_id", "")
         driver_id = data.get("driver_id", UC_HA_DRIVER_ID)
+        version = data.get("version", "")
 
         configuration = SubscriptionEvent(
             client_id=client_id,
             driver_id=driver_id,
+            version=version,
             cancel_subscription_callback=cancel_callback,
             subscription_id=subscription_id,
             notification_callback=forward_event,

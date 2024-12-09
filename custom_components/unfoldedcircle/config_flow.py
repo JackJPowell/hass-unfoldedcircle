@@ -926,7 +926,7 @@ async def async_step_select_entities(
                     config_flow.info["client_id"] = subscribed_entities_subscription.client_id
 
             # Subscribe to the new entities : only if older version of HA driver
-            if not hasattr(configure_entities_subscription, "version"):
+            if configure_entities_subscription.version is None or configure_entities_subscription.version == "":
                 try:
                     integration_id = await connect_integration(
                         remote, subscribed_entities_subscription.driver_id
