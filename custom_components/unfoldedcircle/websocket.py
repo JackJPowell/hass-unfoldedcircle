@@ -96,7 +96,7 @@ def ws_get_states(
                     update_needed = False
                     for entity_id in entity_ids:
                         if entity_id not in available_entities:
-                            available_entities.extend(entity_id)
+                            available_entities.append(entity_id)
                             update_needed = True
                     if update_needed:
                         data = dict(config_entry.data)

@@ -925,6 +925,29 @@ async def async_step_select_entities(
                 if configure_entities_subscription:
                     config_flow.info["client_id"] = subscribed_entities_subscription.client_id
 
+            # Subscribe to the new entities : only if older version of HA driver
+            if not hasattr(configure_entities_subscription, "version"):
+                try:
+                    integration_id = await connect_integration(
+                        remote, subscribed_entities_subscription.driver_id
+                    )
+                    await remote.get_remote_integration_entities(integration_id, True)
+
+                    await remote.set_remote_integration_entities(integration_id, [])
+                    _LOGGER.debug(
+                        "Entities registered successfully for: %s", integration_id
+                    )
+                except IntegrationNotFound:
+                    _LOGGER.error(
+                        "Failed to notify remote with the new entities %s for driver id %s",
+                        remote.hostname,
+                        subscribed_entities_subscription.driver_id,
+                    )
+                    return config_flow.async_show_menu(
+                        step_id="select_entities",
+                        menu_options=["error", "finish"],
+                    )
+
         except Exception as ex:  # pylint: disable=broad-except
             _LOGGER.error(
                 "Error while sending new entities to the remote %s (%s) %s",
