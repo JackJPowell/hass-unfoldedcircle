@@ -67,7 +67,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         """Unfolded Circle Config Flow."""
         self.api_keyname: str | None = None
         self.discovery_info: dict[str, Any] = {}
-        self._data = None
         self._remote: Remote | None = None
         self._websocket_client: UCWebsocketClient | None = None
         self.dock_count: int = 0
@@ -289,7 +288,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         try:
             _LOGGER.debug("Connect with manual input: %s", user_input)
             info = await self.validate_input(user_input, "")
-            self._data = info
+            self.info = info
             self.discovery_info.update({CONF_MAC: info[CONF_MAC]})
             await self._async_set_unique_id_and_abort_if_already_configured(
                 info[CONF_MAC]
@@ -719,13 +718,14 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
 
 
 async def async_step_select_entities(
-    config_flow: ConfigFlow | config_entries.OptionsFlow,
+    config_flow: UnfoldedCircleRemoteConfigFlow
+    | UnfoldedCircleRemoteOptionsFlowHandler,
     hass: HomeAssistant,
     remote: Remote,
     finish_callback: Callable[[dict[str, Any] | None], Awaitable[FlowResult]],
     user_input: dict[str, Any] | None = None,
 ) -> FlowResult:
-    """Handle the selected entities to subscribe to for both setup and config flows."""
+    """Retrieve and update the available entities to send to the remote for both setup and options flows."""
     errors: dict[str, str] = {}
     subscribed_entities_subscription: SubscriptionEvent | None = None
     configure_entities_subscription: SubscriptionEvent | None = None
@@ -740,6 +740,7 @@ async def async_step_select_entities(
     if websocket_url is None:
         websocket_url = get_ha_websocket_url(hass)
 
+    # Prepare the list of entities to add/remove as available
     if user_input is None:
         integration_id = ""
         try:
@@ -796,27 +797,55 @@ async def async_step_select_entities(
                 menu_options=["error", "finish"],
             )
         _LOGGER.debug(
-            "Found configuration subscription for remote : %s",
-            configure_entities_subscription,
+            "Found configuration subscription for remote %s (subscription_id %s) : entities %s",
+            configure_entities_subscription.client_id,
+            configure_entities_subscription.subscription_id,
+            configure_entities_subscription.entity_ids,
         )
         subscribed_entities: list[str] = []
         if subscribed_entities_subscription:
             _LOGGER.debug(
-                "Found subscribed entities for remote : %s",
-                subscribed_entities_subscription,
+                "Found subscribed entities for remote %s (subscription_id %s) : %s",
+                subscribed_entities_subscription.client_id,
+                subscribed_entities_subscription.subscription_id,
+                subscribed_entities_subscription.entity_ids,
             )
             subscribed_entities = subscribed_entities_subscription.entity_ids
 
+        # Initialize the available entities from : subscribed entities + available entities stored in config entry
+        # (if any)
+        available_entities = subscribed_entities.copy()
+
+        # Only in option flow : retrieve configured available entities stored in the integration
+        # and add them to the list if not present
+        if (
+            isinstance(config_flow, UnfoldedCircleRemoteOptionsFlowHandler)
+            and config_flow.options
+            and config_flow.options.get("available_entities", None)
+        ):
+            entities = config_flow.options["available_entities"]
+            for entity_id in entities:
+                if entity_id not in available_entities:
+                    available_entities.append(entity_id)
+
+        # Selector for entities to add (all except those already in the available list
         config: EntitySelectorConfig = {
-            "exclude_entities": subscribed_entities,
+            "exclude_entities": available_entities,
             "filter": [{"domain": filtered_domains}],
             "multiple": True,
         }
-
         data_schema: dict[any, any] = {"add_entities": EntitySelector(config)}
-        if len(subscribed_entities) > 0:
+
+        # Selector for entities to be removed from available list :
+        # all in available list except those already subscribed which should be kept in the list
+        removable_list = available_entities.copy()
+        for entity_id in subscribed_entities:
+            if entity_id in removable_list:
+                removable_list.remove(entity_id)
+
+        if len(removable_list) > 0:
             config: EntitySelectorConfig = {
-                "include_entities": subscribed_entities,
+                "include_entities": removable_list,
                 "filter": [{"domain": filtered_domains}],
                 "multiple": True,
             }
@@ -829,6 +858,8 @@ async def async_step_select_entities(
             description_placeholders={"remote_name": remote.name},
             errors=errors,
         )
+
+    # When the user has selected entities to add/remove as available for the HA driver
     if user_input is not None:
         configure_entities_subscription = websocket_client.get_driver_subscription(
             remote.hostname
@@ -848,7 +879,7 @@ async def async_step_select_entities(
         if subscribed_entities_subscription:
             _LOGGER.debug(
                 "Found subscribed entities for remote : %s",
-                subscribed_entities_subscription,
+                subscribed_entities_subscription.entity_ids,
             )
             subscribed_entities = subscribed_entities_subscription.entity_ids
 
@@ -859,7 +890,7 @@ async def async_step_select_entities(
         final_list = list(final_list)
 
         _LOGGER.debug(
-            "Selected entities to subscribe to : add %s, remove %s => %s",
+            "Selected entities to make available : add %s, remove %s => %s",
             add_entities,
             remove_entities,
             final_list,
@@ -883,27 +914,54 @@ async def async_step_select_entities(
                     menu_options=["error", "finish"],
                 )
 
-            # Subscribe to the new entities
-            try:
-                integration_id = await connect_integration(
-                    remote, subscribed_entities_subscription.driver_id
-                )
-                await remote.get_remote_integration_entities(integration_id, True)
+            # Entities sent successfully to the HA driver, store the list in the registry
+            # If Option flow
+            if (
+                isinstance(config_flow, UnfoldedCircleRemoteOptionsFlowHandler)
+                and config_flow.options
+            ):
+                if config_flow.options is None:
+                    config_flow.options = {}
+                config_flow.options["available_entities"] = final_list
+                if configure_entities_subscription:
+                    config_flow.options["client_id"] = (
+                        subscribed_entities_subscription.client_id
+                    )
+            elif (
+                isinstance(config_flow, UnfoldedCircleRemoteConfigFlow)
+                and config_flow.info
+            ):
+                if config_flow.info is None:
+                    config_flow.info = {}
+                config_flow.info["available_entities"] = final_list
+                if configure_entities_subscription:
+                    config_flow.info["client_id"] = (
+                        subscribed_entities_subscription.client_id
+                    )
 
-                await remote.set_remote_integration_entities(integration_id, [])
-                _LOGGER.debug(
-                    "Entities registered successfully for: %s", integration_id
-                )
-            except IntegrationNotFound:
-                _LOGGER.error(
-                    "Failed to notify remote with the new entities %s for driver id %s",
-                    remote.hostname,
-                    subscribed_entities_subscription.driver_id,
-                )
-                return config_flow.async_show_menu(
-                    step_id="select_entities",
-                    menu_options=["error", "finish"],
-                )
+            # Subscribe to the new entities : only if older version of HA driver
+            if configure_entities_subscription.version is None or configure_entities_subscription.version == "":
+                try:
+                    integration_id = await connect_integration(
+                        remote, subscribed_entities_subscription.driver_id
+                    )
+                    await remote.get_remote_integration_entities(integration_id, True)
+
+                    await remote.set_remote_integration_entities(integration_id, [])
+                    _LOGGER.debug(
+                        "Entities registered successfully for: %s", integration_id
+                    )
+                except IntegrationNotFound:
+                    _LOGGER.error(
+                        "Failed to notify remote with the new entities %s for driver id %s",
+                        remote.hostname,
+                        subscribed_entities_subscription.driver_id,
+                    )
+                    return config_flow.async_show_menu(
+                        step_id="select_entities",
+                        menu_options=["error", "finish"],
+                    )
+
         except Exception as ex:  # pylint: disable=broad-except
             _LOGGER.error(
                 "Error while sending new entities to the remote %s (%s) %s",

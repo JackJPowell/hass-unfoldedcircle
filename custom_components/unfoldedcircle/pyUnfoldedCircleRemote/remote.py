@@ -862,8 +862,7 @@ class Remote:
             if self._is_simulator is True:
                 core = information.get("core", "")
                 # We only care about the beginning of the version for this compare
-                if Version(core[0:4]) >= Version("0.49"):
-                    self._external_entity_configuration_available = True
+                self._external_entity_configuration_available = True
             else:
                 self._sw_version = information.get("os", "")
                 if Version(self._sw_version) >= Version("2.0.0"):
@@ -968,6 +967,15 @@ class Remote:
             session.post(
                 self.url(f"intg/instances/{integration_id}/entities"), json=entity_ids
             ) as response,
+        ):
+            await self.raise_on_error(response)
+            return True
+
+    async def delete_remote_entity(self, entity_id: str) -> bool:
+        """Delete the given entity ID on the remote."""
+        async with (
+            self.client() as session,
+            session.delete(self.url(f"entities/{entity_id}")) as response,
         ):
             await self.raise_on_error(response)
             return True
