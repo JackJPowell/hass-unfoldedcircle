@@ -38,7 +38,8 @@
         "menu_options": {
           "remote_websocket": "Remote is not connected, try to reconfigure the URL",
           "finish": "Ignore this step and finish",
-          "error": "Unable to communicate with the remote. Retry?"
+          "error": "Unable to communicate with the remote. Retry?",
+          "subscribe": "Activer toutes les entités synchronisées"
         }
       },
       "zeroconf_confirm": {
@@ -92,7 +93,8 @@
         "menu_options": {
           "remote_websocket": "La télécommande n'est pas connectée, essayez de reconfigurer l'adresse",
           "finish": "Ignorer cette étape et terminer",
-          "error": "Impossible de commmuniquer avec la télécommande. Réessayer ?"
+          "error": "Impossible de commmuniquer avec la télécommande. Réessayer ?",
+          "subscribe": "Activer toutes les entités synchronisées"
         }
       }
     }

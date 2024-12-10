@@ -490,6 +490,36 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             user_input,
         )
 
+    async def async_step_subscribe(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Subscribe all available entities Step"""
+        subscribed_entities_subscription = None
+        try:
+            subscribed_entities_subscription = self._websocket_client.get_subscribed_entities(
+                self._remote.hostname
+            )
+            integration_id = await connect_integration(
+                self._remote, subscribed_entities_subscription.driver_id
+            )
+            await self._remote.get_remote_integration_entities(integration_id, True)
+
+            await self._remote.set_remote_integration_entities(integration_id, [])
+            _LOGGER.debug(
+                "Entities registered successfully for: %s", integration_id
+            )
+            return await self.async_step_finish(None)
+        except Exception as ex:
+            _LOGGER.error(
+                "Failed to subscribe the remote %s with the new entities (%s) : %s",
+                self._remote.hostname,
+                subscribed_entities_subscription, ex
+            )
+            return self.async_show_menu(
+                step_id="select_entities",
+                menu_options=["error", "finish"],
+            )
+
     async def async_step_finish(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
@@ -710,6 +740,37 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
                     user_input,
                 )
 
+    async def async_step_subscribe(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Subscribe all available entities Step"""
+        subscribed_entities_subscription = None
+        try:
+            subscribed_entities_subscription = self._websocket_client.get_subscribed_entities(
+                self._remote.hostname
+            )
+            integration_id = await connect_integration(
+                self._remote, subscribed_entities_subscription.driver_id
+            )
+            await self._remote.get_remote_integration_entities(integration_id, True)
+
+            await self._remote.set_remote_integration_entities(integration_id, [])
+            _LOGGER.debug(
+                "Entities registered successfully for: %s", integration_id
+            )
+            return await self.async_step_finish(None)
+        except Exception as ex:
+            _LOGGER.error(
+                "Failed to subscribe the remote %s with the new entities (%s) : %s",
+                self._remote.hostname,
+                subscribed_entities_subscription, ex
+            )
+            return self.async_show_menu(
+                step_id="select_entities",
+                menu_options=["error", "finish"],
+            )
+
+
     async def async_step_finish(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
@@ -925,28 +986,29 @@ async def async_step_select_entities(
                 if configure_entities_subscription:
                     config_flow.info["client_id"] = subscribed_entities_subscription.client_id
 
-            # Subscribe to the new entities : only if older version of HA driver
-            if configure_entities_subscription.version is None or configure_entities_subscription.version == "":
-                try:
-                    integration_id = await connect_integration(
-                        remote, subscribed_entities_subscription.driver_id
-                    )
-                    await remote.get_remote_integration_entities(integration_id, True)
-
-                    await remote.set_remote_integration_entities(integration_id, [])
-                    _LOGGER.debug(
-                        "Entities registered successfully for: %s", integration_id
-                    )
-                except IntegrationNotFound:
-                    _LOGGER.error(
-                        "Failed to notify remote with the new entities %s for driver id %s",
-                        remote.hostname,
-                        subscribed_entities_subscription.driver_id,
-                    )
-                    return config_flow.async_show_menu(
-                        step_id="select_entities",
-                        menu_options=["error", "finish"],
-                    )
+            # # Subscribe to the new entities : only if older version of HA driver
+            # if configure_entities_subscription.version is None or configure_entities_subscription.version == "":
+            #     try:
+            #         integration_id = await connect_integration(
+            #             remote, subscribed_entities_subscription.driver_id
+            #         )
+            #         await remote.get_remote_integration_entities(integration_id, True)
+            #
+            #         await remote.set_remote_integration_entities(integration_id, [])
+            #         _LOGGER.debug(
+            #             "Entities registered successfully for: %s", integration_id
+            #         )
+            #         return await finish_callback(None)
+            #     except IntegrationNotFound:
+            #         _LOGGER.error(
+            #             "Failed to notify remote with the new entities %s for driver id %s",
+            #             remote.hostname,
+            #             subscribed_entities_subscription.driver_id,
+            #         )
+            #         return config_flow.async_show_menu(
+            #             step_id="select_entities",
+            #             menu_options=["error", "finish"],
+            #         )
 
         except Exception as ex:  # pylint: disable=broad-except
             _LOGGER.error(
@@ -960,7 +1022,11 @@ async def async_step_select_entities(
                 menu_options=["error", "finish"],
             )
         _LOGGER.debug("Entities registered successfully, finishing config flow")
-        return await finish_callback(None)
+        return config_flow.async_show_menu(
+            step_id="select_entities",
+            menu_options=["subscribe", "finish"],
+        )
+        # return await finish_callback(None)
 
 
 class CannotConnect(HomeAssistantError):

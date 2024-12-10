@@ -404,6 +404,7 @@ class UCWebsocketClient(metaclass=Singleton):
         entities = data.get("entities", [])
         client_id = data.get("client_id", "")
         driver_id = data.get("driver_id", UC_HA_DRIVER_ID)
+        version = data.get("version", "")
 
         cancel_callback = async_track_state_change_event(
             self.hass, entities, entities_state_change_event
@@ -411,6 +412,7 @@ class UCWebsocketClient(metaclass=Singleton):
         subscription = SubscriptionEvent(
             client_id=client_id,
             driver_id=driver_id,
+            version=version,
             cancel_subscription_callback=cancel_callback,
             subscription_id=subscription_id,
             notification_callback=forward_event,
