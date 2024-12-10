@@ -132,6 +132,7 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
         self._attr_entity_category = description.entity_category
         self.entity_description = description
         self._state: StateType = None
+        self._attr_extra_state_attributes = {}
 
     async def async_added_to_hass(self) -> None:
         """Run when this Entity has been added to HA."""
