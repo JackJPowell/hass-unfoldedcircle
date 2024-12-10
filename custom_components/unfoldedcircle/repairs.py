@@ -53,14 +53,19 @@ class DockPasswordRepairFlow(RepairsFlow):
                 is_valid = await validate_dock_password(self.coordinator.api, self.data)
                 if is_valid:
                     config_data = existing_entry
-                    _LOGGER.debug("Updating dock password %s (%s) for remote %s",
-                                  self.data.get("name"), self.data.get("id"),
-                                  self.config_entry.title)
+                    _LOGGER.debug(
+                        "Updating dock password %s (%s) for remote %s",
+                        self.data.get("name"),
+                        self.data.get("id"),
+                        self.config_entry.title,
+                    )
                     for info in config_data.data["docks"]:
                         if info.get("id") == self.data.get("id"):
                             info["password"] = self.data["password"]
                             # Update password of the same dock for other remotes
-                            await synchronize_dock_password(self.hass, info, existing_entry.entry_id)
+                            await synchronize_dock_password(
+                                self.hass, info, existing_entry.entry_id
+                            )
                     self.hass.config_entries.async_update_entry(
                         existing_entry, data=config_data.data
                     )
