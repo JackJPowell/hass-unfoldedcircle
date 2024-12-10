@@ -522,7 +522,7 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
-        self.config_entry = config_entry
+        self._config_entry = config_entry
         self.options = dict(config_entry.options)
         self._remote: Remote | None = None
         self._websocket_client: UCWebsocketClient | None = None
@@ -530,9 +530,9 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_connect_remote(self) -> any:
         self._remote = Remote(
-            self.config_entry.data["host"],
-            self.config_entry.data["pin"],
-            self.config_entry.data["apiKey"],
+            self._config_entry.data["host"],
+            self._config_entry.data["pin"],
+            self._config_entry.data["apiKey"],
         )
         await self._remote.validate_connection()
         await self._remote.get_version()
@@ -563,13 +563,13 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
                 {
                     vol.Optional(
                         CONF_ACTIVITIES_AS_SWITCHES,
-                        default=self.config_entry.options.get(
+                        default=self._config_entry.options.get(
                             CONF_ACTIVITIES_AS_SWITCHES, False
                         ),
                     ): bool,
                     vol.Optional(
                         CONF_SUPPRESS_ACTIVITIY_GROUPS,
-                        default=self.config_entry.options.get(
+                        default=self._config_entry.options.get(
                             CONF_SUPPRESS_ACTIVITIY_GROUPS, False
                         ),
                     ): bool,
@@ -592,19 +592,19 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
                 {
                     vol.Optional(
                         CONF_GLOBAL_MEDIA_ENTITY,
-                        default=self.config_entry.options.get(
+                        default=self._config_entry.options.get(
                             CONF_GLOBAL_MEDIA_ENTITY, True
                         ),
                     ): bool,
                     vol.Optional(
                         CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
-                        default=self.config_entry.options.get(
+                        default=self._config_entry.options.get(
                             CONF_ACTIVITY_GROUP_MEDIA_ENTITIES, False
                         ),
                     ): bool,
                     vol.Optional(
                         CONF_ACTIVITY_MEDIA_ENTITIES,
-                        default=self.config_entry.options.get(
+                        default=self._config_entry.options.get(
                             CONF_ACTIVITY_MEDIA_ENTITIES, False
                         ),
                     ): bool,
@@ -851,6 +851,8 @@ async def async_step_select_entities(
             }
             data_schema.update({"remove_entities": EntitySelector(config)})
 
+        data_schema.update({vol.Required("subscribe_entities", default=True): bool})
+
         _LOGGER.debug("Add/removal of entities %s", data_schema)
         return config_flow.async_show_form(
             step_id="select_entities",
@@ -885,6 +887,8 @@ async def async_step_select_entities(
 
         add_entities = user_input.get("add_entities", [])
         remove_entities = user_input.get("remove_entities", [])
+        do_subscribed_entities = user_input.get("subscribe_entities", True)
+
         final_list = set(subscribed_entities) - set(remove_entities)
         final_list.update(add_entities)
         final_list = list(final_list)
@@ -939,8 +943,8 @@ async def async_step_select_entities(
                         subscribed_entities_subscription.client_id
                     )
 
-            # Subscribe to the new entities : only if older version of HA driver
-            if configure_entities_subscription.version is None or configure_entities_subscription.version == "":
+            # Subscribe to the new entities if requested by user
+            if do_subscribed_entities:
                 try:
                     integration_id = await connect_integration(
                         remote, subscribed_entities_subscription.driver_id

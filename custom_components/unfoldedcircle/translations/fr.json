@@ -33,7 +33,8 @@
         "title": "Configure Entities (Optional)",
         "data": {
           "add_entities": "Entities to share with Remote",
-          "remove_entities": "Entities to remove from Remote"
+          "remove_entities": "Entities to remove from Remote",
+          "subscribe_entities": "Activer toutes les entités synchronisées"
         },
         "menu_options": {
           "remote_websocket": "Remote is not connected, try to reconfigure the URL",
@@ -87,7 +88,8 @@
         "title": "Configurer les entités",
         "data": {
           "add_entities": "Entités à ajouter à la télécommande",
-          "remove_entities": "Entités à retirer de la télécommande"
+          "remove_entities": "Entités à retirer de la télécommande",
+          "subscribe_entities": "Activer toutes les entités synchronisées"
         },
         "menu_options": {
           "remote_websocket": "La télécommande n'est pas connectée, essayez de reconfigurer l'adresse",

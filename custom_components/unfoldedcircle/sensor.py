@@ -20,7 +20,7 @@ from .entity import UnfoldedCircleEntity
 from . import UnfoldedCircleConfigEntry
 
 
-@dataclass
+@dataclass(frozen=True)
 class UnfoldedCircleSensorEntityDescription(SensorEntityDescription):
     """Class describing Unfolded Circle Remote sensor entities."""
 
@@ -86,6 +86,16 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         entity_registry_enabled_default=False,
         entity_registry_visible_default=False,
     ),
+    UnfoldedCircleSensorEntityDescription(
+        key="remote_entities",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        name="Remote entities",
+        unique_id="remote_entities",
+        icon="mdi:remote",
+        suggested_display_precision=0,
+        entity_registry_enabled_default=True,
+        entity_registry_visible_default=False,
+    ),
 )
 
 
@@ -122,6 +132,7 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
         self._attr_entity_category = description.entity_category
         self.entity_description = description
         self._state: StateType = None
+        self._attr_extra_state_attributes = {}
 
     async def async_added_to_hass(self) -> None:
         """Run when this Entity has been added to HA."""
@@ -139,10 +150,23 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
             "cpu_load_one",
         ]:
             self.coordinator.polling_data = True
+
+        if self.entity_description.key == "remote_entities":
+            self._attr_extra_state_attributes = {"Synchronized entities": 0}
+            if self.coordinator.config_entry.data.get("available_entities", None):
+                self._attr_extra_state_attributes["Available entities"] = (
+                    self.coordinator.config_entry.data.get("available_entities", [])
+                )
+                self._attr_extra_state_attributes["Synchronized entities"] = len(
+                    self._attr_extra_state_attributes["Available entities"]
+                )
+
         await super().async_added_to_hass()
 
     def get_value(self) -> StateType:
         """return native value of entity"""
+        if self.entity_description.key == "remote_entities":
+            return self._attr_extra_state_attributes.get("Synchronized entities", 0)
         if self.coordinator.data:
             self._state = getattr(self.coordinator.api, self.entity_description.key)
             self._attr_native_value = self._state
