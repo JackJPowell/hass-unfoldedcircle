@@ -469,7 +469,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
 
             return self.async_create_entry(
                 title=info["title"],
-                data=info,
+                data=info
             )
 
         return self.async_show_form(
