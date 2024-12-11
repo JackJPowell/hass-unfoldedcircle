@@ -808,7 +808,7 @@ async def async_step_select_entities(
             return config_flow.async_show_menu(
                 step_id="select_entities",
                 menu_options=["error", "finish"],
-                description_placeholders={"remote_ha_config_url", remote_ha_config_url},
+                description_placeholders={"remote_ha_config_url": remote_ha_config_url},
             )
         _LOGGER.debug(
             "Found configuration subscription for remote %s (subscription_id %s) : entities %s",
@@ -898,7 +898,7 @@ async def async_step_select_entities(
             return config_flow.async_show_menu(
                 step_id="select_entities",
                 menu_options=["error", "finish"],
-                description_placeholders={"remote_ha_config_url", remote_ha_config_url},
+                description_placeholders={"remote_ha_config_url": remote_ha_config_url},
             )
         subscribed_entities: list[str] = []
         if subscribed_entities_subscription:
@@ -940,8 +940,7 @@ async def async_step_select_entities(
                     step_id="select_entities",
                     menu_options=["error", "finish"],
                     description_placeholders={
-                        "remote_ha_config_url",
-                        remote_ha_config_url,
+                        "remote_ha_config_url": remote_ha_config_url,
                     },
                 )
 
@@ -976,8 +975,7 @@ async def async_step_select_entities(
                         step_id="select_entities",
                         menu_options=["error", "finish"],
                         description_placeholders={
-                            "remote_ha_config_url",
-                            remote_ha_config_url,
+                            "remote_ha_config_url": remote_ha_config_url,
                         },
                     )
 
@@ -991,7 +989,7 @@ async def async_step_select_entities(
             return config_flow.async_show_menu(
                 step_id="select_entities",
                 menu_options=["error", "finish"],
-                description_placeholders={"remote_ha_config_url", remote_ha_config_url},
+                description_placeholders={"remote_ha_config_url": remote_ha_config_url},
             )
         _LOGGER.debug("Entities registered successfully, finishing config flow")
         return await finish_callback(None)

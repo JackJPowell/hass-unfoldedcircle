@@ -99,7 +99,7 @@
       },
       "select_entities": {
         "title": "Configure Entities",
-        "description": "Finish [configuration]({remote_ha_config_url}) on your remote",
+        "description": "Finish [configuration]({remote_ha_config_url}) on your remote after submitting",
         "data": {
           "add_entities": "Entities to share with Remote",
           "remove_entities": "Entities to remove from Remote",
