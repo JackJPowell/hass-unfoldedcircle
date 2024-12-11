@@ -4,8 +4,8 @@ import asyncio
 import logging
 from typing import Any, Awaitable, Callable, Type
 
-from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
-from .pyUnfoldedCircleRemote.remote import (
+from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
+from pyUnfoldedCircleRemote.remote import (
     ApiKeyCreateError,
     ApiKeyRevokeError,
     AuthenticationError,
