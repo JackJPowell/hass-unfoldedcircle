@@ -4,8 +4,8 @@ import asyncio
 import logging
 from typing import Any, Awaitable, Callable, Type
 
-from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
-from pyUnfoldedCircleRemote.remote import (
+from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
+from .pyUnfoldedCircleRemote.remote import (
     ApiKeyCreateError,
     ApiKeyRevokeError,
     AuthenticationError,
@@ -850,10 +850,21 @@ async def async_step_select_entities(
         data_schema.update({vol.Required("subscribe_entities", default=True): bool})
 
         _LOGGER.debug("Add/removal of entities %s", data_schema)
+
+        # Remote 2 : http://x.x.x.x/configurator#/integrations-devices/hass.main
+        # Remote 3 : http://x.x.x.x/configurator/#/integration/hass.main
+        if remote.new_web_configurator:
+            remote_ha_config_url = f"{remote.configuration_url}#/integration/{integration_id}"
+        else:
+            remote_ha_config_url = f"{remote.configuration_url.rstrip('/')}#/integrations-devices/{integration_id}"
+
         return config_flow.async_show_form(
             step_id="select_entities",
             data_schema=vol.Schema(data_schema),
-            description_placeholders={"remote_name": remote.name},
+            description_placeholders={
+                "remote_name": remote.name,
+                "remote_ha_config_url": remote_ha_config_url
+            },
             errors=errors,
         )
 
