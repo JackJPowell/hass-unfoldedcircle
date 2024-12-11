@@ -71,6 +71,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self._websocket_client: UCWebsocketClient | None = None
         self.dock_count: int = 0
         self.info: dict[str, any] = {}
+        self.options: dict[str, any] = {}
 
     async def validate_input(
         self, data: dict[str, Any], host: str = ""
@@ -255,9 +256,10 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             errors["base"] = "invalid_websocket_address"
         else:
             if info["docks"]:
+                # Configure docks and entities
                 return await self.async_step_dock(info=info, first_call=True)
 
-            return self.async_create_entry(title=info["title"], data=info)
+            return self.async_create_entry(title=info["title"], data=info, options=self.options)
 
         return self.async_show_form(
             step_id="zeroconf_confirm",
@@ -469,7 +471,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
 
             return self.async_create_entry(
                 title=info["title"],
-                data=info,
+                data=info
             )
 
         return self.async_show_form(
@@ -496,7 +498,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         """Complete conflig flow"""
         _LOGGER.debug("Create registry entry")
         try:
-            result = self.async_create_entry(title=self.info["title"], data=self.info)
+            result = self.async_create_entry(title=self.info["title"], data=self.info, options=self.options)
             _LOGGER.debug("Registry entry creation result : %s", result)
             return result
         except Exception as ex:
@@ -915,19 +917,11 @@ async def async_step_select_entities(
                 )
 
             # Entities sent successfully to the HA driver, store the list in the registry
-            # If Option flow
-            if isinstance(config_flow, UnfoldedCircleRemoteOptionsFlowHandler) and config_flow.options:
-                if config_flow.options is None:
-                    config_flow.options = {}
-                config_flow.options["available_entities"] = final_list
-                if configure_entities_subscription:
-                    config_flow.options["client_id"] = subscribed_entities_subscription.client_id
-            elif isinstance(config_flow, UnfoldedCircleRemoteConfigFlow) and config_flow.info:
-                if config_flow.info is None:
-                    config_flow.info = {}
-                config_flow.info["available_entities"] = final_list
-                if configure_entities_subscription:
-                    config_flow.info["client_id"] = subscribed_entities_subscription.client_id
+            if config_flow.options is None:
+                config_flow.options = {}
+            config_flow.options["available_entities"] = final_list
+            if configure_entities_subscription:
+                config_flow.options["client_id"] = subscribed_entities_subscription.client_id
 
             # Subscribe to the new entities if requested by user
             if do_subscribed_entities:
