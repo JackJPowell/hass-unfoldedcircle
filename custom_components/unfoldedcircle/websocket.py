@@ -62,7 +62,7 @@ def ws_get_info(
             "success": True,
             "result": {"state": "CONNECTED", "cat": "DEVICE", "version": "1.0.0"},
             "message": msg.get("message"),
-            "data": data
+            "data": data,
         }
     )
 
@@ -77,7 +77,7 @@ def ws_get_states(
     """Handle get info command."""
     _LOGGER.debug("Unfolded Circle get entities states request from remote %s", msg)
     entity_ids: list[str] = msg.get("data", {}).get("entity_ids", [])
-    client_id: str|None = msg.get("data", {}).get("client_id", None)
+    client_id: str | None = msg.get("data", {}).get("client_id", None)
     entity_states = []
     # If entity_ids list is empty, send all entities
     if len(entity_ids) == 0:
@@ -87,7 +87,9 @@ def ws_get_states(
         if client_id:
             update_config_entities(hass, client_id, entity_ids)
         else:
-            _LOGGER.debug("No client ID in the request from remote, cannot update the available entities in HA")
+            _LOGGER.debug(
+                "No client ID in the request from remote, cannot update the available entities in HA"
+            )
 
         # Add to the requested list the stored list of entities
         available_entities = []
