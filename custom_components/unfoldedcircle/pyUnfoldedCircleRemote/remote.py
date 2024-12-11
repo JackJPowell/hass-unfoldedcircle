@@ -456,10 +456,12 @@ class Remote:
 
     @property
     def external_entity_configuration_available(self):
+        """Is External entity configuration available"""
         return self._external_entity_configuration_available
 
     @property
     def new_web_configurator(self):
+        """Is remote running new web configurator"""
         return self._new_web_configurator
 
     ### URL Helpers ###
@@ -981,15 +983,11 @@ class Remote:
             await self.raise_on_error(response)
             return True
 
-    async def delete_remote_entity(
-        self, entity_id: str
-    ) -> bool:
+    async def delete_remote_entity(self, entity_id: str) -> bool:
         """Delete the given entity ID on the remote."""
         async with (
             self.client() as session,
-            session.delete(
-                self.url(f"entities/{entity_id}")
-            ) as response,
+            session.delete(self.url(f"entities/{entity_id}")) as response,
         ):
             await self.raise_on_error(response)
             return True
