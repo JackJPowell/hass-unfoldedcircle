@@ -95,7 +95,7 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         suggested_display_precision=0,
         entity_registry_enabled_default=True,
         entity_registry_visible_default=True,
-    )
+    ),
 )
 
 
@@ -154,10 +154,12 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
         if self.entity_description.key == "remote_entities":
             self._attr_extra_state_attributes = {"Synchronized entities": 0}
             if self.coordinator.config_entry.data.get("available_entities", None):
-                self._attr_extra_state_attributes["Available entities"] = self.coordinator.config_entry.data.get(
-                    "available_entities", [])
-                self._attr_extra_state_attributes["Synchronized entities"] = (
-                    len(self._attr_extra_state_attributes["Available entities"]))
+                self._attr_extra_state_attributes["Available entities"] = (
+                    self.coordinator.config_entry.data.get("available_entities", [])
+                )
+                self._attr_extra_state_attributes["Synchronized entities"] = len(
+                    self._attr_extra_state_attributes["Available entities"]
+                )
 
         await super().async_added_to_hass()
 
