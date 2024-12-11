@@ -12,7 +12,7 @@ from homeassistant.helpers.event import (
     EventStateChangedData,
     async_track_state_change_event,
 )
-
+from .helpers import update_config_entities
 from .const import DOMAIN, UC_HA_DRIVER_ID
 
 _LOGGER = logging.getLogger(__name__)
@@ -83,57 +83,16 @@ def ws_get_states(
     if len(entity_ids) == 0:
         entity_states = hass.states.async_all()
     else:
-        # Add to the requested list the stored list of entities
-        available_entities = []
+        # Check if the registry needs to be updated (available entities unsync)
         if client_id:
-            existing_entries = hass.config_entries.async_entries(domain=DOMAIN)
-            try:
-                config_entry = next(
-                    config_entry
-                    for config_entry in existing_entries
-                    if config_entry.data.get("client_id", "") == client_id
-                )
-                if config_entry:
-                    _LOGGER.debug(
-                        "Unfolded circle get states from client %s, config entry found %s",
-                        client_id,
-                        config_entry.title,
-                    )
-                    available_entities = config_entry.data.get(
-                        "available_entities", []
-                    ).copy()
-                    update_needed = False
-                    for entity_id in entity_ids:
-                        if entity_id not in available_entities:
-                            available_entities.append(entity_id)
-                            update_needed = True
-                    if update_needed:
-                        data = dict(config_entry.data)
-                        data["available_entities"] = available_entities
-                        _LOGGER.debug(
-                            "Available entities need to be updated in registry as there is "
-                            "a desync with the remote %s. "
-                            "Remote : %s, HA registry : %s",
-                            client_id,
-                            config_entry.data.get("available_entities", []),
-                            available_entities,
-                        )
-                        hass.config_entries.async_update_entry(config_entry, data=data)
-                else:
-                    _LOGGER.debug(
-                        "Unfolded circle get states from client %s : no config entry",
-                        client_id,
-                    )
-            except StopIteration:
-                _LOGGER.debug(
-                    "Unfolded circle get states from client %s : no config entry",
-                    client_id,
-                )
-                pass
+            update_config_entities(hass, client_id, entity_ids)
         else:
             _LOGGER.debug(
                 "No client ID in the request from remote, cannot update the available entities in HA"
             )
+
+        # Add to the requested list the stored list of entities
+        available_entities = []
 
         # Add the missing available entities (normally the unsubscribed entities) to the get states command
         for entity_id in available_entities:
@@ -444,6 +403,9 @@ class UCWebsocketClient(metaclass=Singleton):
         )
 
         connection.subscriptions[subscription_id] = remove_listener
+        # Check if the registry needs to be updated (available entities unsync)
+        if client_id:
+            update_config_entities(self.hass, client_id, entities)
 
         return remove_listener
 

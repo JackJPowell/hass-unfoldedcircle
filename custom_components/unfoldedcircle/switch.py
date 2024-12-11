@@ -22,7 +22,7 @@ from .entity import UnfoldedCircleEntity
 from . import UnfoldedCircleConfigEntry
 
 
-@dataclass
+@dataclass(frozen=True)
 class UnfoldedCircleSwitchEntityDescription(SwitchEntityDescription):
     """Class describing Unfolded Circle Remote switch entities."""
 

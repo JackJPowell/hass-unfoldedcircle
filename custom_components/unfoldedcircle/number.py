@@ -23,7 +23,7 @@ from . import UnfoldedCircleConfigEntry
 _LOGGER = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(frozen=True)
 class UnfoldedCircleNumberEntityDescription(NumberEntityDescription):
     """Class describing Unfolded Circle Remote number entities."""
 

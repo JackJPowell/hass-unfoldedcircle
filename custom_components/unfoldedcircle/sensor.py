@@ -94,7 +94,7 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         icon="mdi:remote",
         suggested_display_precision=0,
         entity_registry_enabled_default=True,
-        entity_registry_visible_default=False,
+        entity_registry_visible_default=True,
     ),
 )
 

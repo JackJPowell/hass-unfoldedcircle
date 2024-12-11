@@ -312,6 +312,36 @@ async def synchronize_dock_password(
                     )
                 break
 
+def update_config_entities(hass: HomeAssistant, client_id: str, entity_ids: [str]):
+    """Update registry entry of available entities configured in the remote if changed"""
+    existing_entries = hass.config_entries.async_entries(domain=DOMAIN)
+    try:
+        config_entry = next(config_entry for config_entry in existing_entries
+                            if config_entry.options and config_entry.options.get("client_id", "") == client_id)
+        if config_entry:
+            _LOGGER.debug("Unfolded circle get states from client %s, config entry found %s",
+                          client_id, config_entry.title)
+            available_entities = config_entry.options.get("available_entities", []).copy()
+            update_needed = False
+            for entity_id in entity_ids:
+                if entity_id not in available_entities:
+                    available_entities.append(entity_id)
+                    update_needed = True
+            if update_needed:
+                options = dict(config_entry.options)
+                options["available_entities"] = available_entities
+                _LOGGER.debug("Available entities need to be updated in registry as there is "
+                              "a desync with the remote %s. "
+                              "Remote : %s, HA registry : %s",
+                              client_id,
+                              config_entry.options.get("available_entities", []),
+                              available_entities)
+                hass.config_entries.async_update_entry(config_entry, options=options)
+        else:
+            _LOGGER.debug("Unfolded circle get states from client %s : no config entry", client_id)
+    except StopIteration:
+        _LOGGER.debug("Unfolded circle get states from client %s : no config entry", client_id)
+        pass
 
 class UnableToExtractMacAddress(Exception):
     """Raised when no mac address could be determined for given input."""
