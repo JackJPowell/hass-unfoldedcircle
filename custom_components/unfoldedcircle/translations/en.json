@@ -34,7 +34,7 @@
         "data": {
           "add_entities": "Entities to share with Remote",
           "remove_entities": "Entities to remove from Remote",
-          "subscribe_entities": "Make all synchronized entities as configured"
+          "subscribe_entities": "Automatically configure entities shared with Remote"
         },
         "menu_options": {
           "remote_websocket": "Remote is not connected, try to reconfigure the URL",
@@ -101,7 +101,7 @@
         "data": {
           "add_entities": "Entities to share with Remote",
           "remove_entities": "Entities to remove from Remote",
-          "subscribe_entities": "Make all synchronized entities as configured"
+          "subscribe_entities": "Automatically configure entities shared with Remote"
         },
         "menu_options": {
           "remote_websocket": "Remote is not connected, try to reconfigure the URL",

@@ -7,8 +7,8 @@ import re
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
-from .pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
-from .pyUnfoldedCircleRemote.remote import (
+from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
+from pyUnfoldedCircleRemote.remote import (
     HTTPError,
     IntegrationNotFound,
     Remote,
@@ -20,7 +20,13 @@ from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.network import NoURLAvailableError, get_url
 
-from .const import UC_HA_SYSTEM, UC_HA_TOKEN_ID, DEFAULT_HASS_URL, DOMAIN, UC_HA_DRIVER_ID
+from .const import (
+    DEFAULT_HASS_URL,
+    DOMAIN,
+    UC_HA_DRIVER_ID,
+    UC_HA_SYSTEM,
+    UC_HA_TOKEN_ID,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -128,7 +134,9 @@ async def connect_integration(remote: Remote, driver_id=UC_HA_DRIVER_ID) -> str:
     """Attempt to connect the Home Assistant Integration"""
     ha_driver_instance = {}
     try:
-        _LOGGER.debug("Home assistant driver integration lookup for system %s", driver_id)
+        _LOGGER.debug(
+            "Home assistant driver integration lookup for system %s", driver_id
+        )
         ha_driver_instance = await remote.get_integration_instance_by_driver_id(
             driver_id
         )
