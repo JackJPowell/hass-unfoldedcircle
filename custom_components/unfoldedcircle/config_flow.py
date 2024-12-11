@@ -739,6 +739,16 @@ async def async_step_select_entities(
         'Using remote ID "%s" to get and set subscribed entities', remote.hostname
     )
 
+    integration_id = await connect_integration(remote)
+    # Remote 2 : http://x.x.x.x/configurator#/integrations-devices/hass.main
+    # Remote 3 : http://x.x.x.x/configurator/#/integration/hass.main
+    if remote.new_web_configurator:
+        remote_ha_config_url = (
+            f"{remote.configuration_url}#/integration/{integration_id}"
+        )
+    else:
+        remote_ha_config_url = f"{remote.configuration_url.rstrip('/')}#/integrations-devices/{integration_id}"
+
     websocket_url = await get_registered_websocket_url(remote)
     if websocket_url is None:
         websocket_url = get_ha_websocket_url(hass)
@@ -798,6 +808,7 @@ async def async_step_select_entities(
             return config_flow.async_show_menu(
                 step_id="select_entities",
                 menu_options=["error", "finish"],
+                description_placeholders={"remote_ha_config_url": remote_ha_config_url},
             )
         _LOGGER.debug(
             "Found configuration subscription for remote %s (subscription_id %s) : entities %s",
@@ -857,15 +868,23 @@ async def async_step_select_entities(
         data_schema.update({vol.Required("subscribe_entities", default=True): bool})
 
         _LOGGER.debug("Add/removal of entities %s", data_schema)
+
         return config_flow.async_show_form(
             step_id="select_entities",
             data_schema=vol.Schema(data_schema),
-            description_placeholders={"remote_name": remote.name},
+            description_placeholders={
+                "remote_name": remote.name,
+                "remote_ha_config_url": remote_ha_config_url,
+            },
             errors=errors,
         )
 
     # When the user has selected entities to add/remove as available for the HA driver
     if user_input is not None:
+        integration_id = await connect_integration(
+            remote, subscribed_entities_subscription.driver_id
+        )
+
         configure_entities_subscription = websocket_client.get_driver_subscription(
             remote.hostname
         )
@@ -879,6 +898,7 @@ async def async_step_select_entities(
             return config_flow.async_show_menu(
                 step_id="select_entities",
                 menu_options=["error", "finish"],
+                description_placeholders={"remote_ha_config_url": remote_ha_config_url},
             )
         subscribed_entities: list[str] = []
         if subscribed_entities_subscription:
@@ -919,6 +939,9 @@ async def async_step_select_entities(
                 return config_flow.async_show_menu(
                     step_id="select_entities",
                     menu_options=["error", "finish"],
+                    description_placeholders={
+                        "remote_ha_config_url": remote_ha_config_url,
+                    },
                 )
 
             # Entities sent successfully to the HA driver, store the list in the registry
@@ -951,6 +974,9 @@ async def async_step_select_entities(
                     return config_flow.async_show_menu(
                         step_id="select_entities",
                         menu_options=["error", "finish"],
+                        description_placeholders={
+                            "remote_ha_config_url": remote_ha_config_url,
+                        },
                     )
 
         except Exception as ex:  # pylint: disable=broad-except
@@ -963,6 +989,7 @@ async def async_step_select_entities(
             return config_flow.async_show_menu(
                 step_id="select_entities",
                 menu_options=["error", "finish"],
+                description_placeholders={"remote_ha_config_url": remote_ha_config_url},
             )
         _LOGGER.debug("Entities registered successfully, finishing config flow")
         return await finish_callback(None)

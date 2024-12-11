@@ -211,6 +211,7 @@ class Remote:
         self._external_entity_configuration_available: bool = False
         self._bt_enabled: bool = False
         self._wifi_enabled: bool = False
+        self._new_web_configurator = True
 
     @property
     def name(self):
@@ -455,7 +456,13 @@ class Remote:
 
     @property
     def external_entity_configuration_available(self):
+        """Is External entity configuration available"""
         return self._external_entity_configuration_available
+
+    @property
+    def new_web_configurator(self):
+        """Is remote running new web configurator"""
+        return self._new_web_configurator
 
     ### URL Helpers ###
     def validate_url(self, uri):
@@ -863,10 +870,15 @@ class Remote:
                 core = information.get("core", "")
                 # We only care about the beginning of the version for this compare
                 self._external_entity_configuration_available = True
+                self._new_web_configurator = False
             else:
                 self._sw_version = information.get("os", "")
                 if Version(self._sw_version) >= Version("2.0.0"):
                     self._external_entity_configuration_available = True
+                if Version(self._sw_version) >= Version("2.2.0"):
+                    self._new_web_configurator = True
+                else:
+                    self._new_web_configurator = False
             return information
 
     async def get_remote_wifi_info(self) -> dict[str, any]:
@@ -971,15 +983,11 @@ class Remote:
             await self.raise_on_error(response)
             return True
 
-    async def delete_remote_entity(
-        self, entity_id: str
-    ) -> bool:
+    async def delete_remote_entity(self, entity_id: str) -> bool:
         """Delete the given entity ID on the remote."""
         async with (
             self.client() as session,
-            session.delete(
-                self.url(f"entities/{entity_id}")
-            ) as response,
+            session.delete(self.url(f"entities/{entity_id}")) as response,
         ):
             await self.raise_on_error(response)
             return True
