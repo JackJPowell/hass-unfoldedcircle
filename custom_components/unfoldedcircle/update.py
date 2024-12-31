@@ -58,6 +58,23 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
         )
         self._attr_title = f"{self.coordinator.api.name} Firmware"
 
+    @property
+    def update_percentage(self) -> int | float | None:
+        if self.coordinator.api.download_percent > 0:
+            self._download_progress = math.ceil(
+                self.coordinator.api.download_percent / 10
+            )
+            return self._download_progress
+        if self.coordinator.api.update_percent > 0:
+            if self._download_progress > self.coordinator.api.update_percent:
+                return self._download_progress
+            else:
+                if self.coordinator.api.update_percent == 0:
+                    # 0 is interpreted as false. "0" display progress bar
+                    return "0"
+                else:
+                    return self.coordinator.api.update_percent
+
     async def async_install(
         self, version: str | None, backup: bool, **kwargs: Any
     ) -> None:

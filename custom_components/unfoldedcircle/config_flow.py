@@ -881,9 +881,7 @@ async def async_step_select_entities(
 
     # When the user has selected entities to add/remove as available for the HA driver
     if user_input is not None:
-        integration_id = await connect_integration(
-            remote, subscribed_entities_subscription.driver_id
-        )
+        integration_id = await connect_integration(remote)
 
         configure_entities_subscription = websocket_client.get_driver_subscription(
             remote.hostname
