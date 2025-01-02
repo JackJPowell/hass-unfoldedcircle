@@ -771,10 +771,12 @@ class Remote:
     async def external_system_has_token(self, system) -> bool:
         """Checks against the external system on the remote
         to see if a token has been registered."""
-        external_system = await self.get_registered_external_system(system)
-        if external_system:
-            _LOGGER.debug("Remote external system with token: %s", external_system)
-            return True
+        external_systems = await self.get_registered_external_system(system)
+
+        for ext in external_systems:
+            if ext.get("token_id") == "ws-ha-api":
+                return True
+        return False
 
     async def get_integrations(self) -> list[dict]:
         """Retrieves the list of integration instances."""
@@ -838,6 +840,39 @@ class Remote:
             return ha_driver_instance
         except StopIteration as ex:
             raise IntegrationNotFound from ex
+
+    async def post_integration_setup(
+        self, driver_id: str, reconfigure: bool, setup_data: dict
+    ) -> dict:
+        """POST to /intg/setup to start an integration driver setup"""
+        body = {}
+        if driver_id:
+            body["driver_id"] = driver_id
+        if reconfigure:
+            body["reconfigure"] = reconfigure
+        if setup_data:
+            body["setup_data"] = setup_data
+        body = {
+            "driver_id": "hass",
+            "reconfigure": False,
+            "setup_data": {"expert": "false"},
+        }
+        async with (
+            self.client() as session,
+            session.post(self.url("intg/setup"), json=body) as response,
+        ):
+            await self.raise_on_error(response)
+            return await response.json()
+
+    async def put_integration_setup(self, driver_id: str, input_values: dict) -> dict:
+        """PUT to /intg/setup/:driver_id: to continue an integration driver setup"""
+        body = {"input_values": input_values}
+        async with (
+            self.client() as session,
+            session.put(self.url(f"intg/setup/{driver_id}"), json=body) as response,
+        ):
+            await self.raise_on_error(response)
+            return await response.json()
 
     @staticmethod
     async def get_version_information(base_url) -> dict[str]:
