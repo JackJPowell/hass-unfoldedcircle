@@ -527,9 +527,10 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         """Initialize options flow."""
         self._config_entry = config_entry
         self.options = dict(config_entry.options)
-        self._remote: Remote | None = None
+        self._remote: Remote | None = self._config_entry.runtime_data.remote
         self._websocket_client: UCWebsocketClient | None = None
         self._entity_ids: list[str] | None = None
+        self._bypass_steps: bool = False
 
     async def async_connect_remote(self) -> any:
         self._remote = Remote(
@@ -545,13 +546,17 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):  # pylint: disable=unused-argument
         """Manage the options."""
         self._websocket_client = UCWebsocketClient(self.hass)
-        await self.async_connect_remote()
-        if self._remote.external_entity_configuration_available:
-            return self.async_show_menu(
-                step_id="init",
-                menu_options=["select_entities", "activities"],
-                description_placeholders={"remote": self._remote.name},
-            )
+        try:
+            await self._remote.validate_connection()
+        except Exception:
+            return await self.async_step_remote_host(final_step=True)
+        else:
+            if self._remote.external_entity_configuration_available:
+                return self.async_show_menu(
+                    step_id="init",
+                    menu_options=["select_entities", "activities"],
+                    description_placeholders={"remote": self._remote.name},
+                )
         return await self.async_step_activities()
 
     async def async_step_activities(self, user_input=None):
@@ -614,8 +619,12 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
             last_step=False,
         )
 
-    async def async_step_remote_host(self, user_input=None) -> FlowResult:
+    async def async_step_remote_host(
+        self, user_input=None, final_step: bool = False
+    ) -> FlowResult:
         """Handle a flow initialized by the user."""
+        if final_step is True:
+            self._bypass_steps = True
         errors: dict[str, str] = {}
         if user_input is not None:
             existing_entry = self._config_entry
@@ -634,12 +643,18 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
             else:
                 self.hass.config_entries.async_update_entry(existing_entry, data=data)
 
-                if self._remote.external_entity_configuration_available:
+                if (
+                    self._remote.external_entity_configuration_available
+                    and self._bypass_steps is False
+                ):
                     return await self.async_step_websocket()
                 return await self._update_options()
 
         last_step = True
-        if self._remote.external_entity_configuration_available:
+        if (
+            self._remote.external_entity_configuration_available
+            and self._bypass_steps is False
+        ):
             last_step = False
 
         return self.async_show_form(
