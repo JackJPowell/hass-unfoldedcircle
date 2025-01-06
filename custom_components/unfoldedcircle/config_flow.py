@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from typing import Any, Awaitable, Callable, Type
-
+from aiohttp import ClientConnectionError
 from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
 from pyUnfoldedCircleRemote.remote import (
     ApiKeyCreateError,
@@ -585,9 +585,7 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         """Handle a flow initialized by the user."""
         if user_input is not None:
             self.options.update(user_input)
-            if self._remote.external_entity_configuration_available:
-                return await self.async_step_websocket()
-            return await self._update_options()
+            return await self.async_step_remote_host()
 
         return self.async_show_form(
             step_id="media_player",
@@ -614,6 +612,49 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
                 }
             ),
             last_step=False,
+        )
+
+    async def async_step_remote_host(self, user_input=None) -> FlowResult:
+        """Handle a flow initialized by the user."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            existing_entry = self._config_entry
+
+            remote_api = Remote(
+                api_url=user_input.get("host"),
+                apikey=existing_entry.data["apiKey"],
+            )
+            try:
+                if await remote_api.validate_connection():
+                    data = existing_entry.data.copy()
+                    _LOGGER.debug("Updating host for remote")
+                    data["host"] = remote_api.endpoint
+            except ClientConnectionError:
+                errors["base"] = "invalid_host"
+            else:
+                self.hass.config_entries.async_update_entry(existing_entry, data=data)
+
+                if self._remote.external_entity_configuration_available:
+                    return await self.async_step_websocket()
+                return await self._update_options()
+
+        last_step = True
+        if self._remote.external_entity_configuration_available:
+            last_step = False
+
+        return self.async_show_form(
+            step_id="remote_host",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        "host",
+                        default=self._config_entry.data["host"],
+                    ): str,
+                }
+            ),
+            description_placeholders={"name": self._remote.name},
+            last_step=last_step,
+            errors=errors,
         )
 
     async def async_step_websocket(self, user_input=None):
@@ -648,7 +689,9 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
                 _LOGGER.error("Invalid Websocket Address: %s", ex)
                 errors["base"] = "invalid_websocket_address"
 
-        url = get_ha_websocket_url(self.hass)
+        url = await get_registered_websocket_url(self._remote)
+        if url is None:
+            url = get_ha_websocket_url(self.hass)
         if user_input is not None:
             url = user_input.get("websocket_url")
 

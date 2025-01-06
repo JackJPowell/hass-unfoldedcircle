@@ -63,7 +63,8 @@
     "error": {
       "ha_driver_failure": "Unexpected error when configuring remote entities",
       "cannot_create_ha_token": "Unable to create Home Assistant Token",
-      "invalid_websocket_address": "An invalid home assistant websocket address was supplied"
+      "invalid_websocket_address": "An invalid home assistant websocket address was supplied",
+      "invalid_host": "An invalid host was supplied for the remote"
     },
     "step": {
       "init": {
@@ -90,11 +91,18 @@
           "suppress_activity_groups": "Suppress creation of activity group entities"
         }
       },
+      "remote_host": {
+        "title": "Unfolded Circle Options",
+        "description": "Configure Host / IP Address of {name}",
+        "data": {
+          "host": "Host / IP Address"
+        }
+      },
       "websocket": {
         "title": "Unfolded Circle Options",
-        "description": "Configure Websocket Address",
+        "description": "Configure Home Assistant Websocket Address",
         "data": {
-          "websocket_url": "Websocket Address for Home Assistant"
+          "websocket_url": "Home Assistant Websocket Address"
         }
       },
       "select_entities": {
@@ -114,6 +122,28 @@
     }
   },
   "issues": {
+    "websocket_connection": {
+      "title": "Enable improved communications between {name} and Home Assistant",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Home Assistant Websocket URL",
+            "description": "To improve communications {name} requires the websocket address of this home assistant server.",
+            "data": {
+              "websocket_url": "Home Assistant Websocket URL"
+            }
+          }
+        },
+        "error": {
+          "cannot_connect": "Failed to connect",
+          "websocket_failure": "Invalid Websocket URL",
+          "unknown": "Unexpected error"
+        },
+        "abort": {
+          "ws_connection_successful": "Improved communications enabled"
+        }
+      }
+    },
     "dock_password": {
       "title": "Supply dock password for {name}",
       "fix_flow": {

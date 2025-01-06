@@ -19,12 +19,7 @@ from .coordinator import (
     UnfoldedCircleDockCoordinator,
 )
 
-from .helpers import (
-    get_ha_websocket_url,
-    get_registered_websocket_url,
-    validate_and_register_system_and_driver,
-)
-
+from .helpers import get_registered_websocket_url
 
 PLATFORMS: list[Platform] = [
     Platform.SWITCH,
@@ -202,13 +197,21 @@ async def async_setup_entry(
     await coordinator.async_config_entry_first_refresh()
 
     if coordinator.api.external_entity_configuration_available:
-        websocket_url = await get_registered_websocket_url(coordinator.api)
-        if not websocket_url:
-            websocket_url = get_ha_websocket_url(hass)
-
-        await validate_and_register_system_and_driver(
-            coordinator.api, hass, websocket_url
-        )
+        if not await get_registered_websocket_url(coordinator.api):
+            # We haven't registered a new external system yet, raise issue
+            issue_registry.async_create_issue(
+                hass,
+                DOMAIN,
+                "websocket_connection",
+                breaks_in_ha_version=None,
+                data={"config_entry": entry, "name": coordinator.api.name},
+                is_fixable=True,
+                is_persistent=False,
+                learn_more_url="https://github.com/jackjpowell/hass-unfoldedcircle",
+                severity=issue_registry.IssueSeverity.WARNING,
+                translation_key="websocket_connection",
+                translation_placeholders={"name": coordinator.api.name},
+            )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(update_listener))
