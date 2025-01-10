@@ -79,20 +79,18 @@ def ws_get_states(
     entity_ids: list[str] = msg.get("data", {}).get("entity_ids", [])
     client_id: str | None = msg.get("data", {}).get("client_id", None)
     entity_states = []
+    available_entities = []
     # If entity_ids list is empty, send all entities
     if len(entity_ids) == 0:
         entity_states = hass.states.async_all()
     else:
         # Check if the registry needs to be updated (available entities unsync)
         if client_id:
-            update_config_entities(hass, client_id, entity_ids)
+            available_entities = update_config_entities(hass, client_id, entity_ids)
         else:
             _LOGGER.debug(
                 "No client ID in the request from remote, cannot update the available entities in HA"
             )
-
-        # Add to the requested list the stored list of entities
-        available_entities = []
 
         # Add the missing available entities (normally the unsubscribed entities) to the get states command
         for entity_id in available_entities:
@@ -373,7 +371,8 @@ class UCWebsocketClient(metaclass=Singleton):
                 cancel_callback()
             except Exception:
                 pass
-            self._subscriptions.remove(subscription)
+            if subscription in self._subscriptions:
+                self._subscriptions.remove(subscription)
 
         # Create the new events subscription
         subscription_id = msg["id"]
@@ -428,10 +427,11 @@ class UCWebsocketClient(metaclass=Singleton):
             """Remove the listener."""
             try:
                 _LOGGER.debug("UC removed configuration event for remote %s", client_id)
-                cancel_callback()
+                # cancel_callback()
             except Exception:
                 pass
-            self._configurations.remove(configuration)
+            if configuration in self._configurations:
+                self._configurations.remove(configuration)
 
         # Create the new events subscription
         subscription_id = msg["id"]

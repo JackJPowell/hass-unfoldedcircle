@@ -316,7 +316,9 @@ async def synchronize_dock_password(
                 break
 
 
-def update_config_entities(hass: HomeAssistant, client_id: str, entity_ids: [str]):
+def update_config_entities(
+    hass: HomeAssistant, client_id: str, entity_ids: list[str]
+) -> list[str]:
     """Update registry entry of available entities configured in the remote if changed"""
     existing_entries = hass.config_entries.async_entries(domain=DOMAIN)
     try:
@@ -344,23 +346,23 @@ def update_config_entities(hass: HomeAssistant, client_id: str, entity_ids: [str
                 options = dict(config_entry.options)
                 options["available_entities"] = available_entities
                 _LOGGER.debug(
-                    "Available entities need to be updated in registry as there is "
-                    "a desync with the remote %s. "
-                    "Remote : %s, HA registry : %s",
+                    "Available entities need to be updated in registry as there is a desync with the remote %s. Remote : %s, HA registry : %s",
                     client_id,
                     config_entry.options.get("available_entities", []),
                     available_entities,
                 )
                 hass.config_entries.async_update_entry(config_entry, options=options)
+            return available_entities
         else:
             _LOGGER.debug(
                 "Unfolded circle get states from client %s : no config entry", client_id
             )
+            return []
     except StopIteration:
         _LOGGER.debug(
             "Unfolded circle get states from client %s : no config entry", client_id
         )
-        pass
+        return []
 
 
 class UnableToExtractMacAddress(Exception):
