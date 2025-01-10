@@ -20,14 +20,18 @@ UPDATE_ACTIVITY_SERVICE = "update_activity"
 LEARN_IR_COMMAND_SERVICE = "learn_ir_command"
 SEND_IR_COMMAND_SERVICE = "send_ir_command"
 HA_SUPPORTED_DOMAINS = [
+    "binary_sensor",
     "button",
-    "switch",
     "climate",
     "cover",
+    "input_boolean",
+    "input_button",
     "light",
     "media_player",
     "remote",
     "script",
+    "sensor",
+    "switch",
 ]
 UC_HA_TOKEN_ID = "ws-ha-api"
 
