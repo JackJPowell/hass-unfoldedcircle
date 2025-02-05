@@ -50,6 +50,7 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
         self._attr_entity_category = EntityCategory.CONFIG
         self._download_progress = 0
         self._is_downloading = False
+        self._updated_requested = False
 
         self._attr_supported_features = UpdateEntityFeature(
             UpdateEntityFeature.INSTALL
@@ -82,6 +83,7 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
         if self.coordinator.api.update_in_progress is True:
             return
 
+        self._updated_requested = True
         self._attr_in_progress = False
         self._download_progress = 0
         previous_download_percentage = 0
@@ -172,7 +174,7 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
             self.coordinator.api.update_in_progress is True
             or self._is_downloading is True
             or self.coordinator.api.download_percent > 0
-        ):
+        ) and self._updated_requested is True:
             # If a download was needed, continue to show that percent
             # until the actual update percent exceeds it
             if self._download_progress > self.coordinator.api.update_percent:
@@ -181,6 +183,9 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
                 if self.coordinator.api.update_percent == 0:
                     # 0 is interpreted as false. "0" display progress bar
                     self._attr_in_progress = "0"
+                elif self.coordinator.api.update_percent == 100:
+                    self._attr_in_progress = self.coordinator.api.update_percent
+                    self._updated_requested = False
                 else:
                     self._attr_in_progress = self.coordinator.api.update_percent
         else:
