@@ -15,8 +15,8 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from pyUnfoldedCircleRemote.remote import HTTPError
 
-from .entity import UnfoldedCircleEntity
-from . import UnfoldedCircleConfigEntry
+from .entity import UnfoldedCircleEntity, UnfoldedCircleDockEntity
+from . import UnfoldedCircleConfigEntry, UnfoldedCircleDockCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,7 +28,11 @@ async def async_setup_entry(
 ) -> None:
     """Set up platform."""
     coordinator = config_entry.runtime_data.coordinator
+    dock_coordinators = config_entry.runtime_data.dock_coordinators
     async_add_entities([Update(coordinator)])
+
+    for dock_coordinator in dock_coordinators:
+        async_add_entities([UpdateDock(dock_coordinator)])
 
 
 class Update(UnfoldedCircleEntity, UpdateEntity):
@@ -192,4 +196,84 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
             self._attr_in_progress = False
             self._attr_installed_version = self.coordinator.api.sw_version
             self._attr_latest_version = self.coordinator.api.latest_sw_version
+        self.async_write_ha_state()
+
+
+class UpdateDock(UnfoldedCircleDockEntity, UpdateEntity):
+    """Update Entity."""
+
+    _attr_icon = "mdi:update"
+
+    def __init__(self, coordinator: UnfoldedCircleDockCoordinator) -> None:
+        """Initialize the Update sensor."""
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_update_status"
+        self._attr_has_entity_name = True
+        self._attr_name = "Firmware"
+        self._attr_device_class = UpdateDeviceClass.FIRMWARE
+        self._attr_installed_version = self.coordinator.api.software_version
+        self._attr_latest_version = self.coordinator.api.latest_software_version
+        self._attr_entity_category = EntityCategory.CONFIG
+        self._updated_requested = False
+
+        self._attr_supported_features = UpdateEntityFeature(UpdateEntityFeature.INSTALL)
+        self._attr_title = f"{self.coordinator.api.name} Firmware"
+
+    async def async_install(
+        self, version: str | None, backup: bool, **kwargs: Any
+    ) -> None:
+        """Install an update."""
+        if self.coordinator.api.update_in_progress is True:
+            return
+
+        self._updated_requested = True
+        self._attr_in_progress = False
+        try:
+            update_information = await self.coordinator.api.update_firmware()
+            if update_information.get("state") == "NO_BATTERY":
+                _LOGGER.error(
+                    "Unfolded Circle Update Failed -- Please charge the dock before upgrading."
+                )
+                return
+
+        except HTTPError as ex:
+            _LOGGER.error(
+                "Unfolded Circle Update Failed ** If 503, battery level < 20 ** Status: %s",
+                ex.status_code,
+            )
+        except Exception:
+            pass
+
+        self._attr_in_progress = True
+        self.async_write_ha_state()
+
+    # async def async_release_notes(self) -> str:
+    #     return self.coordinator.api.release_notes
+
+    async def async_update(self) -> None:
+        """Update update information."""
+        await self.coordinator.api.get_update_status()
+        self._attr_latest_version = self.coordinator.api.latest_software_version
+        self._attr_installed_version = self.coordinator.api.software_version
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        if (
+            self.coordinator.api.update_in_progress is True
+        ) and self._updated_requested is True:
+            # If a download was needed, continue to show that percent
+            # until the actual update percent exceeds it
+            if self.coordinator.api.update_percent == 0:
+                # 0 is interpreted as false. "0" display progress bar
+                self._attr_in_progress = "0"
+            elif self.coordinator.api.update_percent == 100:
+                self._attr_in_progress = self.coordinator.api.update_percent
+                self._updated_requested = False
+            else:
+                self._attr_in_progress = self.coordinator.api.update_percent
+        else:
+            self._attr_in_progress = False
+            self._attr_installed_version = self.coordinator.api.software_version
+            self._attr_latest_version = self.coordinator.api.latest_software_version
         self.async_write_ha_state()

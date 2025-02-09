@@ -1,9 +1,8 @@
 """Remote sensor platform for Unfolded Circle."""
 
 import asyncio
-from collections.abc import Iterable
 from datetime import timedelta
-from typing import Any, Mapping
+from typing import Any, Mapping, Iterable
 import logging
 
 import voluptuous as vol
@@ -21,12 +20,20 @@ from homeassistant.helpers import service, entity_platform
 from homeassistant.helpers.entity import ToggleEntityDescription
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
-from pyUnfoldedCircleRemote.remote import AuthenticationError, DockNotFound
+from pyUnfoldedCircleRemote.remote import (
+    AuthenticationError,
+    DockNotFound,
+    InvalidButtonCommand,
+    NoActivityRunning,
+    RemoteIsSleeping,
+    EntityCommandError,
+)
 
 from .const import (
     DOMAIN,
     LEARN_IR_COMMAND_SERVICE,
     SEND_IR_COMMAND_SERVICE,
+    SEND_BUTTON_COMMAND_SERVICE,
 )
 from .entity import UnfoldedCircleEntity, UnfoldedCircleDockEntity
 from . import UnfoldedCircleConfigEntry
@@ -44,6 +51,31 @@ CREATE_CODESET_SCHEMA = cv.make_entity_service_schema(
     },
     extra=vol.ALLOW_EXTRA,
 )
+
+COMMAND_LIST = [
+    "BACK",
+    "HOME",
+    "VOICE",
+    "VOLUME_UP",
+    "VOLUME_DOWN",
+    "GREEN",
+    "DPAD_UP",
+    "YELLOW",
+    "DPAD_LEFT",
+    "DPAD_MIDDLE",
+    "DPAD_RIGHT",
+    "RED",
+    "DPAD_DOWN",
+    "BLUE",
+    "CHANNEL_UP",
+    "CHANNEL_DOWN",
+    "MUTE",
+    "PREV",
+    "PLAY",
+    "PAUSE",
+    "NEXT",
+    "POWER",
+]
 
 
 async def async_setup_entry(
@@ -80,6 +112,17 @@ async def async_setup_entry(
         extra=vol.ALLOW_EXTRA,
     )
 
+    send_button_schema = cv.make_entity_service_schema(
+        {
+            vol.Required("command"): VolAny(str, list[str]),
+            vol.Optional("num_repeats"): str,
+            vol.Optional("activity"): str,
+            vol.Optional("delay_secs"): str,
+            vol.Optional("hold"): bool,
+        },
+        extra=vol.ALLOW_EXTRA,
+    )
+
     @service.verify_domain_control(hass, DOMAIN)
     async def async_service_handle(service_call: ServiceCall) -> None:
         """Handle dispatched services."""
@@ -111,6 +154,12 @@ async def async_setup_entry(
             ir = IR(coordinator, dock_coordinator, hass, data=service_call.data)
             await ir.async_send_command()
 
+        if service_call.service == SEND_BUTTON_COMMAND_SERVICE:
+            coordinator = config_entry.runtime_data.coordinator
+
+            command = Command(coordinator, hass, data=service_call.data)
+            await command.async_send()
+
     hass.services.async_register(
         DOMAIN,
         LEARN_IR_COMMAND_SERVICE,
@@ -123,6 +172,13 @@ async def async_setup_entry(
         SEND_IR_COMMAND_SERVICE,
         async_service_handle,
         send_codeset_schema,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SEND_BUTTON_COMMAND_SERVICE,
+        async_service_handle,
+        send_button_schema,
     )
 
 
@@ -249,12 +305,22 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
 
     async def async_send_command(self, command: Iterable[str], **kwargs):
         """Send a remote command."""
+        data = {}
+        data["command"] = command
+        data["num_repeats"] = kwargs.get("num_repeats")
+        data["delay_secs"] = kwargs.get("delay_secs")
+        data["hold"] = kwargs.get("hold")
+
         for indv_command in command:
-            await self.coordinator.api.send_remote_command(
-                device=kwargs.get("device"),
-                command=indv_command,
-                repeat=kwargs.get("num_repeats"),
-            )
+            if indv_command in COMMAND_LIST:
+                remote_command = Command(self.coordinator, self.hass, data=data)
+                await remote_command.async_send()
+            else:
+                await self.coordinator.api.send_remote_command(
+                    device=kwargs.get("device"),
+                    command=indv_command,
+                    repeat=kwargs.get("num_repeats"),
+                )
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -437,3 +503,44 @@ class IR:
                 return "9"
             case _default:
                 return "0"
+
+
+class Command:
+    def __init__(
+        self,
+        coordinator: UnfoldedCircleCoordinator | None,
+        hass,
+        data,
+    ):
+        self.coordinator = coordinator
+        self.hass = hass
+        self.data = data
+
+    async def async_send(self, **kwargs):
+        """Send a remote command."""
+        commands: list[str] = []
+        if type(self.data.get("command")) is list:
+            commands = self.data.get("command")
+        else:
+            commands.append(self.data.get("command"))
+
+        for indv_command in commands:
+            if indv_command in COMMAND_LIST:
+                if indv_command == "PAUSE":
+                    indv_command = "PLAY"
+                try:
+                    await self.coordinator.api.send_button_command(
+                        command=indv_command,
+                        repeat=self.data.get("num_repeats"),
+                        activity=self.data.get("activity"),
+                        hold=self.data.get("hold"),
+                        delay_secs=self.data.get("delay_secs"),
+                    )
+                except NoActivityRunning:
+                    _LOGGER.error("No activity is running")
+                except InvalidButtonCommand:
+                    _LOGGER.error("Invalid button command: %s", indv_command)
+                except RemoteIsSleeping:
+                    _LOGGER.error("The remote did not repond to the wake command")
+                except EntityCommandError as err:
+                    _LOGGER.error("Failed to send command: %s", err.message)
