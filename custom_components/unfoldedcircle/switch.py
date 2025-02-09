@@ -1,7 +1,7 @@
 """Platform for Switch integration."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Callable
 
 import voluptuous as vol
 from homeassistant.components.switch import (

@@ -140,6 +140,8 @@ class Dock:
         self.apikey = apikey
         self._remote_configuration_url = remote_configuration_url
         self.websocket = ""
+        self._update_in_progress = False
+        self._update_percent = 0
 
     @property
     def name(self):
@@ -272,6 +274,16 @@ class Dock:
     def latest_software_version(self):
         """latest_software_version of the dock."""
         return self._latest_software_version
+
+    @property
+    def update_in_progress(self):
+        """update_in_progress of the dock."""
+        return self._update_in_progress
+
+    @property
+    def update_percent(self):
+        """update_percent of the dock."""
+        return self._update_percent
 
     @property
     def release_notes_url(self):
@@ -410,6 +422,22 @@ class Dock:
             self._available_update = information.get("update_available")
             self._check_for_updates = information.get("update_check_enabled")
 
+            return information
+
+    async def update_firmware(self) -> str:
+        """Start dock firmware update"""
+        information = {}
+        async with (
+            self.client() as session,
+            session.post(self.url(f"docks/devices/{self.id}/update")) as response,
+        ):
+            if response.ok:
+                information = await response.json()
+                self._update_in_progress = True
+            if response.status == 409:
+                information = {"state": "DOWNLOADING"}
+            if response.status == 503:
+                information = {"state": "NO_BATTERY"}
             return information
 
     async def start_ir_learning(self) -> str:
@@ -574,6 +602,9 @@ class Dock:
                 _LOGGER.debug("auth is required")
             if data["msg"] == "ir_receive":
                 self._learned_code = data.get("ir_code")
+            if data["msg"] == "dock_update_change":
+                self._update_percent = data.get("progress")
+                self._update_in_progress = True
         except Exception:
             pass
 

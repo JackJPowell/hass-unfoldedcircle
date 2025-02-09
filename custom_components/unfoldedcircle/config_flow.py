@@ -19,7 +19,7 @@ import voluptuous as vol
 from voluptuous import Optional, Required
 
 from homeassistant import config_entries
-from homeassistant.components.zeroconf import ZeroconfServiceInfo
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from homeassistant.config_entries import ConfigEntry, ConfigFlow
 from homeassistant.const import CONF_HOST, CONF_MAC, CONF_NAME, CONF_PORT
 from homeassistant.core import HomeAssistant, callback

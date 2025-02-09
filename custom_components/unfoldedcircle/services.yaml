@@ -86,3 +86,50 @@ send_ir_command:
             - "Ext 1 & 2"
             - "Dock Bottom & Ext 1"
             - "Dock Bottom & Ext 2"
+
+send_button_command:
+  name: Send Button Commands
+  description: Allows for the automated sending of a sequence of predefined button commands
+  target:
+    entity:
+      - integration: unfoldedcircle
+        domain: remote
+  fields:
+    command:
+      name: Remote button Name
+      description: Refer to documentation for list of valid button names
+      required: true
+      selector:
+          text:
+    activity:
+      name: Acitvity Name
+      description: Activity name to send the command to (Only needed if multiple activities are running)
+      required: true
+      selector:
+          text:
+    num_repeats:
+      name: Repeat Count
+      description: Number of times to repeat sending the command
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 20
+          unit_of_measurement: times
+          mode: box
+    delay_secs:
+      name: Delay seconds
+      description: The time you want to wait in between repeated commands
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 20
+          unit_of_measurement: seconds
+          mode: box
+    hold:
+      name: Hold
+      description: Perform a long press of the specified button
+      required: false
+      selector:
+        boolean:

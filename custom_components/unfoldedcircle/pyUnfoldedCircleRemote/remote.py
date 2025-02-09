@@ -79,6 +79,33 @@ class RemoteIsSleeping(ConnectionError):
         super().__init__(self.message)
 
 
+class NoActivityRunning(Exception):
+    """Raised when no activities are active."""
+
+    def __init__(self) -> None:
+        """Raise when no activities are active"""
+        self.message = "No Activities are currently running"
+        super().__init__(self.message)
+
+
+class InvalidButtonCommand(Exception):
+    """Raised when an invalid button command is supplied."""
+
+    def __init__(self, message) -> None:
+        """Raise command no found error."""
+        self.message = message
+        super().__init__(self.message)
+
+
+class EntityCommandError(Exception):
+    """Raised when an invalid entity command is supplied."""
+
+    def __init__(self, message) -> None:
+        """Raise command no found error."""
+        self.message = message
+        super().__init__(self.message)
+
+
 class ExternalSystemNotRegistered(Exception):
     """Raised when an unregistered external system is supplied."""
 
@@ -1700,6 +1727,84 @@ class Remote:
                     }
                     self._ir_emitters.append(dock_data.copy())
             return self._ir_emitters
+
+    async def send_button_command(self, command="", repeat=0, **kwargs) -> bool:
+        """Send a predefined button command to the remote kwargs: activity, hold."""
+        activity_id = None
+        hold = kwargs.get("hold", False)
+        activity = kwargs.get("activity", None)
+        delay_secs = kwargs.get("delay_secs", 0)
+        repeat = kwargs.get("repeat", 1)
+
+        if activity:
+            for act in self.activities:
+                if act.name == activity:
+                    activity_id = act.id
+        else:
+            for act in self.activities:
+                if act.is_on():
+                    activity_id = act.id
+                    continue
+
+        if not activity_id:
+            raise NoActivityRunning
+
+        try:
+            entity_id, cmd_id, params = await self.get_physical_button_mapping(
+                activity_id, command.upper(), hold
+            )
+        except HTTPError as ex:
+            raise InvalidButtonCommand(ex.message) from ex
+
+        if self._wake_if_asleep and self._wake_on_lan:
+            if not await self.wake():
+                raise RemoteIsSleeping
+
+        try:
+            for _ in range(repeat):
+                if delay_secs and delay_secs > 0:
+                    await asyncio.sleep(delay_secs)
+                success = await self.execute_entity_command(entity_id, cmd_id, params)
+                if not success:
+                    return False
+        except HTTPError as ex:
+            raise EntityCommandError(ex.message) from ex
+
+    async def get_physical_button_mapping(self, activity_id, button_id, hold) -> str:
+        """Get the physical button mapping for the given activity."""
+        async with (
+            self.client() as session,
+            session.get(
+                self.url(f"activities/{activity_id}/buttons/{button_id}")
+            ) as response,
+        ):
+            await self.raise_on_error(response)
+            response = await response.json()
+
+            if hold:
+                action = response.get("long_press")
+            else:
+                action = response.get("short_press")
+
+            entity_id = action.get("entity_id")
+            cmd_id = action.get("cmd_id")
+            params = action.get("params")
+            return entity_id, cmd_id, params
+
+    async def execute_entity_command(self, entity_id, cmd_id, params=None) -> bool:
+        """Execute a command on a remote entity."""
+        body = {"entity_id": entity_id, "cmd_id": cmd_id}
+        if params:
+            body["params"] = params
+        async with (
+            self.client() as session,
+            session.put(
+                self.url("entities/" + entity_id + "/command"),
+                json=body,
+            ) as response,
+        ):
+            await self.raise_on_error(response)
+            return response.status == 200
 
     async def send_remote_command(
         self, device="", command="", repeat=0, codeset="", **kwargs

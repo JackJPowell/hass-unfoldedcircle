@@ -124,9 +124,9 @@ If you are unsure of the password you set, you can change it via the web configu
 ## External Entity Management
 ***This is currently in Beta***
 
-Home Assistant now has the ability to manage the entities it shares with your Unfolded Circle Remote. When setting up a new device or when reconfiguring an existing device, you will be taken through an optional step to configure which Home Assistant entities are available on the remote. This functionality mirrors the same options on the integrations page on your remote. 
+Home Assistant now has the ability to manage the entities it shares with your Unfolded Circle Remote. When setting up a new device or when reconfiguring an existing device, you will be taken through an optional step to configure which Home Assistant entities are available on the remote. This functionality mirrors the same options on the integrations page on your remote.
 
-To get started, add a new device or click the configure button. See the video below for a quick demo. 
+To get started, add a new device or click the configure button. See the video below for a quick demo.
 - You must be running v2.0.0 or greater on your unfolded circle remote for this functionality to be available.
   - v2.0+ is currently in beta (But it's very stable)
 - This release should work fine for anyone not running the remote beta, but it has only been lightly tested.
@@ -134,13 +134,47 @@ To get started, add a new device or click the configure button. See the video be
 
 https://github.com/user-attachments/assets/96fa94e8-a5ad-4833-9a49-0bf85373eae0
 
-## IR Remote Commands
+## Mapped Button Remote Commands
 ***This is currently in Beta***
-The remote entity supports sending predefined IR commands using the unfoldedcircle.send_ir_command action. 
+
+For your running activity, you can now send your mapped button commands from within Home Assistant. Using the
+remote.send_command or unfoldedcircle.send_button_command action, just specify the `button` from the list below and any additional options.
+
+**num_repeats** (Optional) The number of times to repeat sending the command.
+**delay_secs** (Optional) The number of seconds to wait in between sending commands.
+**hold** (Optional) Trigger a long press of the supplied button
+**activity** (Optional) Identify which activity the button is mapped under. This is only needed if multiple activities are running.
+
+    - BACK
+    - HOME
+    - VOICE
+    - VOLUME_UP
+    - VOLUME_DOWN
+    - GREEN
+    - DPAD_UP
+    - YELLOW
+    - DPAD_LEFT
+    - DPAD_MIDDLE
+    - DPAD_RIGHT
+    - RED
+    - DPAD_DOWN
+    - BLUE
+    - CHANNEL_UP
+    - CHANNEL_DOWN
+    - MUTE
+    - PREV
+    - PLAY
+    - PAUSE
+    - NEXT
+    - POWER
+
+## IR Remote Commands
+
+The remote entity supports sending predefined IR commands using the unfoldedcircle.send_ir_command action.
 
 **device:** will match the case-sensitive name of your remote defined in the web configurator on the remote page. This will be your custom name or the manufacturer name selected.
 
-**codeset** (Optional) If you supplied a manufacturer name, you also need to supply the codeset name you are using. 
+**codeset** (Optional) If you supplied a manufacturer name, you also need to supply the codeset name you are using.
 
 **command** will match the case-senstitive name of the pre-defined (custom or codeset) command defined for that remote.
 
@@ -167,7 +201,7 @@ target:
 ```
 
 > [!TIP]
-You can still use the standard remote.send_command action, however, only custom defined remote codes can be sent due to a limitation with this action. 
+You can still use the standard remote.send_command action, however, only custom defined remote codes can be sent due to a limitation with this action.
 
 ## Additional Actions
 
@@ -235,16 +269,16 @@ Your Remote Two will now be automatically discovered on the network.
 
 ## Wake on lan
 
-Wake on lan support is now available for remotes running firmware version 2.0.0 or higher. Once your remote has been upgraded, and you've turned the feature on, anytime you take a direct action within home assistant to communicate with the remote, it will first attempt to wake the remote up. 
+Wake on lan support is now available for remotes running firmware version 2.0.0 or higher. Once your remote has been upgraded, and you've turned the feature on, anytime you take a direct action within home assistant to communicate with the remote, it will first attempt to wake the remote up.
 
 ## Future Ideas
 
-- [X] Wake on lan was added by the remote developers and has been implemented 
+- [X] Wake on lan was added by the remote developers and has been implemented
 
 ## Notes
 
 - The remote entity does not need to be "on" for it to send commands.
-- The Remote Two will go to sleep when unpowered. If you have wake on lan enabled on your remote, Home Assistant will attempt to wake your remote prior to issuing a command. Only commands initiated by you will attempt to wake the remote. 
+- The Remote Two will go to sleep when unpowered. If you have wake on lan enabled on your remote, Home Assistant will attempt to wake your remote prior to issuing a command. Only commands initiated by you will attempt to wake the remote.
 - The remote can now generate its own diagnostic data to aid in debugging via the overflow menu in the Device Info section
 - The integration supports multiple Languages: English, French
 - The integration will now identify a repair and prompt for a new PIN if it can no longer authenticate to the remote

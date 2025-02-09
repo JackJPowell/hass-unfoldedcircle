@@ -55,7 +55,7 @@ class UnfoldedCircleEntity(CoordinatorEntity[UnfoldedCircleRemoteCoordinator]):
 class UnfoldedCircleDockEntity(CoordinatorEntity[UnfoldedCircleDockCoordinator]):
     """Common entity class for all Unfolded Circle Dock entities"""
 
-    def __init__(self, coordinator) -> None:
+    def __init__(self, coordinator: UnfoldedCircleDockCoordinator) -> None:
         """Initialize Unfolded Circle Sensor."""
         super().__init__(coordinator)
         self.coordinator = coordinator
