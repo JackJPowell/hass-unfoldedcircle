@@ -205,7 +205,7 @@ class UCRemoteNumber(UnfoldedCircleEntity, NumberEntity):
 async def update_dock_led_brightness(
     coordinator: UnfoldedCircleDockCoordinator, value: int
 ) -> None:
-    await coordinator.api.send_command(command="SET_LED_BRIGHNESS", command_value=value)
+    await coordinator.api.send_command(command="SET_LED_BRIGHTNESS", command_value=value)
 
 
 async def update_dock_ethernet_led_brightness(

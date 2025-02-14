@@ -68,7 +68,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self.api_keyname: str | None = None
         self.discovery_info: dict[str, Any] = {}
         self._remote: Remote | None = None
-        self._websocket_client: UCWebsocketClient | None = None
         self.dock_count: int = 0
         self.info: dict[str, any] = {}
         self.options: dict[str, any] = {}
@@ -79,7 +78,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         """Validate the user input allows us to connect.
         Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
         """
-        self._websocket_client = UCWebsocketClient(self.hass)
         if host != "":
             self._remote = Remote(host, data["pin"])
         else:
@@ -170,9 +168,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         host = discovery_info.ip_address.compressed
         port = discovery_info.port
         model = discovery_info.properties.get("model")
-        # Best location to initialize websocket instance : it will run even if no integrations are configured
-        self._websocket_client = UCWebsocketClient(self.hass)
-        # TODO : check RemoteThree regex see with @markus
         try:
             mac_address = mac_address_from_discovery_info(discovery_info)
         except UnableToExtractMacAddress:
@@ -273,7 +268,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step."""
-        self._websocket_client = UCWebsocketClient(self.hass)
         errors: dict[str, str] = {}
         if user_input is None or user_input == {}:
             schema: dict[Required | Optional, Type] = vol.Schema(
@@ -424,7 +418,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Dialog that informs the user that reauth is required."""
-        self._websocket_client = UCWebsocketClient(self.hass)
         errors = {}
         zero_config_data_schema: dict[Required | Optional, Type] = vol.Schema(
             {
@@ -545,7 +538,6 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input=None):  # pylint: disable=unused-argument
         """Manage the options."""
-        self._websocket_client = UCWebsocketClient(self.hass)
         try:
             await self._remote.validate_connection()
         except Exception:
