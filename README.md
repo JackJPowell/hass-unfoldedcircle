@@ -122,20 +122,17 @@ During a config flow, if you are unsure of your password, you can skip adding th
 If you are unsure of the password you set, you can change it via the web configurator. Click on the Integrations and Dock menu and then select the dock you need to change the password for. Once changed, come back to the repair and let home assistant know what you set it to.
 
 ## External Entity Management
-***This is currently in Beta***
 
-Home Assistant now has the ability to manage the entities it shares with your Unfolded Circle Remote. When setting up a new device or when reconfiguring an existing device, you will be taken through an optional step to configure which Home Assistant entities are available on the remote. This functionality mirrors the same options on the integrations page on your remote.
+Home Assistant now has the ability to manage the entities it shares with your Unfolded Circle Remote. When setting up a new device or when reconfiguring an existing device, you will be taken through an optional step to configure which Home Assistant entities are available on the remote. This functionality mirrors the same options on the integrations page of your remote. If you are upgrading to this release, you will get a repair to address on first boot. Complete it to switch over to using the much improved communication method with your remote. 
 
 To get started, add a new device or click the configure button. See the video below for a quick demo.
 - You must be running v2.0.0 or greater on your unfolded circle remote for this functionality to be available.
-  - v2.0+ is currently in beta (But it's very stable)
+  - v2.2+ is currently in beta (But it's very stable)
 - This release should work fine for anyone not running the remote beta, but it has only been lightly tested.
-  - It will not contain any new functionality
 
 https://github.com/user-attachments/assets/96fa94e8-a5ad-4833-9a49-0bf85373eae0
 
 ## Mapped Button Remote Commands
-***This is currently in Beta***
 
 For your running activity, you can now send your mapped button commands from within Home Assistant. Using the
 remote.send_command or unfoldedcircle.send_button_command action, just specify the `button` from the list below and any additional options.
@@ -264,8 +261,7 @@ Additional options have been added to the intergration for further customization
 
 ## Zeroconf
 
-Your Remote Two will now be automatically discovered on the network.
-**For real this time! Zeroconf handling has been significantly improved and should now properly detect when a device has already been configured.**
+Your Remote will be automatically discovered on the network.
 
 ## Wake on lan
 
