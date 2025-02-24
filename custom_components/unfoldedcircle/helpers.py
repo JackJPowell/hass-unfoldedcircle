@@ -87,7 +87,10 @@ async def remove_token(hass: HomeAssistant, token):
     """Remove api token from remote"""
     _LOGGER.debug("Removing refresh token")
     refresh_token = hass.auth.async_get_refresh_token_by_token(token)
-    hass.auth.async_remove_refresh_token(refresh_token)
+    if refresh_token:
+        hass.auth.async_remove_refresh_token(refresh_token)
+        return
+    _LOGGER.info("Refresh token not found")
 
 
 async def register_system_and_driver(

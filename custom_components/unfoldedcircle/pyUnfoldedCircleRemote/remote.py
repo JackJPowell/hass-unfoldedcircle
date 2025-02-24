@@ -572,6 +572,9 @@ class Remote:
 
     async def wake(self, wait_for_confirmation: bool = True) -> bool:
         """Sends a magic packet to attempt to wake the device while asleep."""
+        if self._is_simulator:
+            return True
+
         send_magic_packet(self._mac_address)
         if wait_for_confirmation is False:
             return True
