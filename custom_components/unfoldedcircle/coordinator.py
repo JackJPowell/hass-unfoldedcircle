@@ -198,11 +198,7 @@ class UnfoldedCircleDockCoordinator(
         self.hass = hass
         self.api: Dock = dock
         self.data = {}
-        self.websocket = DockWebsocket(
-            self.api._ws_endpoint,
-            api_key=dock.apikey,
-            dock_password=self.api.password,
-        )
+        self.websocket = None
         self.websocket_task = None
         self.subscribe_events = {}
         self.polling_data = False
@@ -212,6 +208,14 @@ class UnfoldedCircleDockCoordinator(
 
     async def init_websocket(self):
         """Initialize the Web Socket"""
+
+        if not self.websocket:
+            self.websocket = DockWebsocket(
+                self.api._ws_endpoint,
+                api_key=self.api.apikey,
+                dock_password=self.api.password,
+            )
+
         self.websocket.events_to_subscribe = [
             "all",
             *list(self.subscribe_events.keys()),

@@ -345,6 +345,8 @@ class IR:
     async def async_learn_command(self, **kwargs: Any) -> None:
         """Learn a list of commands from a remote."""
 
+        await self.dock_coordinator.init_websocket()
+
         await self.dock_coordinator.api.get_remotes_complete()
 
         name = self.data.get("remote").get("name")
@@ -364,6 +366,8 @@ class IR:
             except Exception as err:
                 _LOGGER.error("Failed to learn '%s': %s", command, err)
                 continue
+
+        await self.dock_coordinator.close_websocket()
 
     async def _async_learn_ir_command(self, command, device, name, description, icon):
         """Learn an infrared command."""

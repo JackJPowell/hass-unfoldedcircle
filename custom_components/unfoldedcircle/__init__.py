@@ -156,7 +156,6 @@ async def async_setup_entry(
             try:
                 await dock_coordinator.api.update()
                 await dock_coordinator.async_config_entry_first_refresh()
-                await dock_coordinator.init_websocket()
                 dock_coordinators.append(dock_coordinator)
             except Exception as ex:
                 _LOGGER.error(
