@@ -167,9 +167,12 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
 
     async def async_update(self) -> None:
         """Update update information."""
-        await self.coordinator.api.get_remote_update_information()
-        self._attr_latest_version = self.coordinator.api.latest_sw_version
-        self._attr_installed_version = self.coordinator.api.sw_version
+        try:
+            await self.coordinator.api.get_remote_update_information()
+            self._attr_latest_version = self.coordinator.api.latest_sw_version
+            self._attr_installed_version = self.coordinator.api.sw_version
+        except Exception as ex:
+            _LOGGER.debug("Failure when checking for dock update: %s", ex)
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -252,9 +255,12 @@ class UpdateDock(UnfoldedCircleDockEntity, UpdateEntity):
 
     async def async_update(self) -> None:
         """Update update information."""
-        await self.coordinator.api.get_update_status()
-        self._attr_latest_version = self.coordinator.api.latest_software_version
-        self._attr_installed_version = self.coordinator.api.software_version
+        try:
+            await self.coordinator.api.get_update_status()
+            self._attr_latest_version = self.coordinator.api.latest_software_version
+            self._attr_installed_version = self.coordinator.api.software_version
+        except Exception as ex:
+            _LOGGER.debug("Failure when checking for dock update: %s", ex)
 
     @callback
     def _handle_coordinator_update(self) -> None:
