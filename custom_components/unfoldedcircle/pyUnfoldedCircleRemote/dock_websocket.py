@@ -147,6 +147,8 @@ class DockWebsocket(Websocket):
                                     "UnfoldedCircleRemote exception in websocket receive callback %s",
                                     ex,
                                 )
+                            finally:
+                                await self.close_websocket()
                 except websockets.ConnectionClosed as error:
                     _LOGGER.debug(
                         "UnfoldedCircleRemote websocket closed. Waiting before reconnecting... %s",
@@ -154,6 +156,8 @@ class DockWebsocket(Websocket):
                     )
                     await asyncio.sleep(WS_RECONNECTION_DELAY)
                     continue
+                finally:
+                    await self.close_websocket()
             _LOGGER.error(
                 "UnfoldedCircleRemote exiting init_websocket, this is not normal"
             )
