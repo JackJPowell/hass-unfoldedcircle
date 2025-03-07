@@ -1,0 +1,171 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "O dispositivo já está configurado",
+      "already_in_progress": "O dispositivo está pendente de configuração",
+      "no_mac": "Este dispositivo não é reconhecido como um Unfolded Circle Remote válido (Sem Endereço MAC)",
+      "reauth_successful": "A reautenticação foi bem-sucedida"
+    },
+    "error": {
+      "cannot_connect": "Falha ao conectar",
+      "invalid_dock_password": "Palavra-passe do dock incorreta. Envie com uma palavra-passe vazia para ignorar",
+      "invalid_auth": "PIN fornecido incorreto. Por favor, tente novamente",
+      "unknown": "Erro inesperado",
+      "cannot_create_ha_token": "Não foi possível criar o Token do Home Assistant",
+      "invalid_websocket_address": "Foi fornecido um endereço de websocket do Home Assistant inválido"
+    },
+    "step": {
+      "user": {
+        "data": {
+          "host": "Host",
+          "pin": "Código PIN",
+          "ha_ws_url": "URL do Websocket do Home Assistant"
+        }
+      },
+      "dock": {
+        "title": "Fornecer Palavra-passe de {name} {count}",
+        "description": "Se não se lembrar da sua palavra-passe, basta enviar. Para concluir a configuração do dock, vá a Definições e conclua a Reparação",
+        "data": {
+          "password": "Palavra-passe"
+        }
+      },
+      "select_entities": {
+        "title": "Configurar Entidades",
+        "description": "Conclua a [configuração]({remote_ha_config_url}) no seu controlo remoto",
+        "data": {
+          "add_entities": "Entidades a partilhar com o Controlo Remoto",
+          "remove_entities": "Entidades a remover do Controlo Remoto",
+          "subscribe_entities": "Configurar automaticamente as entidades partilhadas com o Controlo Remoto"
+        },
+        "menu_options": {
+          "remote_websocket": "O Controlo Remoto não está conectado, tente reconfigurar o URL",
+          "finish": "Ignorar este passo e terminar",
+          "error": "Não foi possível comunicar com o controlo remoto. Tentar novamente?"
+        }
+      },
+      "zeroconf_confirm": {
+        "data": {
+          "pin": "Código PIN",
+          "ha_ws_url": "URL do Websocket do Home Assistant"
+        },
+        "title": "Unfolded Circle Remote"
+      },
+      "reauth_confirm": {
+        "data": {
+          "pin": "Código PIN",
+          "ha_ws_url": "URL do Websocket do Home Assistant"
+        },
+        "title": "Reautenticar com PIN"
+      }
+    }
+  },
+  "options": {
+    "error": {
+      "ha_driver_failure": "Erro inesperado ao configurar entidades remotas",
+      "cannot_create_ha_token": "Não foi possível criar o Token do Home Assistant",
+      "invalid_websocket_address": "Foi fornecido um endereço de websocket do Home Assistant inválido",
+      "invalid_host": "Foi fornecido um host inválido para o controlo remoto"
+    },
+    "step": {
+      "init": {
+        "title": "Opções do Unfolded Circle",
+        "menu_options": {
+          "select_entities": "Configurar entidades a partilhar com {remote}",
+          "activities": "Configurar esta integração"
+        }
+      },
+      "media_player": {
+        "title": "Opções do Unfolded Circle",
+        "description": "Configurar Reprodutores de Média",
+        "data": {
+          "global_media_entity": "Criar uma entidade de reprodutor de média global para todas as atividades",
+          "activity_group_media_entities": "Criar entidades de reprodutor de média adicionais para cada grupo de atividades",
+          "activity_media_entities": "Criar entidades de reprodutor de média adicionais para cada atividade"
+        }
+      },
+      "activities": {
+        "title": "Opções do Unfolded Circle",
+        "description": "Configurar Atividades",
+        "data": {
+          "activities_as_switches": "Criar todas as atividades como entidades de interruptor",
+          "suppress_activity_groups": "Suprimir a criação de entidades de grupo de atividades"
+        }
+      },
+      "remote_host": {
+        "title": "Opções do Unfolded Circle",
+        "description": "Configurar Host / Endereço IP de {name}",
+        "data": {
+          "host": "Host / Endereço IP"
+        }
+      },
+      "websocket": {
+        "title": "Opções do Unfolded Circle",
+        "description": "Configurar Endereço do Websocket do Home Assistant",
+        "data": {
+          "websocket_url": "Endereço do Websocket do Home Assistant"
+        }
+      },
+      "select_entities": {
+        "title": "Configurar Entidades",
+        "description": "Conclua a [configuração]({remote_ha_config_url}) no seu controlo remoto após submeter",
+        "data": {
+          "add_entities": "Entidades a partilhar com o Controlo Remoto",
+          "remove_entities": "Entidades a remover do Controlo Remoto",
+          "subscribe_entities": "Configurar automaticamente as entidades partilhadas com o Controlo Remoto"
+        },
+        "menu_options": {
+          "remote_websocket": "O Controlo Remoto não está conectado, tente reconfigurar o URL",
+          "finish": "Ignorar este passo e terminar",
+          "error": "Não foi possível comunicar com o controlo remoto. Tentar novamente?"
+        }
+      }
+    }
+  },
+  "issues": {
+    "websocket_connection": {
+      "title": "Ativar comunicações melhoradas entre {name} e o Home Assistant",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "URL do Websocket do Home Assistant",
+            "description": "Para melhorar as comunicações, {name} requer o endereço de websocket deste servidor Home Assistant.",
+            "data": {
+              "websocket_url": "URL do Websocket do Home Assistant"
+            }
+          }
+        },
+        "error": {
+          "cannot_connect": "Falha ao conectar",
+          "websocket_failure": "URL do Websocket inválido",
+          "unknown": "Erro inesperado"
+        },
+        "abort": {
+          "ws_connection_successful": "Comunicações melhoradas ativadas"
+        }
+      }
+    },
+    "dock_password": {
+      "title": "Fornecer palavra-passe do dock para {name}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Fornecer palavra-passe do dock para {name}",
+            "description": "A sua palavra-passe do dock é necessária para oferecer suporte de aprendizagem",
+            "data": {
+              "password": "Palavra-passe de {name}"
+            }
+          }
+        },
+        "error": {
+          "cannot_connect": "Falha ao conectar",
+          "invalid_dock_password": "Palavra-passe do dock incorreta. Por favor, tente novamente",
+          "invalid_auth": "PIN fornecido incorreto. Por favor, tente novamente",
+          "unknown": "Erro inesperado"
+        },
+        "abort": {
+          "reauth_successful": "A autenticação do dock foi bem-sucedida"
+        }
+      }
+    }
+  }
+}
