@@ -65,11 +65,6 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
 
     @property
     def update_percentage(self) -> int | float | None:
-        if self.coordinator.api.download_percent > 0:
-            self._download_progress = math.ceil(
-                self.coordinator.api.download_percent / 10
-            )
-            return self._download_progress
         if self.coordinator.api.update_percent > 0:
             if self._download_progress > self.coordinator.api.update_percent:
                 return self._download_progress
@@ -79,6 +74,12 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
                     return "0"
                 else:
                     return self.coordinator.api.update_percent
+
+        if self.coordinator.api.download_percent > 0:
+            self._download_progress = math.ceil(
+                self.coordinator.api.download_percent / 10
+            )
+            return self._download_progress
 
     async def async_install(
         self, version: str | None, backup: bool, **kwargs: Any
