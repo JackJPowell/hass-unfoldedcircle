@@ -16,7 +16,6 @@ from homeassistant.components.media_player import (
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import UndefinedType
 from homeassistant.util import utcnow
 from pyUnfoldedCircleRemote.const import RemoteUpdateType
 from pyUnfoldedCircleRemote.remote import (
@@ -391,9 +390,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
             self._active_media_entity
             and self._active_media_entity.media_position_updated_at
         ):
-            return self._active_media_entity.media_position_updated_at.replace(
-                tzinfo=utcnow().tzinfo
-            )
+            return self._active_media_entity.media_position_updated_at
         return None
 
     @property
