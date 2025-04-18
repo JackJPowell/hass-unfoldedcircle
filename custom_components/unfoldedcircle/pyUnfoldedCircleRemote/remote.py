@@ -2,15 +2,16 @@
 
 import asyncio
 import copy
-import datetime
 import json
 import logging
 import re
 import socket
 import time
+from datetime import datetime
 from urllib.parse import urljoin, urlparse
 from wakeonlan import send_magic_packet
 from packaging.version import Version
+
 
 import aiohttp
 import zeroconf
@@ -2256,11 +2257,11 @@ class UCMediaPlayerEntity:
         self._media_type = ""
         self._media_duration = 0
         self._media_position = 0
+        self._media_position_updated_at: datetime = None
         self._muted = False
         self._volume = 0.0
         self._media_image_url = None
         self._entity_commands: list[str] = []
-        self._media_position_updated_at = None
         self._initialized = False
 
     async def update_data(self, force=False):
@@ -2383,8 +2384,14 @@ class UCMediaPlayerEntity:
             attributes_changed["media_title"] = self._media_title
         if attributes.get("media_position", None):
             self._media_position = attributes.get("media_position", 0)
-            self._media_position_updated_at = datetime.datetime.now(datetime.UTC)
             attributes_changed["media_position"] = self._media_position
+        if attributes.get("media_position_updated_at", None):
+            self._media_position_updated_at = attributes.get(
+                "media_position_updated_at", None
+            )
+            attributes_changed["media_position_updated_at"] = (
+                self._media_position_updated_at
+            )
         if attributes.get("muted", None) or attributes.get("muted", None) is False:
             self._muted = attributes.get("muted")
             attributes_changed["muted"] = self._muted
