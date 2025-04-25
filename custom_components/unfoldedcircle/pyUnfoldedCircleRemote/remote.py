@@ -1624,6 +1624,11 @@ class Remote:
     async def get_remotes(self) -> list:
         """Get list of remotes defined. (IR Remotes as defined by Unfolded Circle)."""
         remote_data = {}
+
+        if self._wake_if_asleep and self._wake_on_lan:
+            if not await self.wake():
+                raise RemoteIsSleeping
+
         async with (
             self.client() as session,
             session.get(self.url("remotes")) as response,
@@ -1740,6 +1745,10 @@ class Remote:
         delay_secs = kwargs.get("delay_secs", 0)
         repeat = kwargs.get("repeat", 1)
 
+        if self._wake_if_asleep and self._wake_on_lan:
+            if not await self.wake():
+                raise RemoteIsSleeping
+
         if activity:
             for act in self.activities:
                 if act.name == activity:
@@ -1759,10 +1768,6 @@ class Remote:
             )
         except HTTPError as ex:
             raise InvalidButtonCommand(ex.message) from ex
-
-        if self._wake_if_asleep and self._wake_on_lan:
-            if not await self.wake():
-                raise RemoteIsSleeping
 
         try:
             for _ in range(repeat):
@@ -1817,6 +1822,11 @@ class Remote:
         body_port = {}
         body_repeat = {}
         codeset_id = ""
+
+        if self._wake_if_asleep and self._wake_on_lan:
+            if not await self.wake():
+                raise RemoteIsSleeping
+
         if "code" in kwargs and "format" in kwargs:
             # Send an IR command (HEX/PRONTO)
             body = {"code": kwargs.get("code"), "format": kwargs.get("format")}
