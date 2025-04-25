@@ -64,7 +64,8 @@
       "ha_driver_failure": "Unexpected error when configuring remote entities",
       "cannot_create_ha_token": "Unable to create Home Assistant Token",
       "invalid_websocket_address": "An invalid home assistant websocket address was supplied",
-      "invalid_host": "An invalid host was supplied for the remote"
+      "invalid_host": "An invalid host was supplied for the remote",
+      "user_determination": "Unable to determine Home Assistant User"
     },
     "step": {
       "init": {

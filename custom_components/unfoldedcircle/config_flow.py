@@ -41,6 +41,7 @@ from .const import (
 from .helpers import (
     IntegrationNotFound,
     UnableToExtractMacAddress,
+    UnableToDetermineUser,
     InvalidWebsocketAddress,
     connect_integration,
     device_info_from_discovery_info,
@@ -682,8 +683,13 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
                         )
                         errors["base"] = "ha_driver_failure"
                     except TokenRegistrationError as ex:
-                        _LOGGER.error("Error during token creation: %s", ex)
+                        _LOGGER.error(
+                            "Error during token registration on remote: %s", ex
+                        )
                         errors["base"] = "ha_driver_failure"
+                    except UnableToDetermineUser as ex:
+                        _LOGGER.error("Error determining Home Assistant user: %s", ex)
+                        errors["base"] = "user_determination"
                     except Exception as ex:
                         _LOGGER.error(
                             "Error during driver registration, continue config flow: %s",

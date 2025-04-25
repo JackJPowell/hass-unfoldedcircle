@@ -60,7 +60,14 @@ async def validate_dock_password(remote_api: Remote, user_info) -> bool:
 
 async def generate_token(hass: HomeAssistant, name):
     """Generate a token for Unfolded Circle to use with HA API"""
-    user = await hass.auth.async_get_owner()
+    user = get_user(hass)
+
+    if user is None:
+        _LOGGER.error(
+            "Make sure you are logged in with a user with administrative rights."
+        )
+        raise UnableToDetermineUser
+
     try:
         token: RefreshToken | None = None
         if user.refresh_tokens:
@@ -83,6 +90,20 @@ async def generate_token(hass: HomeAssistant, name):
     return hass.auth.async_create_access_token(token)
 
 
+async def get_user(hass: HomeAssistant) -> str:
+    """Retrieve the currently logged-in user ID."""
+    user = await hass.auth.async_get_owner()
+    if user:
+        return user
+
+    users = await hass.auth.async_get_users()
+    for user in users:
+        if user.is_active and not user.system_generated and user.is_admin:
+            return await hass.auth.async_get_user(user.id)
+
+    return None
+
+
 async def remove_token(hass: HomeAssistant, token):
     """Remove api token from remote"""
     _LOGGER.debug("Removing refresh token")
@@ -97,28 +118,31 @@ async def register_system_and_driver(
     remote: Remote, hass: HomeAssistant, websocket_url
 ) -> str:
     """Register remote system"""
-    try:
-        # This commented block will prevent the creation of a new external token
-        # if the user configured the remote manually. There is code in the hass
-        # integration flow on the remote to switch to the ws-ha-api flow if present
-        if not websocket_url:
-            websocket_url = await get_registered_websocket_url(remote)
-            if websocket_url is None:
-                websocket_url = get_ha_websocket_url(hass)
 
-        token = await generate_token(hass, f"UCR:{remote.name}")
-        await remote.set_token_for_external_system(
-            system=UC_HA_SYSTEM,
-            token_id=UC_HA_TOKEN_ID,
-            token=token,
-            name="Home Assistant Access token",
-            description="URL and long lived access token for Home Assistant WebSocket API",
-            url=websocket_url,
-            data="",
-        )
-    except Exception as ex:
-        _LOGGER.error("Error during token registration %s", ex)
-        raise TokenRegistrationError from ex
+    # This commented block will prevent the creation of a new external token
+    # if the user configured the remote manually. There is code in the hass
+    # integration flow on the remote to switch to the ws-ha-api flow if present
+    if not websocket_url:
+        websocket_url = await get_registered_websocket_url(remote)
+        if websocket_url is None:
+            websocket_url = get_ha_websocket_url(hass)
+
+    token = await generate_token(hass, f"UCR:{remote.name}")
+
+    if token:
+        try:
+            await remote.set_token_for_external_system(
+                system=UC_HA_SYSTEM,
+                token_id=UC_HA_TOKEN_ID,
+                token=token,
+                name="Home Assistant Access token",
+                description="URL and long lived access token for Home Assistant WebSocket API",
+                url=websocket_url,
+                data="",
+            )
+        except Exception as ex:
+            _LOGGER.error("Error during token registration %s", ex)
+            raise TokenRegistrationError from ex
 
     return await connect_integration(remote)
 
@@ -374,3 +398,7 @@ class UnableToExtractMacAddress(Exception):
 
 class InvalidWebsocketAddress(Exception):
     """Raised when an invalid websocket url is supplied"""
+
+
+class UnableToDetermineUser(Exception):
+    """Raised when the system can not determine the running user"""
