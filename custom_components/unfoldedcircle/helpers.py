@@ -60,7 +60,7 @@ async def validate_dock_password(remote_api: Remote, user_info) -> bool:
 
 async def generate_token(hass: HomeAssistant, name):
     """Generate a token for Unfolded Circle to use with HA API"""
-    user = get_user(hass)
+    user = await get_user(hass)
 
     if user is None:
         _LOGGER.error(
