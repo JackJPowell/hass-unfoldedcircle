@@ -7,6 +7,7 @@ import re
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
+from pyUnfoldedCircleRemote.const import SIMULATOR_MAC_ADDRESS
 from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
 from pyUnfoldedCircleRemote.remote import (
     HTTPError,
@@ -16,9 +17,9 @@ from pyUnfoldedCircleRemote.remote import (
 )
 
 from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN, RefreshToken
-from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.network import NoURLAvailableError, get_url
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .const import (
     DEFAULT_HASS_URL,
@@ -221,27 +222,15 @@ async def get_registered_websocket_url(remote: Remote) -> str:
     return None
 
 
-@staticmethod
-def mac_address_from_discovery_info(discovery_info: ZeroconfServiceInfo) -> str:
-    """Returns the mac address embedded in the hostname. This is typically used with zeroconf broadcasts"""
-    hostname = discovery_info.hostname
-    name = discovery_info.name
-    try:
-        return re.match(r"(?:RemoteTwo|RemoteThree)-(.*?)\.", hostname).group(1).lower()
-    except Exception:
-        try:
-            return re.match(r"(?:RemoteTwo|RemoteThree)-(.*?)\.", name).group(1).lower()
-        except Exception:
-            raise UnableToExtractMacAddress
-
-
 async def device_info_from_discovery_info(discovery_info: ZeroconfServiceInfo) -> tuple:
+    """Returns device information from discovery info"""
     host = discovery_info.ip_address.compressed
     port = discovery_info.port
     model = discovery_info.properties.get("model")
     endpoint = f"http://{host}:{port}/api/"
     configuration_url = ""
     device_name = ""
+    mac_address = ""
     match model:
         case "UCR2":
             device_name = "Remote Two"
@@ -253,6 +242,7 @@ async def device_info_from_discovery_info(discovery_info: ZeroconfServiceInfo) -
                 device_name = response.get("device_name", None)
                 if not device_name:
                     device_name = "Remote Two"
+                mac_address = response.get("address", "").replace(":", "").lower()
             except Exception:
                 pass
         case "UCR2-simulator":
@@ -260,6 +250,7 @@ async def device_info_from_discovery_info(discovery_info: ZeroconfServiceInfo) -
             configuration_url = (
                 f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
             )
+            mac_address = SIMULATOR_MAC_ADDRESS.replace(":", "").lower()
         case "UCR3":
             device_name = "Remote 3"
             configuration_url = (
@@ -269,7 +260,8 @@ async def device_info_from_discovery_info(discovery_info: ZeroconfServiceInfo) -
                 response = await Remote.get_version_information(endpoint)
                 device_name = response.get("device_name", None)
                 if not device_name:
-                    device_name = "Remote Two"
+                    device_name = "Remote Three"
+                mac_address = response.get("address", "").replace(":", "").lower()
             except Exception:
                 pass
         case "UCR3-simulator":
@@ -277,7 +269,8 @@ async def device_info_from_discovery_info(discovery_info: ZeroconfServiceInfo) -
             configuration_url = (
                 f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
             )
-    return device_name, configuration_url
+            mac_address = SIMULATOR_MAC_ADDRESS.replace(":", "").lower()
+    return device_name, configuration_url, mac_address
 
 
 async def validate_tokens(hass: HomeAssistant, remote: Remote) -> bool:
