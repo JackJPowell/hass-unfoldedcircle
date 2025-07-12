@@ -3,8 +3,9 @@
 import asyncio
 import logging
 from typing import Any, Awaitable, Callable, Type
+
 from aiohttp import ClientConnectionError
-from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
+from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME
 from pyUnfoldedCircleRemote.remote import (
     ApiKeyCreateError,
     ApiKeyRevokeError,
@@ -19,13 +20,13 @@ import voluptuous as vol
 from voluptuous import Optional, Required
 
 from homeassistant import config_entries
-from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from homeassistant.config_entries import ConfigEntry, ConfigFlow
 from homeassistant.const import CONF_HOST, CONF_MAC, CONF_NAME, CONF_PORT
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.selector import EntitySelector, EntitySelectorConfig
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .const import (
     CONF_ACTIVITIES_AS_SWITCHES,
@@ -40,17 +41,15 @@ from .const import (
 )
 from .helpers import (
     IntegrationNotFound,
-    UnableToExtractMacAddress,
-    UnableToDetermineUser,
     InvalidWebsocketAddress,
+    UnableToDetermineUser,
     connect_integration,
     device_info_from_discovery_info,
     get_ha_websocket_url,
     get_registered_websocket_url,
-    mac_address_from_discovery_info,
+    register_system_and_driver,
     synchronize_dock_password,
     validate_and_register_system_and_driver,
-    register_system_and_driver,
     validate_dock_password,
     validate_websocket_address,
 )
@@ -169,17 +168,12 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         host = discovery_info.ip_address.compressed
         port = discovery_info.port
         model = discovery_info.properties.get("model")
-        try:
-            mac_address = mac_address_from_discovery_info(discovery_info)
-        except UnableToExtractMacAddress:
-            if (
-                discovery_info.properties.get("model") != "UCR2-simulator"
-                and discovery_info.properties.get("model") != "UCR3-simulator"
-            ):
-                return self.async_abort(reason="no_mac")
-            _LOGGER.debug("Zeroconf from the Simulator %s", discovery_info)
-            mac_address = SIMULATOR_MAC_ADDRESS.replace(":", "").lower()
 
+        (
+            device_name,
+            configuration_url,
+            mac_address,
+        ) = await device_info_from_discovery_info(discovery_info)
         remote_name = Remote.name_from_model_id(model)
         self.discovery_info.update(
             {
@@ -194,10 +188,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         # Use mac address as unique id
         if mac_address:
             await self._async_set_unique_id_and_abort_if_already_configured(mac_address)
-
-        device_name, configuration_url = await device_info_from_discovery_info(
-            discovery_info
-        )
 
         self.context.update(
             {

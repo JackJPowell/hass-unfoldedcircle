@@ -1,5 +1,5 @@
 # Home Assistant
-homeassistant>=2025.2
+homeassistant>=2025.5
 PyTurboJPEG
 
 # Development
@@ -9,3 +9,4 @@ ruff>=0.5.3
 aiohttp_fast_zlib
 zlib_ng
 isal
+pre-commit

@@ -482,11 +482,11 @@ class IR:
                         port=port,
                     )
                 except (AuthenticationError, OSError) as err:
-                    _LOGGER.error("Failed to learn '%s': %s", command, err)
+                    _LOGGER.error("Failed to send '%s': %s", command, err)
                     break
 
                 except Exception as err:
-                    _LOGGER.error("Failed to learn '%s': %s", command, err)
+                    _LOGGER.error("Failed to send '%s': %s", command, err)
                     continue
 
     def translate_port(self, port_name) -> str:

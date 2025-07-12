@@ -16,7 +16,6 @@ from homeassistant.components.media_player import (
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.util import utcnow
 from pyUnfoldedCircleRemote.const import RemoteUpdateType
 from pyUnfoldedCircleRemote.remote import (
     Activity,

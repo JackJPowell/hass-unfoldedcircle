@@ -933,7 +933,7 @@ class Remote:
                 await self.get_remote_information()
 
             if self._is_simulator is True:
-                core = information.get("core", "")
+                # core = information.get("core", "")
                 # We only care about the beginning of the version for this compare
                 self._external_entity_configuration_available = True
                 self._new_web_configurator = False
@@ -1511,8 +1511,12 @@ class Remote:
             self._wifi_enabled = settings.get("wifi_enabled")
 
             try:
-                self._wake_on_lan = settings.get("wake_on_wlan").get("enabled")
-                self._wake_on_lan_available = True
+                if self._model_number.upper() == "UCR3":
+                    self._wake_on_lan = False
+                    self._wake_on_lan_available = False
+                else:
+                    self._wake_on_lan = settings.get("wake_on_wlan").get("enabled")
+                    self._wake_on_lan_available = True
             except AttributeError:
                 self._wake_on_lan = False
             return settings
