@@ -76,7 +76,7 @@ class RemoteIsSleeping(ConnectionError):
 
     def __init__(self) -> None:
         """Raise remote is asleep"""
-        self.message = "The remote did not respond to the WOL packet"
+        self.message = "The remote is sleeping and was unable to be woken up"
         super().__init__(self.message)
 
 
@@ -933,7 +933,6 @@ class Remote:
                 await self.get_remote_information()
 
             if self._is_simulator is True:
-                # core = information.get("core", "")
                 # We only care about the beginning of the version for this compare
                 self._external_entity_configuration_available = True
                 self._new_web_configurator = False
