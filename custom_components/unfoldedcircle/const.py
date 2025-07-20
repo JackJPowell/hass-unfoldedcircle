@@ -31,6 +31,7 @@ HA_SUPPORTED_DOMAINS = [
     "media_player",
     "remote",
     "script",
+    "scene",
     "sensor",
     "switch",
 ]
