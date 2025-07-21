@@ -25,7 +25,7 @@ In the container you will have a dedicated Home Assistant core instance running 
 
 When you open this repository with Visual Studio code you are asked to "Reopen in Container", this will start the build of the container.
 
-_If you don't see this notification, open the command palette and select `Remote-Containers: Reopen Folder in Container`._
+_If you don't see this notification, open the command palette and select `Dev Containers: Reopen Folder in Container`._
 
 ### Step by Step debugging
 

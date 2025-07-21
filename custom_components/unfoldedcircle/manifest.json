@@ -13,6 +13,6 @@
     "pyUnfoldedCircleRemote==0.14.1",
     "wakeonlan==3.1.0"
   ],
-  "version": "0.15.0",
+  "version": "0.15.1",
   "zeroconf": ["_uc-remote._tcp.local."]
 }
