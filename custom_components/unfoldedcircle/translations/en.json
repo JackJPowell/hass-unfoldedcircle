@@ -23,13 +23,6 @@
           "ha_ws_url": "Home Assistant Websocket URL"
         }
       },
-      "dock": {
-        "title": "Supply {name} Password {count}",
-        "description": "If you don't remember your password, just submit. To finish dock setup, go to Settings and complete the Repair",
-        "data": {
-          "password": "Password"
-        }
-      },
       "select_entities": {
         "title": "Configure Entities",
         "description": "Finish [configuration]({remote_ha_config_url}) on your remote",
@@ -58,6 +51,36 @@
         },
         "title": "Reauthenticate with PIN"
       }
+    }
+  },
+  "config_subentries": {
+    "dock": {
+      "title": "Docks",
+      "step": {
+        "user": {
+          "title": "Add dock",
+          "description": "Which dock would you like to add?",
+          "data": {
+            "dock_id": "Dock selection"
+          }
+        },
+        "dock": {
+          "title": "Supply {name} password",
+          "description": "If you don't remember your password, just submit. To finish dock setup, go to Settings and complete the Repair",
+          "data": {
+            "password": "Password"
+          }
+        },
+        "reconfigure": {
+          "title": "Update dock",
+          "description": "..."
+        }
+      },
+      "initiate_flow": {
+        "user": "Add dock"
+      },
+      "error": {},
+      "abort": {}
     }
   },
   "options": {

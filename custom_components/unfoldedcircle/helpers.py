@@ -54,7 +54,10 @@ async def validate_dock_password(remote_api: Remote, user_info) -> bool:
         dock_password=user_info.get("password"),
     )
     try:
-        return await asyncio.create_task(websocket.is_password_valid())
+        task = asyncio.create_task(websocket.is_password_valid())
+
+        # Wait for the task with a timeout of 2 seconds
+        return await asyncio.wait_for(task, timeout=3)
     except Exception as ex:
         _LOGGER.error("Error occurred when validating dock: %s %s", dock.name, ex)
 

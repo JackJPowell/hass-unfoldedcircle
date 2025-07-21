@@ -11,6 +11,7 @@ CONF_ACTIVITY_MEDIA_ENTITIES = "activity_media_entities"
 CONF_ACTIVITIES_AS_SWITCHES = "activities_as_switches"
 CONF_SUPPRESS_ACTIVITIY_GROUPS = "suppress_activity_groups"
 CONF_HA_WEBSOCKET_URL = "ha_ws_url"
+CONF_DOCK_ID = "dock_id"
 DEVICE_SCAN_INTERVAL = timedelta(seconds=30)
 UNFOLDED_CIRCLE_COORDINATOR = "unfolded_circle_coordinator"
 UNFOLDED_CIRCLE_DOCK_COORDINATORS = "unfolded_circle_dock_coordinators"
