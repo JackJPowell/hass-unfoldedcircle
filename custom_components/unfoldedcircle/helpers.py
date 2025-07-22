@@ -260,7 +260,7 @@ async def device_info_from_discovery_info(discovery_info: ZeroconfServiceInfo) -
                 response = await Remote.get_version_information(endpoint)
                 device_name = response.get("device_name", None)
                 if not device_name:
-                    device_name = "Remote Three"
+                    device_name = "Remote 3"
                 mac_address = response.get("address", "").replace(":", "").lower()
             except Exception:
                 pass
