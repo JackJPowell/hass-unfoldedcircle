@@ -186,8 +186,9 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
 
         _LOGGER.debug("Unfolded circle remote found %s :", discovery_info)
         # Use mac address as unique id
-        if mac_address:
-            await self._async_set_unique_id_and_abort_if_already_configured(mac_address)
+        if not mac_address:
+            return self.async_abort(reason="no_mac")
+        await self._async_set_unique_id_and_abort_if_already_configured(mac_address)
 
         self.context.update(
             {
@@ -392,9 +393,9 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         if index > 0:
             unique_id = unique_id[0:index]
 
-        await self.async_set_unique_id(unique_id, raise_on_progress=False)
+        await self.async_set_unique_id(unique_id)
         self._abort_if_unique_id_configured(
-            updates={CONF_MAC: self.discovery_info[CONF_MAC]},
+            updates={CONF_MAC: unique_id},
         )
 
     async def async_step_reauth(
