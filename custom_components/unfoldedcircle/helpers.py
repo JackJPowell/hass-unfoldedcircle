@@ -8,6 +8,7 @@ from typing import Any
 from urllib.parse import urljoin, urlparse
 
 from pyUnfoldedCircleRemote.const import SIMULATOR_MAC_ADDRESS
+from pyUnfoldedCircleRemote.dock import Dock
 from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
 from pyUnfoldedCircleRemote.remote import (
     HTTPError,
@@ -17,7 +18,8 @@ from pyUnfoldedCircleRemote.remote import (
 )
 
 from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN, RefreshToken
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import issue_registry
 from homeassistant.helpers.network import NoURLAvailableError, get_url
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
@@ -56,8 +58,8 @@ async def validate_dock_password(remote_api: Remote, user_info) -> bool:
     try:
         task = asyncio.create_task(websocket.is_password_valid())
 
-        # Wait for the task with a timeout of 2 seconds
-        return await asyncio.wait_for(task, timeout=3)
+        # Wait for the task with a timeout of 5 seconds
+        return await asyncio.wait_for(task, timeout=5)
     except Exception as ex:
         _LOGGER.error("Error occurred when validating dock: %s %s", dock.name, ex)
 
@@ -386,6 +388,56 @@ def update_config_entities(
             "Unfolded circle get states from client %s : no config entry", client_id
         )
         return []
+
+
+@callback
+def async_create_issue_dock_password(hass: HomeAssistant, entry, dock: Dock) -> None:
+    """Create an issue in the issue registry for a dock with an empty password."""
+    _LOGGER.debug(
+        "Empty dock password %s (%s) for remote %s",
+        dock.name,
+        dock.id,
+        entry.title,
+    )
+    issue_registry.async_create_issue(
+        hass,
+        DOMAIN,
+        f"dock_password_{dock.id}",
+        breaks_in_ha_version=None,
+        data={
+            "id": dock.id,
+            "name": dock.name,
+            "config_entry": entry,
+        },
+        is_fixable=True,
+        is_persistent=False,
+        learn_more_url="https://github.com/jackjpowell/hass-unfoldedcircle",
+        severity=issue_registry.IssueSeverity.WARNING,
+        translation_key="dock_password",
+        translation_placeholders={"name": dock.name},
+    )
+
+
+@callback
+def async_create_issue_websocket_connection(
+    hass: HomeAssistant,
+    entry,
+    coordinator,
+) -> None:
+    """Create an issue in the issue registry for a websocket connection."""
+    issue_registry.async_create_issue(
+        hass,
+        DOMAIN,
+        "websocket_connection",
+        breaks_in_ha_version=None,
+        data={"config_entry": entry, "name": coordinator.api.name},
+        is_fixable=True,
+        is_persistent=False,
+        learn_more_url="https://github.com/jackjpowell/hass-unfoldedcircle",
+        severity=issue_registry.IssueSeverity.WARNING,
+        translation_key="websocket_connection",
+        translation_placeholders={"name": coordinator.api.name},
+    )
 
 
 class UnableToExtractMacAddress(Exception):

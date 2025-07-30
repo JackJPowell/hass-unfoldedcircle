@@ -1,37 +1,27 @@
 """Base entity for Unfolded Circle Remote Integration"""
 
-from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigSubentry
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-
-from . import UnfoldedCircleRemoteCoordinator
+from . import UnfoldedCircleConfigEntry, UnfoldedCircleRemoteCoordinator
 from .const import DOMAIN
 from .coordinator import UnfoldedCircleDockCoordinator
-from . import UnfoldedCircleConfigEntry
-
-
-async def async_setup_entry(
-    hass: HomeAssistant, config_entry: UnfoldedCircleConfigEntry
-):
-    """Add sensors for passed config_entry in HA."""
-    coordinator = config_entry.runtime_data.coordinator
 
 
 class UnfoldedCircleEntity(CoordinatorEntity[UnfoldedCircleRemoteCoordinator]):
     """Common entity class for all Unfolded Circle entities"""
 
-    def __init__(self, coordinator) -> None:
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        coordinator,
+    ) -> None:
         """Initialize Unfolded Circle Sensor."""
         super().__init__(coordinator)
-        self.coordinator: UnfoldedCircleRemoteCoordinator = coordinator
-        self.coordinator.entities.append(self)
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return DeviceInfo(
+        # self.coordinator.entities.append(self)
+        self._attr_device_info = DeviceInfo(
             identifiers={
-                # Serial numbers are unique identifiers within a specific domain
                 (
                     DOMAIN,
                     self.coordinator.api.model_number,
@@ -46,25 +36,23 @@ class UnfoldedCircleEntity(CoordinatorEntity[UnfoldedCircleRemoteCoordinator]):
             configuration_url=self.coordinator.api.configuration_url,
         )
 
-    @property
-    def should_poll(self) -> bool:
-        """Should the entity poll for updates?"""
-        return False
-
 
 class UnfoldedCircleDockEntity(CoordinatorEntity[UnfoldedCircleDockCoordinator]):
     """Common entity class for all Unfolded Circle Dock entities"""
 
-    def __init__(self, coordinator: UnfoldedCircleDockCoordinator) -> None:
+    def __init__(
+        self,
+        coordinator: UnfoldedCircleDockCoordinator,
+        entry: UnfoldedCircleConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
         """Initialize Unfolded Circle Sensor."""
         super().__init__(coordinator)
-        self.coordinator = coordinator
-        self.coordinator.entities.append(self)
+        # self.coordinator.entities.append(self)
+        self.entry = entry
+        self.subentry = subentry
 
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return DeviceInfo(
+        self._attr_device_info = DeviceInfo(
             identifiers={
                 (
                     DOMAIN,
@@ -78,9 +66,5 @@ class UnfoldedCircleDockEntity(CoordinatorEntity[UnfoldedCircleDockCoordinator])
             sw_version=self.coordinator.api.software_version,
             hw_version=self.coordinator.api.hardware_revision,
             configuration_url=self.coordinator.api.remote_configuration_url,
+            via_device=(DOMAIN, self.entry.unique_id),
         )
-
-    @property
-    def should_poll(self) -> bool:
-        """Should the entity poll for updates?"""
-        return True

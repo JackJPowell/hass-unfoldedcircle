@@ -12,7 +12,7 @@ from homeassistant.components.number import (
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-
+from homeassistant.config_entries import ConfigSubentry
 from .coordinator import (
     UnfoldedCircleRemoteCoordinator,
     UnfoldedCircleDockCoordinator,
@@ -145,15 +145,25 @@ async def async_setup_entry(
     """Set up the Number platform."""
     # Setup connection with devices
     coordinator = config_entry.runtime_data.coordinator
-    dock_coordinators = config_entry.runtime_data.dock_coordinators
     async_add_entities(
         UCRemoteNumber(coordinator, Number) for Number in UNFOLDED_CIRCLE_NUMBER
     )
 
-    for dock_coordinator in dock_coordinators:
+    for (
+        subentry_id,
+        dock_coordinator,
+    ) in config_entry.runtime_data.docks.items():
         async_add_entities(
-            UCDockNumber(dock_coordinator, description)
-            for description in UNFOLDED_CIRCLE_DOCK_NUMBER
+            [
+                UCDockNumber(
+                    dock_coordinator,
+                    description,
+                    config_entry,
+                    config_entry.subentries[subentry_id],
+                )
+                for description in UNFOLDED_CIRCLE_DOCK_NUMBER
+            ],
+            config_subentry_id=subentry_id,
         )
 
 
@@ -167,19 +177,10 @@ class UCRemoteNumber(UnfoldedCircleEntity, NumberEntity):
     ) -> None:
         """Initialize a Number."""
         super().__init__(coordinator)
-        self._description = description
-        self.coordinator = coordinator
         self.entity_description = description
-        self._attr_has_entity_name = True
         self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_{description.unique_id}"
-        self._attr_name = description.name
         key = "_" + description.key
         self._attr_native_value = coordinator.data.get(key)
-        self._attr_icon = description.icon
-        self._attr_entity_category = description.entity_category
-        self._attr_device_class = description.device_class
-        self._attr_min_value = description.min_value
-        self._attr_max_value = description.max_value
 
     async def async_added_to_hass(self) -> None:
         """Run when this Entity has been added to HA."""
@@ -254,23 +255,18 @@ class UCDockNumber(UnfoldedCircleDockEntity, NumberEntity):
     entity_description = UNFOLDED_CIRCLE_NUMBER
 
     def __init__(
-        self, coordinator, description: UnfoldedCircleNumberEntityDescription
+        self,
+        coordinator,
+        description: UnfoldedCircleNumberEntityDescription,
+        config_entry: UnfoldedCircleConfigEntry,
+        subentry: ConfigSubentry,
     ) -> None:
         """Initialize a Number."""
-        super().__init__(coordinator)
-        self._description = description
-        self.coordinator = coordinator
+        super().__init__(coordinator, config_entry, subentry)
         self.entity_description = description
         self._attr_unique_id = f"{self.coordinator.api.model_number}_{self.coordinator.api.serial_number}_{description.unique_id}"
-        self._attr_has_entity_name = True
-        self._attr_name = description.name
         key = "_" + description.key
         self._attr_native_value = coordinator.data.get(key)
-        self._attr_icon = description.icon
-        self._attr_entity_category = description.entity_category
-        self._attr_device_class = description.device_class
-        self._attr_min_value = description.min_value
-        self._attr_max_value = description.max_value
 
     async def async_added_to_hass(self) -> None:
         """Run when this Entity has been added to HA."""

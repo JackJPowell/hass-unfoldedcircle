@@ -79,8 +79,15 @@
       "initiate_flow": {
         "user": "Add dock"
       },
-      "error": {},
-      "abort": {}
+      "error": {
+        "cannot_connect": "Failed to connect",
+        "invalid_dock_password": "Incorrect dock password. Please try again",
+        "invalid_auth": "Incorrect pin supplied. Please try again",
+        "unknown": "Unexpected error"
+      },
+      "abort": {
+        "reauth_successful": "Dock authentication was successful"
+      }
     }
   },
   "options": {

@@ -192,7 +192,6 @@ class UCRemoteSwitch(UnfoldedCircleEntity, SwitchEntity):
         """Initialize a switch."""
         super().__init__(coordinator)
         self.switch = switch
-        self._attr_has_entity_name = True
         self._attr_name = switch.name
         self._attr_unique_id = switch._id
         self._state = switch.state
@@ -241,13 +240,9 @@ class UCRemoteConfigSwitch(UnfoldedCircleEntity, SwitchEntity):
     ) -> None:
         """Initialize a switch."""
         super().__init__(coordinator)
-        self._description = description
-        self.coordinator = coordinator
         self.entity_description = description
         self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_{description.unique_id}"
-        self._attr_has_entity_name = True
-        self._attr_name = f"{description.name}"
-        key = "_" + self._description.key
+        key = "_" + self.entity_description.key
         self._attr_native_value = coordinator.data.get(key)
         if coordinator.data.get(key) is True:
             self._state = "ON"
@@ -276,7 +271,7 @@ class UCRemoteConfigSwitch(UnfoldedCircleEntity, SwitchEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        key = "_" + self._description.key
+        key = "_" + self.entity_description.key
         state = self.coordinator.data.get(key)
         if state is True:
             self._state = "ON"

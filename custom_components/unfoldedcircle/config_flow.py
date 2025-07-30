@@ -3,7 +3,6 @@
 import asyncio
 import logging
 from typing import Any, Awaitable, Callable, Type
-import re
 
 from aiohttp import ClientConnectionError
 from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME
@@ -450,6 +449,7 @@ class DockSubentryFlowHandler(ConfigSubentryFlow):
         self.config_entry: ConfigEntry | None = None
         self.runtime_data = None
         self.remote = None
+        self.current_dock = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -467,7 +467,7 @@ class DockSubentryFlowHandler(ConfigSubentryFlow):
         if len(self.remote.docks) == 1:
             self.dock_count = 0
             return await self.async_step_dock(
-                info=self.remote.docks[0], first_call=True
+                user_input=None, dock_info=self.remote.docks[0], first_call=True
             )
 
         if user_input is None or user_input == {}:
@@ -481,30 +481,34 @@ class DockSubentryFlowHandler(ConfigSubentryFlow):
                 ),
                 errors={},
             )
-        return await self.async_step_dock(user_input)
+        return await self.async_step_user(user_input)
 
     async def async_step_dock(
         self,
         user_input: dict[str, Any] | None = None,
+        dock_info: Any | None = None,
         first_call: bool = False,
     ) -> FlowResult:
         """Called if there are docks associated with the remote"""
         schema = {}
         errors: dict[str, str] = {}
-        dock_info: dict[str, any] | None = None
         placeholder: dict[str, any] | None = None
+        dock_data: dict[str, Any] = {}
 
-        match = re.search(r"\((.*?)\)", user_input.get(CONF_DOCK_ID, ""))
-        dock_info = [match for item in self.remote.docks]
+        if dock_info:
+            self.current_dock = dock_info
+
         schema[vol.Optional("password")] = str
-        placeholder = {"name": dock_info.get("name")}
+        placeholder = {"name": self.current_dock.name}
 
         if user_input is None or user_input == {}:
             if first_call is True:
-                dock_info["password"] = "0000"
-                is_valid = await validate_dock_password(self.remote, dock_info)
+                dock_data["id"] = self.current_dock.id
+                dock_data["password"] = "0000"
+                dock_data["name"] = self.current_dock.name
+                is_valid = await validate_dock_password(self.remote, dock_data)
                 if is_valid:
-                    return await self.async_step_finish(None)
+                    return await self.async_step_finish(dock_info=dock_data)
 
             return self.async_show_form(
                 step_id="dock",
@@ -515,15 +519,17 @@ class DockSubentryFlowHandler(ConfigSubentryFlow):
             )
 
         try:
-            dock_info["password"] = user_input["password"]
-            is_valid = await validate_dock_password(self.remote, dock_info)
+            dock_data["id"] = self.current_dock.id
+            dock_data["password"] = user_input.get("password", "")
+            dock_data["name"] = self.current_dock.name
+            is_valid = await validate_dock_password(self.remote, dock_data)
 
             if is_valid:
                 # Update other config entries where the same dock may be registered too
                 # (same dock associated to multiple remotes)
-                await synchronize_dock_password(self.hass, dock_info, "")
+                await synchronize_dock_password(self.hass, dock_data, "")
             else:
-                dock_info["password"] = ""
+                dock_data["password"] = ""
                 raise InvalidDockPassword
 
         except CannotConnect:
@@ -534,7 +540,7 @@ class DockSubentryFlowHandler(ConfigSubentryFlow):
             _LOGGER.exception("Unexpected exception")
             errors["base"] = "unknown"
 
-        return await self.async_step_finish(None)
+        return await self.async_step_finish(dock_info=dock_data)
 
     async def async_step_finish(
         self,
@@ -542,10 +548,15 @@ class DockSubentryFlowHandler(ConfigSubentryFlow):
         dock_info: dict[str, Any] | None = None,
     ) -> FlowResult:
         """Finish Step"""
+        data = {
+            "id": dock_info["id"],
+            "name": dock_info["name"],
+            "password": dock_info["password"],
+        }
         return self.async_create_entry(
-            title=dock_info.get("name", "Dock"),
-            data=dock_info,
-            unique_id=dock_info.get("id", ""),
+            title=dock_info["name"],
+            data=data,
+            unique_id=dock_info["id"],
         )
 
     async def async_step_reconfigure(

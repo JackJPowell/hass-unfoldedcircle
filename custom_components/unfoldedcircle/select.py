@@ -41,7 +41,6 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
         """Initialize a switch."""
         super().__init__(coordinator)
         self.activity_group = activity_group
-        self._attr_has_entity_name = True
         self._attr_name = activity_group.name
         self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_{activity_group._id}"
         self._state = activity_group.state
@@ -58,10 +57,6 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
     @property
     def extra_state_attributes(self) -> Mapping[str, Any] | None:
         return self._extra_state_attributes
-
-    @property
-    def translation_key(self) -> str | None:
-        return "activity_group"
 
     @property
     def current_option(self) -> str:

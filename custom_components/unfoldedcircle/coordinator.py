@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import dataclass
 from typing import Any
 from urllib.error import HTTPError
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -24,6 +26,18 @@ from .const import DEVICE_SCAN_INTERVAL, DOMAIN, DEBUG_UC_MSG
 from .websocket import UCWebsocketClient
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class UnfoldedCircleRuntimeData:
+    """Unfolded Circle Runtime Data"""
+
+    coordinator: UnfoldedCircleRemoteCoordinator
+    remote: Remote
+    docks: dict[str, UnfoldedCircleDockCoordinator]
+
+
+type UnfoldedCircleConfigEntry = ConfigEntry[UnfoldedCircleRuntimeData]
 
 
 class UnfoldedCircleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -192,7 +206,13 @@ class UnfoldedCircleDockCoordinator(
     subscribe_events: dict[str, bool]
     entities: list[CoordinatorEntity]
 
-    def __init__(self, hass: HomeAssistant, dock: Dock) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        dock: Dock,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
         """Initialize the Coordinator."""
         super().__init__(hass, dock)
         self.hass = hass

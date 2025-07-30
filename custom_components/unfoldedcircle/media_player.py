@@ -104,7 +104,6 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     ) -> None:
         """Initialize a switch."""
         super().__init__(coordinator)
-        self._attr_has_entity_name = True
         self.activity_group = activity_group
         self.activity = activity
         if activity_group is None and activity is None:
@@ -514,10 +513,6 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         if self._active_media_entity:
             await self._active_media_entity.seek(position)
         return
-
-    # @property
-    # def translation_key(self) -> str | None:
-    #     return "activity_group"
 
     @callback
     def _handle_coordinator_update(self) -> None:
