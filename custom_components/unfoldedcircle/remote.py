@@ -275,7 +275,7 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
 
     def update_state(self) -> bool:
         """Update current activity and extra state attributes"""
-        # self._attr_is_on = False
+        self._attr_is_on = False
         self._attr_current_activity = None
         if hasattr(self.coordinator.api, "activities"):
             for activity in self.coordinator.api.activities:
