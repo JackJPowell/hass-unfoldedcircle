@@ -9,7 +9,6 @@ from urllib.parse import urlparse
 import requests
 import websockets
 from requests import Session
-from websockets import WebSocketClientProtocol
 from .websocket import Websocket
 
 from .const import AUTH_APIKEY_NAME, WS_RECONNECTION_DELAY
@@ -38,7 +37,7 @@ class RemoteWebsocket(Websocket):
     endpoint: str
     api_key_name = AUTH_APIKEY_NAME
     api_key: str = None
-    websocket: WebSocketClientProtocol | None = None
+    websocket: None
 
     def __init__(self, api_url: str, api_key: str = None) -> None:
         super().__init__(api_url, api_key)
@@ -73,8 +72,7 @@ class RemoteWebsocket(Websocket):
         first = True
         async for websocket in websockets.connect(
             self.endpoint,
-            extra_headers={"API-KEY": self.api_key},
-            # logger=LoggerAdapter(logger, None),
+            additional_headers={"API-KEY": self.api_key},
             ping_interval=30,
             ping_timeout=30,
             close_timeout=20,

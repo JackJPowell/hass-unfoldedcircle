@@ -5,7 +5,6 @@ import logging
 from typing import Callable, Coroutine
 from urllib.parse import urlparse
 from requests import Session
-from websockets import WebSocketClientProtocol
 
 from .const import AUTH_APIKEY_NAME
 
@@ -32,7 +31,7 @@ class Websocket:
     endpoint: str
     api_key_name = AUTH_APIKEY_NAME
     api_key: str = None
-    websocket: WebSocketClientProtocol | None = None
+    websocket: None
 
     def __init__(
         self, api_url: str, api_key: str = None, dock_password: str = None
