@@ -360,6 +360,8 @@ class Remote:
         """Remote Hardware Revision."""
         if self._hw_revision == "rev2":
             return "Revision 2"
+        elif self._hw_revision == "rev3":
+            return "Revision 3"
         else:
             return self._hw_revision
 
@@ -1444,7 +1446,9 @@ class Remote:
                         ):
                             self._release_notes_url = update.get("release_notes_url")
                             self._latest_sw_version = update.get("version")
-                            self._release_notes = update.get("description").get("en")
+                            self._release_notes = update.get("description").get(
+                                "en", update.get("description").get("en_US", "")
+                            )
                             download_status = update.get("download")
                     else:
                         self._latest_sw_version = self._sw_version
@@ -1481,7 +1485,9 @@ class Remote:
                         ):
                             self._release_notes_url = update.get("release_notes_url")
                             self._latest_sw_version = update.get("version")
-                            self._release_notes = update.get("description").get("en")
+                            self._release_notes = update.get("description").get(
+                                "en", update.get("description").get("en_US", "")
+                            )
                             download_status = update.get("download")
                     else:
                         self._latest_sw_version = self._sw_version
@@ -1644,7 +1650,9 @@ class Remote:
                     "integration_id"
                 ).startswith("uc.main"):
                     remote_data = {
-                        "name": remote.get("name").get("en"),
+                        "name": remote.get("name").get(
+                            "en", remote.get("name").get("en_US", "")
+                        ),
                         "entity_id": remote.get("entity_id"),
                     }
                     self._remotes.append(remote_data.copy())
@@ -2722,7 +2730,9 @@ class Activity:
 
     def __init__(self, activity: str, remote: Remote) -> None:
         """Create activity."""
-        self._name = activity["name"]["en"]
+        self._name = activity.get("name").get(
+            "en", activity.get("name").get("en_US", "")
+        )
         self._id = activity["entity_id"]
         self._remote = remote
         self._state = activity.get("attributes").get("state")
