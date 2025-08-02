@@ -76,7 +76,7 @@ async def async_setup_entry(
 
     # Delete the dock from the entry
     entry.data["docks"] = []
-    hass.config_entries.async_update_entry(entry)
+    hass.config_entries.async_update_entry(entry, data=entry.data)
 
     docks = {}
     for subentry_id, subentry in entry.subentries.items():

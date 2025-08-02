@@ -149,7 +149,7 @@ class UnfoldedCircleRemoteCoordinator(
 
     async def init_websocket(self, initial_events: str = ""):
         """Initialize the Web Socket"""
-        super().init_websocket("software_updates")
+        await super().init_websocket("software_updates")
 
 
 class UnfoldedCircleDockCoordinator(
@@ -175,4 +175,4 @@ class UnfoldedCircleDockCoordinator(
 
     async def init_websocket(self, initial_events: str = ""):
         """Initialize the Web Socket"""
-        super().init_websocket("all")
+        await super().init_websocket("all")
