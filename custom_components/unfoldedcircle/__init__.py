@@ -3,7 +3,7 @@
 from __future__ import annotations
 import logging
 from homeassistant.components import zeroconf
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry
@@ -22,6 +22,7 @@ from .helpers import (
     get_registered_websocket_url,
     async_create_issue_dock_password,
     async_create_issue_websocket_connection,
+    validate_dock_password,
 )
 
 PLATFORMS: list[Platform] = [
@@ -58,6 +59,24 @@ async def async_setup_entry(
 
     coordinator = UnfoldedCircleRemoteCoordinator(hass, remote_api, config_entry=entry)
     await coordinator.api.init()
+
+    dock_data = {}
+    for config_dock in entry.data["docks"]:
+        dock = remote_api.get_dock_by_id(config_dock["id"])
+        if dock:
+            if config_dock["password"] == "":
+                dock_data["password"] = "0000"
+            else:
+                dock_data["password"] = config_dock["password"]
+            dock_data["id"] = dock.id
+            dock_data["name"] = dock.name
+            is_valid = await validate_dock_password(remote_api, dock_data)
+            if is_valid:
+                create_subentry(hass, entry, dock_data)
+
+    # Delete the dock from the entry
+    entry.data["docks"] = []
+    hass.config_entries.async_update_entry(entry)
 
     docks = {}
     for subentry_id, subentry in entry.subentries.items():
@@ -145,3 +164,24 @@ async def async_remove_entry(
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Handle update."""
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+def create_subentry(
+    hass: HomeAssistant, entry: UnfoldedCircleConfigEntry, dock: dict
+) -> ConfigSubentry:
+    """Create a subentry for a dock."""
+    subentry = ConfigSubentry(
+        data={
+            "id": dock["id"],
+            "name": dock["name"],
+            "password": dock["password"],
+        },
+        subentry_id=dock["id"],
+        subentry_type="dock",
+        title=dock["name"],
+        unique_id=dock["id"],
+    )
+    hass.config_entries.async_add_subentry(
+        entry=entry,
+        subentry=subentry,
+    )
