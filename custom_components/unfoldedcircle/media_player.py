@@ -56,7 +56,7 @@ STATES_MAP = {
     "ON": MediaPlayerState.ON,
     "PLAYING": MediaPlayerState.PLAYING,
     "PAUSED": MediaPlayerState.PAUSED,
-    "STANDBY": MediaPlayerState.STANDBY,
+    "STANDBY": MediaPlayerState.IDLE,
     "BUFFERING": MediaPlayerState.BUFFERING,
 }
 

@@ -37,6 +37,5 @@ HA_SUPPORTED_DOMAINS = [
     "switch",
 ]
 UC_HA_TOKEN_ID = "ws-ha-api"
-DEBUG_UC_MSG = False
 UC_HA_SYSTEM = "hass"
 UC_HA_DRIVER_ID = "hass"

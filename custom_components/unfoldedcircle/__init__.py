@@ -56,7 +56,7 @@ async def async_setup_entry(
     except Exception as ex:
         raise ConfigEntryNotReady(ex) from ex
 
-    coordinator = UnfoldedCircleRemoteCoordinator(hass, remote_api)
+    coordinator = UnfoldedCircleRemoteCoordinator(hass, remote_api, config_entry=entry)
     await coordinator.api.init()
 
     docks = {}
