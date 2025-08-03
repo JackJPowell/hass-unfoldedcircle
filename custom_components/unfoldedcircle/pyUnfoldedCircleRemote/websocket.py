@@ -2,25 +2,12 @@
 
 import json
 import logging
-from typing import Callable, Coroutine
 from urllib.parse import urlparse
 from requests import Session
 
 from .const import AUTH_APIKEY_NAME
 
 _LOGGER = logging.getLogger(__name__)
-
-
-class LoggerAdapter(logging.LoggerAdapter):
-    """Logger class for websocket for debugging.
-    Add connection ID and client IP address to websockets logs."""
-
-    def process(self, msg, kwargs):
-        try:
-            websocket = kwargs["extra"]["websocket"]
-        except KeyError:
-            return msg, kwargs
-        return f"{websocket.id} {msg}", kwargs
 
 
 class Websocket:
@@ -52,14 +39,6 @@ class Websocket:
         self.events_to_subscribe = [
             "software_updates",
         ]
-
-    async def init_websocket(
-        self,
-        receive_callback: Callable[..., Coroutine],
-        reconnection_callback: Callable[..., Coroutine],
-    ):
-        """init_websocket"""
-        pass
 
     async def close_websocket(self):
         """Terminate web socket connection"""

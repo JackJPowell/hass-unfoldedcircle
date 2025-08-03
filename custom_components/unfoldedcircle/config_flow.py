@@ -459,19 +459,26 @@ class DockSubentryFlowHandler(ConfigSubentryFlow):
         self.runtime_data = self.config_entry.runtime_data
         self.remote = self.runtime_data.remote
 
+        configured_ids = {
+            data["unique_id"] for _, data in self.config_entry.subentries.values()
+        }
+        available_docks = [
+            dock for dock in self.remote.docks if dock.id not in configured_ids
+        ]
+
         docks_to_display = {}
-        if self.remote.docks is None or len(self.remote.docks) == 0:
+        if not available_docks:
             # No docks available, so we cannot proceed with dock configuration
             return self.async_abort(reason="no_docks_available")
 
-        if len(self.remote.docks) == 1:
+        if len(available_docks) == 1:
             self.dock_count = 0
             return await self.async_step_dock(
-                user_input=None, dock_info=self.remote.docks[0], first_call=True
+                user_input=None, dock_info=available_docks[0], first_call=True
             )
 
         if user_input is None or user_input == {}:
-            for dock in self.remote.docks:
+            for dock in available_docks:
                 docks_to_display[dock.id] = f"{dock.name} ({dock.id})"
 
             return self.async_show_form(
@@ -508,7 +515,11 @@ class DockSubentryFlowHandler(ConfigSubentryFlow):
                 dock_data["name"] = self.current_dock.name
                 is_valid = await validate_dock_password(self.remote, dock_data)
                 if is_valid:
-                    return await self.async_step_finish(dock_info=dock_data)
+                    return self.async_create_entry(
+                        title=dock_info["name"],
+                        data=dock_data,
+                        unique_id=dock_info["id"],
+                    )
 
             return self.async_show_form(
                 step_id="dock",
@@ -525,8 +536,6 @@ class DockSubentryFlowHandler(ConfigSubentryFlow):
             is_valid = await validate_dock_password(self.remote, dock_data)
 
             if is_valid:
-                # Update other config entries where the same dock may be registered too
-                # (same dock associated to multiple remotes)
                 await synchronize_dock_password(self.hass, dock_data, "")
             else:
                 dock_data["password"] = ""
@@ -540,14 +549,14 @@ class DockSubentryFlowHandler(ConfigSubentryFlow):
             _LOGGER.exception("Unexpected exception")
             errors["base"] = "unknown"
 
-        return await self.async_step_finish(dock_info=dock_data)
-
-    async def async_step_finish(
-        self,
-        user_input: dict[str, Any] | None = None,
-        dock_info: dict[str, Any] | None = None,
-    ) -> FlowResult:
-        """Finish Step"""
+        if errors:
+            return self.async_show_form(
+                step_id="dock",
+                data_schema=vol.Schema(schema),
+                description_placeholders=placeholder,
+                errors=errors,
+                last_step=True,
+            )
         data = {
             "id": dock_info["id"],
             "name": dock_info["name"],
@@ -558,16 +567,6 @@ class DockSubentryFlowHandler(ConfigSubentryFlow):
             data=data,
             unique_id=dock_info["id"],
         )
-
-    async def async_step_reconfigure(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
-        """User flow to modify an existing dock."""
-        # Retrieve the parent config entry for reference.
-        # config_entry = self._get_reconfigure_entry()
-        # Retrieve the specific subentry targeted for update.
-        # config_subentry = self._get_reconfigure_subentry()
-        pass
 
 
 class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):

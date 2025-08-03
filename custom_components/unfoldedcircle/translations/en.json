@@ -66,7 +66,7 @@
         },
         "dock": {
           "title": "Supply {name} password",
-          "description": "If you don't remember your password, just submit. To finish dock setup, go to Settings and complete the Repair",
+          "description": "If you do not remember your dock password, you can update it in the web configurator.",
           "data": {
             "password": "Password"
           }
@@ -86,7 +86,8 @@
         "unknown": "Unexpected error"
       },
       "abort": {
-        "reauth_successful": "Dock authentication was successful"
+        "reauth_successful": "Dock authentication was successful",
+        "no_docks_available": "No docks are available to configure"
       }
     }
   },

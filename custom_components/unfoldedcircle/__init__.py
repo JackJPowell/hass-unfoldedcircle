@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 import logging
+import copy
 from homeassistant.components import zeroconf
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry
+from homeassistant.helpers import device_registry as dr
+
+# from homeassistant.helpers import entity_registry as er
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
@@ -22,7 +26,7 @@ from .helpers import (
     get_registered_websocket_url,
     async_create_issue_dock_password,
     async_create_issue_websocket_connection,
-    validate_dock_password,
+    # validate_dock_password,
 )
 
 PLATFORMS: list[Platform] = [
@@ -60,23 +64,38 @@ async def async_setup_entry(
     coordinator = UnfoldedCircleRemoteCoordinator(hass, remote_api, config_entry=entry)
     await coordinator.api.init()
 
-    dock_data = {}
-    for config_dock in entry.data["docks"]:
-        dock = remote_api.get_dock_by_id(config_dock["id"])
-        if dock:
-            if config_dock["password"] == "":
-                dock_data["password"] = "0000"
-            else:
-                dock_data["password"] = config_dock["password"]
-            dock_data["id"] = dock.id
-            dock_data["name"] = dock.name
-            is_valid = await validate_dock_password(remote_api, dock_data)
-            if is_valid:
-                create_subentry(hass, entry, dock_data)
+    if entry.version < 3:
+        dock_data = {}
+        for config_dock in entry.data["docks"]:
+            dock = remote_api.get_dock_by_id(config_dock["id"])
+            if dock:
+                if config_dock["password"] == "":
+                    dock_data["password"] = "0000"
+                else:
+                    dock_data["password"] = config_dock["password"]
+                dock_data["id"] = dock.id
+                dock_data["name"] = dock.name
+                # is_valid = await validate_dock_password(remote_api, dock_data)
+                # if is_valid:
+                #     create_subentry(hass, entry, dock_data)
 
-    # Delete the dock from the entry
-    entry.data["docks"] = []
-    hass.config_entries.async_update_entry(entry, data=entry.data)
+        # Delete the dock from the entry
+        dev_reg = dr.async_get(hass)
+        # ent_reg = er.async_get(hass)
+        device = dev_reg.async_get_device(
+            identifiers={
+                (
+                    DOMAIN,
+                    coordinator.api.model_number,
+                    coordinator.api.serial_number,
+                )
+            }
+        )
+        dev_reg.async_remove_device(device.id)
+
+        copy_data = copy.deepcopy(dict(entry.data))
+        copy_data["docks"] = []
+        hass.config_entries.async_update_entry(entry, data=copy_data, version=2)
 
     docks = {}
     for subentry_id, subentry in entry.subentries.items():
@@ -97,7 +116,7 @@ async def async_setup_entry(
                     ex,
                 )
         else:
-            async_create_issue_dock_password(hass, entry, dock)
+            async_create_issue_dock_password(hass, dock, entry, subentry)
 
     entry.runtime_data = UnfoldedCircleRuntimeData(
         coordinator=coordinator, remote=remote_api, docks=docks

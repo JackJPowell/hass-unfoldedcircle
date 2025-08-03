@@ -51,15 +51,12 @@ async def validate_dock_password(remote_api: Remote, user_info) -> bool:
     dock = remote_api.get_dock_by_id(user_info.get("id"))
 
     websocket = DockWebsocket(
-        dock._ws_endpoint,
+        dock.ws_endpoint,
         api_key=dock.apikey,
         dock_password=user_info.get("password"),
     )
     try:
-        task = asyncio.create_task(websocket.is_password_valid())
-
-        # Wait for the task with a timeout of 5 seconds
-        return await asyncio.wait_for(task, timeout=5)
+        return await asyncio.wait_for(websocket.is_password_valid(), timeout=3)
     except Exception as ex:
         _LOGGER.error("Error occurred when validating dock: %s %s", dock.name, ex)
 
@@ -391,14 +388,11 @@ def update_config_entities(
 
 
 @callback
-def async_create_issue_dock_password(hass: HomeAssistant, entry, dock: Dock) -> None:
+def async_create_issue_dock_password(
+    hass: HomeAssistant, dock: Dock, entry, subentry
+) -> None:
     """Create an issue in the issue registry for a dock with an empty password."""
-    _LOGGER.debug(
-        "Empty dock password %s (%s) for remote %s",
-        dock.name,
-        dock.id,
-        entry.title,
-    )
+    _LOGGER.debug("Empty dock password: %s", dock.name)
     issue_registry.async_create_issue(
         hass,
         DOMAIN,
@@ -408,6 +402,7 @@ def async_create_issue_dock_password(hass: HomeAssistant, entry, dock: Dock) -> 
             "id": dock.id,
             "name": dock.name,
             "config_entry": entry,
+            "subentry": subentry,
         },
         is_fixable=True,
         is_persistent=False,
