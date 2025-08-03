@@ -9,8 +9,6 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry
 from homeassistant.helpers import device_registry as dr
-
-# from homeassistant.helpers import entity_registry as er
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
@@ -26,7 +24,7 @@ from .helpers import (
     get_registered_websocket_url,
     async_create_issue_dock_password,
     async_create_issue_websocket_connection,
-    # validate_dock_password,
+    validate_dock_password,
 )
 
 PLATFORMS: list[Platform] = [
@@ -75,16 +73,15 @@ async def async_setup_entry(
                     dock_data["password"] = config_dock["password"]
                 dock_data["id"] = dock.id
                 dock_data["name"] = dock.name
-                # is_valid = await validate_dock_password(remote_api, dock_data)
-                # if is_valid:
-                #     create_subentry(hass, entry, dock_data)
+                is_valid = await validate_dock_password(remote_api, dock_data)
+                if is_valid:
+                    create_subentry(hass, entry, dock_data)
 
                 hass.add_job(async_remote_device(hass, dock))
-        # ent_reg.async_remove()
 
         copy_data = copy.deepcopy(dict(entry.data))
-        # copy_data["docks"] = []
-        hass.config_entries.async_update_entry(entry, data=copy_data, version=2)
+        copy_data["docks"] = []
+        hass.config_entries.async_update_entry(entry, data=copy_data, version=3)
 
     docks = {}
     for subentry_id, subentry in entry.subentries.items():
@@ -196,13 +193,13 @@ def create_subentry(
 
 
 async def async_remote_device(hass: HomeAssistant, dock) -> None:
+    """Remove the dock device from the device registry."""
     dev_reg = dr.async_get(hass)
-    # ent_reg = er.async_get(hass)
     device = dev_reg.async_get_device(
         identifiers={
             (
                 DOMAIN,
-                dock.model_number,
+                dock.model_name,
                 dock.serial_number,
             )
         }
