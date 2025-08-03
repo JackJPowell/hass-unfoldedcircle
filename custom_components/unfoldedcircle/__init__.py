@@ -79,22 +79,11 @@ async def async_setup_entry(
                 # if is_valid:
                 #     create_subentry(hass, entry, dock_data)
 
-        # Delete the dock from the entry
-        dev_reg = dr.async_get(hass)
-        # ent_reg = er.async_get(hass)
-        device = dev_reg.async_get_device(
-            identifiers={
-                (
-                    DOMAIN,
-                    coordinator.api.model_number,
-                    coordinator.api.serial_number,
-                )
-            }
-        )
-        dev_reg.async_remove_device(device.id)
+                hass.add_job(async_remote_device(hass, dock))
+        # ent_reg.async_remove()
 
         copy_data = copy.deepcopy(dict(entry.data))
-        copy_data["docks"] = []
+        # copy_data["docks"] = []
         hass.config_entries.async_update_entry(entry, data=copy_data, version=2)
 
     docks = {}
@@ -204,3 +193,18 @@ def create_subentry(
         entry=entry,
         subentry=subentry,
     )
+
+
+async def async_remote_device(hass: HomeAssistant, dock) -> None:
+    dev_reg = dr.async_get(hass)
+    # ent_reg = er.async_get(hass)
+    device = dev_reg.async_get_device(
+        identifiers={
+            (
+                DOMAIN,
+                dock.model_number,
+                dock.serial_number,
+            )
+        }
+    )
+    dev_reg.async_remove_device(device.id)
