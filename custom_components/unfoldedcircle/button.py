@@ -90,7 +90,7 @@ class RebootDockButton(UnfoldedCircleDockEntity, ButtonEntity):
     ) -> None:
         """Initialize the button."""
         super().__init__(coordinator, config_entry, subentry)
-        self._attr_unique_id = f"{self.coordinator.api.model_number}_{self.coordinator.api.serial_number}_restart_button"
+        self._attr_unique_id = f"{subentry.unique_id}_{self.coordinator.api.model_number}_{self.coordinator.api.serial_number}_restart_button"
         self._attr_name = "Restart"
         self._attr_entity_category = EntityCategory.CONFIG
         self._attr_icon = "mdi:gesture-tap-button"
@@ -112,7 +112,7 @@ class IdentifyDockButton(UnfoldedCircleDockEntity, ButtonEntity):
     ) -> None:
         """Initialize the button."""
         super().__init__(coordinator, config_entry, subentry)
-        self._attr_unique_id = f"{self.coordinator.api.model_number}_{self.coordinator.api.serial_number}_identify_button"
+        self._attr_unique_id = f"{subentry.unique_id}_{self.coordinator.api.model_number}_{self.coordinator.api.serial_number}_identify_button"
         self._attr_name = "Identify"
         self._attr_entity_category = EntityCategory.CONFIG
         self._attr_icon = "mdi:gesture-tap-button"

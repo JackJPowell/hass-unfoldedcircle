@@ -211,7 +211,7 @@ class RemoteDockSensor(UnfoldedCircleDockEntity, RemoteEntity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, config_entry, subentry)
-        self._attr_unique_id = f"{self.coordinator.api.model_number}_{self.coordinator.api.serial_number}_remote"
+        self._attr_unique_id = f"{subentry.unique_id}_{self.coordinator.api.model_number}_{self.coordinator.api.serial_number}_remote"
         self._attr_name = "Remote"
         self._attr_activity_list = []
         self._extra_state_attributes = None

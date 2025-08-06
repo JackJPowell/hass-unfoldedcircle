@@ -58,10 +58,9 @@
       "title": "Docks",
       "step": {
         "user": {
-          "title": "Add dock",
-          "description": "Which dock would you like to add?",
+          "title": "Docks",
           "data": {
-            "dock_id": "Dock selection"
+            "dock_id": "Which dock would you like to add?"
           }
         },
         "dock": {
@@ -70,15 +69,12 @@
           "data": {
             "password": "Password"
           }
-        },
-        "reconfigure": {
-          "title": "Update dock",
-          "description": "..."
         }
       },
       "initiate_flow": {
         "user": "Add dock"
       },
+      "entry_type": "Dock",
       "error": {
         "cannot_connect": "Failed to connect",
         "invalid_dock_password": "Incorrect dock password. Please try again",

@@ -158,7 +158,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             "ip_address": self._remote.ip_address,
             CONF_SERIAL: self._remote.serial_number,
             CONF_MAC: mac_address,
-            "docks": docks,
         }
 
     @staticmethod
@@ -445,7 +444,6 @@ class DockSubentryFlowHandler(ConfigSubentryFlow):
 
     def __init__(self) -> None:
         """Unfolded Circle SubEntry Config Flow."""
-        self.dock_count: int = 0
         self.config_entry: ConfigEntry | None = None
         self.runtime_data = None
         self.remote = None
@@ -460,26 +458,39 @@ class DockSubentryFlowHandler(ConfigSubentryFlow):
         self.remote = self.runtime_data.remote
 
         configured_ids = {
-            data["unique_id"] for _, data in self.config_entry.subentries.values()
+            data.unique_id for _, data in self.config_entry.subentries.items()
         }
         available_docks = [
-            dock for dock in self.remote.docks if dock.id not in configured_ids
+            dock
+            for dock in self.remote.docks
+            if f"{self.config_entry.unique_id}_{dock.id}" not in configured_ids
         ]
 
         docks_to_display = {}
         if not available_docks:
-            # No docks available, so we cannot proceed with dock configuration
             return self.async_abort(reason="no_docks_available")
 
         if len(available_docks) == 1:
-            self.dock_count = 0
             return await self.async_step_dock(
                 user_input=None, dock_info=available_docks[0], first_call=True
             )
 
+        if user_input is not None:
+            dock = next(
+                (
+                    dock
+                    for dock in available_docks
+                    if dock.id == user_input.get(CONF_DOCK_ID)
+                ),
+                None,
+            )
+            return await self.async_step_dock(
+                user_input=None, dock_info=dock, first_call=True
+            )
+
         if user_input is None or user_input == {}:
             for dock in available_docks:
-                docks_to_display[dock.id] = f"{dock.name} ({dock.id})"
+                docks_to_display[dock.id] = dock.name
 
             return self.async_show_form(
                 step_id="user",
@@ -516,9 +527,9 @@ class DockSubentryFlowHandler(ConfigSubentryFlow):
                 is_valid = await validate_dock_password(self.remote, dock_data)
                 if is_valid:
                     return self.async_create_entry(
-                        title=dock_info["name"],
+                        title=dock_data["name"],
                         data=dock_data,
-                        unique_id=dock_info["id"],
+                        unique_id=f"{self.config_entry.unique_id}_{dock_data['id']}",
                     )
 
             return self.async_show_form(
@@ -558,14 +569,14 @@ class DockSubentryFlowHandler(ConfigSubentryFlow):
                 last_step=True,
             )
         data = {
-            "id": dock_info["id"],
-            "name": dock_info["name"],
-            "password": dock_info["password"],
+            "id": dock_data["id"],
+            "name": dock_data["name"],
+            "password": dock_data["password"],
         }
         return self.async_create_entry(
-            title=dock_info["name"],
+            title=dock_data["name"],
             data=data,
-            unique_id=dock_info["id"],
+            unique_id=f"{self.config_entry.unique_id}_{dock_data['id']}",
         )
 
 

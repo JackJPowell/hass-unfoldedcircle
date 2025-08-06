@@ -64,24 +64,26 @@ async def async_setup_entry(
 
     if entry.version < 3:
         dock_data = {}
-        for config_dock in entry.data["docks"]:
-            dock = remote_api.get_dock_by_id(config_dock["id"])
-            if dock:
-                if config_dock["password"] == "":
-                    dock_data["password"] = "0000"
-                else:
-                    dock_data["password"] = config_dock["password"]
-                dock_data["id"] = dock.id
-                dock_data["name"] = dock.name
-                is_valid = await validate_dock_password(remote_api, dock_data)
-                if is_valid:
-                    create_subentry(hass, entry, dock_data)
+        if "docks" in entry.data:
+            for config_dock in entry.data["docks"]:
+                dock = remote_api.get_dock_by_id(config_dock["id"])
+                if dock:
+                    if config_dock["password"] == "":
+                        dock_data["password"] = "0000"
+                    else:
+                        dock_data["password"] = config_dock["password"]
+                    dock_data["id"] = dock.id
+                    dock_data["name"] = dock.name
+                    is_valid = await validate_dock_password(remote_api, dock_data)
+                    if is_valid:
+                        create_subentry(hass, entry, dock_data)
 
-                hass.add_job(async_remote_device(hass, dock))
+                    hass.add_job(async_remote_device(hass, dock))
 
-        copy_data = copy.deepcopy(dict(entry.data))
-        copy_data["docks"] = []
-        hass.config_entries.async_update_entry(entry, data=copy_data, version=3)
+            copy_data = copy.deepcopy(dict(entry.data))
+            copy_data["docks"] = []
+            hass.config_entries.async_update_entry(entry, data=copy_data)
+        hass.config_entries.async_update_entry(entry, version=3)
 
     docks = {}
     for subentry_id, subentry in entry.subentries.items():
@@ -184,7 +186,7 @@ def create_subentry(
         subentry_id=dock["id"],
         subentry_type="dock",
         title=dock["name"],
-        unique_id=dock["id"],
+        unique_id=f"{entry.unique_id}_{dock['id']}",
     )
     hass.config_entries.async_add_subentry(
         entry=entry,
@@ -204,4 +206,5 @@ async def async_remote_device(hass: HomeAssistant, dock) -> None:
             )
         }
     )
-    dev_reg.async_remove_device(device.id)
+    if device:
+        dev_reg.async_remove_device(device.id)

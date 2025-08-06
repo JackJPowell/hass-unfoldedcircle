@@ -19,7 +19,6 @@ class UnfoldedCircleEntity(CoordinatorEntity[UnfoldedCircleRemoteCoordinator]):
     ) -> None:
         """Initialize Unfolded Circle Sensor."""
         super().__init__(coordinator)
-        # self.coordinator.entities.append(self)
         self._attr_device_info = DeviceInfo(
             identifiers={
                 (
@@ -48,14 +47,15 @@ class UnfoldedCircleDockEntity(CoordinatorEntity[UnfoldedCircleDockCoordinator])
     ) -> None:
         """Initialize Unfolded Circle Sensor."""
         super().__init__(coordinator)
-        # self.coordinator.entities.append(self)
         self.entry = entry
         self.subentry = subentry
+        remote_coordinator = self.entry.runtime_data.coordinator
 
         self._attr_device_info = DeviceInfo(
             identifiers={
                 (
                     DOMAIN,
+                    self.subentry.unique_id,
                     self.coordinator.api.model_number,
                     self.coordinator.api.serial_number,
                 )
@@ -66,5 +66,9 @@ class UnfoldedCircleDockEntity(CoordinatorEntity[UnfoldedCircleDockCoordinator])
             sw_version=self.coordinator.api.software_version,
             hw_version=self.coordinator.api.hardware_revision,
             configuration_url=self.coordinator.api.remote_configuration_url,
-            via_device=(DOMAIN, self.entry.unique_id),
+            via_device=(
+                DOMAIN,
+                remote_coordinator.api.model_number,
+                remote_coordinator.api.serial_number,
+            ),
         )
