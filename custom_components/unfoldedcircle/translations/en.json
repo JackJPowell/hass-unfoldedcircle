@@ -83,7 +83,7 @@
       },
       "abort": {
         "reauth_successful": "Dock authentication was successful",
-        "no_docks_available": "No docks are available to configure"
+        "no_docks_available": "No docks are available to be configured"
       }
     }
   },

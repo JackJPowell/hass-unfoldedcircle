@@ -77,7 +77,6 @@ async def async_setup_entry(
                     dock_data["name"] = dock.name
                     is_valid = await validate_dock_password(remote_api, dock_data)
                     if is_valid or dock_data["password"] != "0000":
-                        _LOGGER.error("Dock %s: is_valid %s", dock.name, is_valid)
                         create_subentry(hass, entry, dock_data)
 
                     hass.add_job(async_remove_device(hass, dock))
