@@ -206,5 +206,15 @@ async def async_remove_device(hass: HomeAssistant, dock) -> None:
             )
         }
     )
+    if not device:
+        device = dev_reg.async_get_device(
+            identifiers={
+                (
+                    DOMAIN,
+                    dock.model_number,
+                    dock.serial_number,
+                )
+            }
+        )
     if device:
         dev_reg.async_remove_device(device.id)
