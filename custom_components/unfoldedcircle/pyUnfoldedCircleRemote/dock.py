@@ -95,7 +95,7 @@ class Dock:
         name: str = "",
         ws_url: str = "",
         is_active: bool = False,
-        model_name: str = "",
+        model_number: str = "",
         hardware_revision: str = "",
         serial_number: str = "",
         led_brightness: int = 0,
@@ -113,9 +113,8 @@ class Dock:
         self._host_name = ""
         self._software_version = software_version
         self._serial_number = serial_number
-        self._model_name = model_name
+        self._model_number = model_number
         self._hardware_revision = hardware_revision
-        self._model_number = ""
         self._manufacturer = "Unfolded Circle"
         self._mac_address = dock_id.lower().removeprefix("uc-dock-")
         self._ip_address = ""
@@ -171,9 +170,11 @@ class Dock:
     @property
     def model_name(self):
         """model_name of the dock."""
-        if self._model_name == "UCD2":
+        if self._model_number == "UCD2":
             return "Dock Two"
-        return self._model_name
+        if self._model_number == "UCD3":
+            return "Dock 3"
+        return self._model_number
 
     @property
     def hardware_revision(self):
