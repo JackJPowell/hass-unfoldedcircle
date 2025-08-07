@@ -74,11 +74,12 @@ async def async_setup_entry(
                         dock_data["password"] = config_dock["password"]
                     dock_data["id"] = dock.id
                     dock_data["name"] = dock.name
-                    is_valid = await validate_dock_password(remote_api, dock_data)
-                    if is_valid:
+                    if dock_data["password"] == "0000":
+                        is_valid = await validate_dock_password(remote_api, dock_data)
+                    if is_valid or dock_data["password"] != "0000":
                         create_subentry(hass, entry, dock_data)
 
-                    hass.add_job(async_remote_device(hass, dock))
+                    hass.add_job(async_remove_device(hass, dock))
 
             copy_data = copy.deepcopy(dict(entry.data))
             copy_data["docks"] = []
@@ -194,7 +195,7 @@ def create_subentry(
     )
 
 
-async def async_remote_device(hass: HomeAssistant, dock) -> None:
+async def async_remove_device(hass: HomeAssistant, dock) -> None:
     """Remove the dock device from the device registry."""
     dev_reg = dr.async_get(hass)
     device = dev_reg.async_get_device(
