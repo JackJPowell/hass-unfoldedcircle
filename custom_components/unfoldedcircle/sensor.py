@@ -32,12 +32,14 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         key="battery_level",
         device_class=SensorDeviceClass.BATTERY,
         unit_of_measurement=PERCENTAGE,
+        native_unit_of_measurement=PERCENTAGE,
         name="Battery",
         unique_id="battery",
     ),
     UnfoldedCircleSensorEntityDescription(
         key="ambient_light_intensity",
         unit_of_measurement=LIGHT_LUX,
+        native_unit_of_measurement=LIGHT_LUX,
         device_class=SensorDeviceClass.ILLUMINANCE,
         icon="mdi:sun-wireless",
         name="Illuminance",
@@ -124,12 +126,6 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
         """Initialize Unfolded Circle Sensor."""
         super().__init__(coordinator)
         self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_{description.unique_id}"
-        self._attr_has_entity_name = True
-        self._attr_name = description.name
-        self._attr_unit_of_measurement = description.unit_of_measurement
-        self._attr_native_unit_of_measurement = description.unit_of_measurement
-        self._device_class = description.device_class
-        self._attr_entity_category = description.entity_category
         self.entity_description = description
         self._state: StateType = None
         self._attr_extra_state_attributes = {}

@@ -20,7 +20,12 @@ import voluptuous as vol
 from voluptuous import Optional, Required
 
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigEntry, ConfigFlow
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigSubentryFlow,
+    SubentryFlowResult,
+)
 from homeassistant.const import CONF_HOST, CONF_MAC, CONF_NAME, CONF_PORT
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
@@ -38,6 +43,7 @@ from .const import (
     CONF_SUPPRESS_ACTIVITIY_GROUPS,
     DOMAIN,
     HA_SUPPORTED_DOMAINS,
+    CONF_DOCK_ID,
 )
 from .helpers import (
     IntegrationNotFound,
@@ -152,7 +158,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             "ip_address": self._remote.ip_address,
             CONF_SERIAL: self._remote.serial_number,
             CONF_MAC: mac_address,
-            "docks": docks,
         }
 
     @staticmethod
@@ -242,10 +247,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         except InvalidWebsocketAddress:
             errors["base"] = "invalid_websocket_address"
         else:
-            if info["docks"]:
-                # Configure docks and entities
-                return await self.async_step_dock(info=info, first_call=True)
-
             return self.async_create_entry(
                 title=info["title"], data=info, options=self.options
             )
@@ -255,6 +256,14 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=zero_config_data_schema,
             errors=errors,
         )
+
+    @classmethod
+    @callback
+    def async_get_supported_subentry_types(
+        cls, config_entry: ConfigEntry
+    ) -> dict[str, type[ConfigSubentryFlow]]:
+        """Return subentries supported by this integration."""
+        return {"dock": DockSubentryFlowHandler}
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -295,8 +304,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.exception("Unexpected exception")
             errors["base"] = "unknown"
         else:
-            if info["docks"]:
-                return await self.async_step_dock(info=info, first_call=True)
             if self._remote.external_entity_configuration_available:
                 return await self.async_step_select_entities(None)
             return await self.async_step_finish(None)
@@ -311,79 +318,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             }
         )
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
-
-    async def async_step_dock(
-        self,
-        user_input: dict[str, Any] | None = None,
-        info: dict[str, any] = None,
-        first_call: bool = False,
-    ) -> FlowResult:
-        """Called if there are docks associated with the remote"""
-        schema = {}
-        errors: dict[str, str] = {}
-        dock_info: dict[str, any] | None = None
-        placeholder: dict[str, any] | None = None
-        if info:
-            self.info = info
-
-        dock_total = len(self.info["docks"])
-        if dock_total >= self.dock_count:
-            dock_info = self.info["docks"][self.dock_count]
-
-            schema[vol.Optional("password")] = str
-            placeholder = {
-                "name": dock_info.get("name"),
-                "count": f"({self.dock_count + 1}/{dock_total})",
-            }
-
-            if user_input is None or user_input == {}:
-                if first_call is False:
-                    self.dock_count += 1
-                    if dock_total == self.dock_count:
-                        if self._remote.external_entity_configuration_available:
-                            return await self.async_step_select_entities(None)
-                        return await self.async_step_finish(None)
-
-                return self.async_show_form(
-                    step_id="dock",
-                    data_schema=vol.Schema(schema),
-                    description_placeholders=placeholder,
-                    errors=errors,
-                    last_step=True,
-                )
-
-        try:
-            self.info["docks"][self.dock_count]["password"] = user_input["password"]
-            is_valid = await validate_dock_password(self._remote, dock_info)
-            if is_valid:
-                self.dock_count += 1
-                # Update other config entries where the same dock may be registered too
-                # (same dock associated to multiple remotes)
-                await synchronize_dock_password(self.hass, dock_info, "")
-            else:
-                self.info["docks"][self.dock_count]["password"] = ""
-                raise InvalidDockPassword
-
-        except CannotConnect:
-            errors["base"] = "cannot_connect"
-        except InvalidDockPassword:
-            errors["base"] = "invalid_dock_password"
-        except Exception:  # pylint: disable=broad-except
-            _LOGGER.exception("Unexpected exception")
-            errors["base"] = "unknown"
-
-        if dock_total == self.dock_count:
-            if self._remote.external_entity_configuration_available:
-                return await self.async_step_select_entities(None)
-            return await self.async_step_finish(None)
-
-        return self.async_show_form(
-            step_id="dock",
-            errors=errors,
-            description_placeholders=placeholder,
-            data_schema=vol.Schema(schema),
-            last_step=True,
-        )
 
     async def _async_set_unique_id_and_abort_if_already_configured(
         self, unique_id: str
@@ -503,6 +437,147 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                     self.async_step_finish,
                     user_input,
                 )
+
+
+class DockSubentryFlowHandler(ConfigSubentryFlow):
+    """Handle subentry flow for adding and modifying a dock."""
+
+    def __init__(self) -> None:
+        """Unfolded Circle SubEntry Config Flow."""
+        self.config_entry: ConfigEntry | None = None
+        self.runtime_data = None
+        self.remote = None
+        self.current_dock = None
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """User flow to add a new dock."""
+        self.config_entry = self._get_entry()
+        self.runtime_data = self.config_entry.runtime_data
+        self.remote = self.runtime_data.remote
+
+        configured_ids = {
+            data.unique_id for _, data in self.config_entry.subentries.items()
+        }
+        available_docks = [
+            dock
+            for dock in self.remote.docks
+            if f"{self.config_entry.unique_id}_{dock.id}" not in configured_ids
+        ]
+
+        docks_to_display = {}
+        if not available_docks:
+            return self.async_abort(reason="no_docks_available")
+
+        if len(available_docks) == 1:
+            return await self.async_step_dock(
+                user_input=None, dock_info=available_docks[0], first_call=True
+            )
+
+        if user_input is not None:
+            dock = next(
+                (
+                    dock
+                    for dock in available_docks
+                    if dock.id == user_input.get(CONF_DOCK_ID)
+                ),
+                None,
+            )
+            return await self.async_step_dock(
+                user_input=None, dock_info=dock, first_call=True
+            )
+
+        if user_input is None or user_input == {}:
+            for dock in available_docks:
+                docks_to_display[dock.id] = dock.name
+
+            return self.async_show_form(
+                step_id="user",
+                data_schema=vol.Schema(
+                    {vol.Required(CONF_DOCK_ID): vol.In(docks_to_display)}
+                ),
+                errors={},
+            )
+        return await self.async_step_user(user_input)
+
+    async def async_step_dock(
+        self,
+        user_input: dict[str, Any] | None = None,
+        dock_info: Any | None = None,
+        first_call: bool = False,
+    ) -> FlowResult:
+        """Called if there are docks associated with the remote"""
+        schema = {}
+        errors: dict[str, str] = {}
+        placeholder: dict[str, any] | None = None
+        dock_data: dict[str, Any] = {}
+
+        if dock_info:
+            self.current_dock = dock_info
+
+        schema[vol.Optional("password")] = str
+        placeholder = {"name": self.current_dock.name}
+
+        if user_input is None or user_input == {}:
+            if first_call is True:
+                dock_data["id"] = self.current_dock.id
+                dock_data["password"] = "0000"
+                dock_data["name"] = self.current_dock.name
+                is_valid = await validate_dock_password(self.remote, dock_data)
+                if is_valid:
+                    return self.async_create_entry(
+                        title=dock_data["name"],
+                        data=dock_data,
+                        unique_id=f"{self.config_entry.unique_id}_{dock_data['id']}",
+                    )
+
+            return self.async_show_form(
+                step_id="dock",
+                data_schema=vol.Schema(schema),
+                description_placeholders=placeholder,
+                errors=errors,
+                last_step=True,
+            )
+
+        try:
+            dock_data["id"] = self.current_dock.id
+            dock_data["password"] = user_input.get("password", "")
+            dock_data["name"] = self.current_dock.name
+            is_valid = await validate_dock_password(self.remote, dock_data)
+
+            if is_valid:
+                await synchronize_dock_password(self.hass, dock_data, "")
+            else:
+                dock_data["password"] = ""
+                raise InvalidDockPassword
+
+        except CannotConnect:
+            errors["base"] = "cannot_connect"
+        except InvalidDockPassword:
+            errors["base"] = "invalid_dock_password"
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.exception("Unexpected exception")
+            errors["base"] = "unknown"
+
+        if errors:
+            return self.async_show_form(
+                step_id="dock",
+                data_schema=vol.Schema(schema),
+                description_placeholders=placeholder,
+                errors=errors,
+                last_step=True,
+            )
+        data = {
+            "id": dock_data["id"],
+            "name": dock_data["name"],
+            "password": dock_data["password"],
+        }
+        return self.async_create_entry(
+            title=dock_data["name"],
+            data=data,
+            unique_id=f"{self.config_entry.unique_id}_{dock_data['id']}",
+        )
 
 
 class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):

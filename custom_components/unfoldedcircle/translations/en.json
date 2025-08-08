@@ -23,13 +23,6 @@
           "ha_ws_url": "Home Assistant Websocket URL"
         }
       },
-      "dock": {
-        "title": "Supply {name} Password {count}",
-        "description": "If you don't remember your password, just submit. To finish dock setup, go to Settings and complete the Repair",
-        "data": {
-          "password": "Password"
-        }
-      },
       "select_entities": {
         "title": "Configure Entities",
         "description": "Finish [configuration]({remote_ha_config_url}) on your remote",
@@ -57,6 +50,40 @@
           "ha_ws_url": "Home Assistant Websocket URL"
         },
         "title": "Reauthenticate with PIN"
+      }
+    }
+  },
+  "config_subentries": {
+    "dock": {
+      "title": "Docks",
+      "step": {
+        "user": {
+          "title": "Docks",
+          "data": {
+            "dock_id": "Which dock would you like to add?"
+          }
+        },
+        "dock": {
+          "title": "Supply {name} password",
+          "description": "If you do not remember your dock password, you can update it in the web configurator.",
+          "data": {
+            "password": "Password"
+          }
+        }
+      },
+      "initiate_flow": {
+        "user": "Add dock"
+      },
+      "entry_type": "Dock",
+      "error": {
+        "cannot_connect": "Failed to connect",
+        "invalid_dock_password": "Incorrect dock password. Please try again",
+        "invalid_auth": "Incorrect pin supplied. Please try again",
+        "unknown": "Unexpected error"
+      },
+      "abort": {
+        "reauth_successful": "Dock authentication was successful",
+        "no_docks_available": "No docks are available to be configured"
       }
     }
   },

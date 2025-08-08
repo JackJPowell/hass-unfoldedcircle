@@ -1712,7 +1712,7 @@ class Remote:
                     name=info.get("name"),
                     ws_url=info.get("resolved_ws_url"),
                     is_active=info.get("active"),
-                    model_name=info.get("model"),
+                    model_number=info.get("model"),
                     hardware_revision=info.get("revision"),
                     serial_number=info.get("serial"),
                     led_brightness=info.get("led_brightness"),

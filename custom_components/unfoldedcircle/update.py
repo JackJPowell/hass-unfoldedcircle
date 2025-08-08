@@ -1,22 +1,24 @@
 """Update sensor."""
 
+import asyncio
 import logging
 import math
 from typing import Any
-import asyncio
+
+from pyUnfoldedCircleRemote.remote import HTTPError
 
 from homeassistant.components.update import (
     UpdateDeviceClass,
     UpdateEntity,
     UpdateEntityFeature,
 )
+from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from pyUnfoldedCircleRemote.remote import HTTPError
 
-from .entity import UnfoldedCircleEntity, UnfoldedCircleDockEntity
 from . import UnfoldedCircleConfigEntry, UnfoldedCircleDockCoordinator
+from .entity import UnfoldedCircleDockEntity, UnfoldedCircleEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,11 +30,22 @@ async def async_setup_entry(
 ) -> None:
     """Set up platform."""
     coordinator = config_entry.runtime_data.coordinator
-    dock_coordinators = config_entry.runtime_data.dock_coordinators
     async_add_entities([Update(coordinator)])
 
-    for dock_coordinator in dock_coordinators:
-        async_add_entities([UpdateDock(dock_coordinator)])
+    for (
+        subentry_id,
+        dock_coordinator,
+    ) in config_entry.runtime_data.docks.items():
+        async_add_entities(
+            [
+                UpdateDock(
+                    dock_coordinator,
+                    config_entry,
+                    config_entry.subentries[subentry_id],
+                )
+            ],
+            config_subentry_id=subentry_id,
+        )
 
 
 class Update(UnfoldedCircleEntity, UpdateEntity):
@@ -44,7 +57,6 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_update_status"
-        self._attr_has_entity_name = True
         self._attr_name = "Firmware"
         self._attr_device_class = UpdateDeviceClass.FIRMWARE
         self._attr_auto_update = self.coordinator.api.automatic_updates
@@ -208,11 +220,15 @@ class UpdateDock(UnfoldedCircleDockEntity, UpdateEntity):
 
     _attr_icon = "mdi:update"
 
-    def __init__(self, coordinator: UnfoldedCircleDockCoordinator) -> None:
+    def __init__(
+        self,
+        coordinator: UnfoldedCircleDockCoordinator,
+        config_entry: UnfoldedCircleConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
         """Initialize the Update sensor."""
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_update_status"
-        self._attr_has_entity_name = True
+        super().__init__(coordinator, config_entry, subentry)
+        self._attr_unique_id = f"{subentry.unique_id}_{coordinator.api.model_number}_{self.coordinator.api.serial_number}_update_status"
         self._attr_name = "Firmware"
         self._attr_device_class = UpdateDeviceClass.FIRMWARE
         self._attr_installed_version = self.coordinator.api.software_version

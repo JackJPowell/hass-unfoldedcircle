@@ -36,19 +36,14 @@ class PollingBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
     def __init__(self, coordinator) -> None:
         """Initialize Binary Sensor."""
         super().__init__(coordinator)
-
-        # As per the sensor, this must be a unique value within this domain.
         self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_polling_status"
-
-        # The name of the entity
-        self._attr_has_entity_name = True
         self._attr_name = "Polling Status"
         self._attr_native_value = self.coordinator.polling_data
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
-        self._extra_state_attributes = {}
         self._attr_icon = "mdi:swap-horizontal"
         self._attr_entity_registry_enabled_default = False
         self._attr_entity_registry_visible_default = False
+        self._attr_extra_state_attributes = {}
 
     @property
     def is_on(self):
@@ -58,17 +53,19 @@ class PollingBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
 
     @property
     def extra_state_attributes(self) -> Mapping[str, Any] | None:
-        return self._extra_state_attributes
+        return self._attr_extra_state_attributes
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         self._attr_native_value = self.coordinator.polling_data
-        self._extra_state_attributes["Polling state"] = self.coordinator.polling_data
-        self._extra_state_attributes["Websocket state"] = (
+        self._attr_extra_state_attributes["Polling state"] = (
+            self.coordinator.polling_data
+        )
+        self._attr_extra_state_attributes["Websocket state"] = (
             self.coordinator.websocket_task is not None
         )
-        self._extra_state_attributes["Websocket events"] = ", ".join(
+        self._attr_extra_state_attributes["Websocket events"] = ", ".join(
             self.coordinator.websocket.events_to_subscribe
         )
         self.async_write_ha_state()
@@ -86,7 +83,6 @@ class BatteryBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
     def __init__(self, coordinator) -> None:
         """Initialize Binary Sensor."""
         super().__init__(coordinator)
-        self._attr_has_entity_name = True
         self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_charging_status"
         self._attr_name = "Charging Status"
         self._attr_native_value = False

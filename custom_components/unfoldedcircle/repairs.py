@@ -10,7 +10,6 @@ from homeassistant.helpers import issue_registry
 from homeassistant.core import HomeAssistant
 from .helpers import (
     validate_dock_password,
-    synchronize_dock_password,
     register_system_and_driver,
     get_ha_websocket_url,
     validate_websocket_address,
@@ -33,57 +32,38 @@ class DockPasswordRepairFlow(RepairsFlow):
         self.issue_id = issue_id
         self.hass = hass
         self.config_entry: UnfoldedCircleConfigEntry = self.data.get("config_entry")
+        self.subentry = self.data.get("subentry")
         self.coordinator = self.config_entry.runtime_data.coordinator
-        self.dock_total = 0
-        self.dock_count = 0
-
-        for dock in self.config_entry.data["docks"]:
-            if dock["password"] == "":
-                self.dock_total += 1
 
     async def async_step_init(
         self,
         user_input: dict[str, str] | None = None,
     ) -> data_entry_flow.FlowResult:
-        """Handle the first step of a fix flow."""
+        """Prompt the user to enter a dock password."""
 
-        return await self.async_step_confirm()
-
-    async def async_step_confirm(
-        self, user_input: dict[str, str] | None = None
-    ) -> data_entry_flow.FlowResult:
-        """Handle the confirm step of a fix flow."""
         errors: dict[str, str] = {}
         if user_input is not None:
             try:
-                self.data["password"] = user_input.get("password")
-                existing_entry = self.coordinator.config_entry
-                is_valid = await validate_dock_password(self.coordinator.api, self.data)
-                if is_valid:
-                    config_data = existing_entry
-                    _LOGGER.debug(
-                        "Updating dock password %s (%s) for remote %s",
-                        self.data.get("name"),
-                        self.data.get("id"),
-                        self.config_entry.title,
-                    )
-                    for info in config_data.data["docks"]:
-                        if info.get("id") == self.data.get("id"):
-                            info["password"] = self.data["password"]
-                            # Update password of the same dock for other remotes
-                            await synchronize_dock_password(
-                                self.hass, info, existing_entry.entry_id
-                            )
-                    self.hass.config_entries.async_update_entry(
-                        existing_entry, data=config_data.data
-                    )
-                    await self.hass.config_entries.async_reload(existing_entry.entry_id)
-
-                    issue_registry.async_delete_issue(self.hass, DOMAIN, self.issue_id)
-
-                    return self.async_abort(reason="reauth_successful")
-                else:
+                dock_data = {
+                    "id": self.data["id"],
+                    "name": self.data["name"],
+                    "password": user_input.get("password"),
+                }
+                is_valid = await validate_dock_password(self.coordinator.api, dock_data)
+                if not is_valid:
                     raise InvalidDockPassword
+
+                _LOGGER.debug("Updating dock password %s", dock_data.get("name"))
+
+                self.hass.config_entries.async_update_subentry(
+                    self.config_entry,
+                    self.subentry,
+                    data=dock_data,
+                )
+                await self.hass.config_entries.async_reload(self.config_entry.entry_id)
+
+                issue_registry.async_delete_issue(self.hass, DOMAIN, self.issue_id)
+                return self.async_abort(reason="reauth_successful")
 
             except CannotConnect:
                 errors["base"] = "cannot_connect"

@@ -12,18 +12,6 @@ from .const import WS_RECONNECTION_DELAY
 _LOGGER = logging.getLogger(__name__)
 
 
-class LoggerAdapter(logging.LoggerAdapter):
-    """Logger class for websocket for debugging.
-    Add connection ID and client IP address to websockets logs."""
-
-    def process(self, msg, kwargs):
-        try:
-            websocket = kwargs["extra"]["websocket"]
-        except KeyError:
-            return msg, kwargs
-        return f"{websocket.id} {msg}", kwargs
-
-
 class DockWebsocket(Websocket):
     """Web Socket Class for Unfolded Circle Dock"""
 
@@ -41,6 +29,7 @@ class DockWebsocket(Websocket):
         self,
         receive_callback: Callable[..., Coroutine],
         reconnection_callback: Callable[..., Coroutine],
+        validate_password: bool = False,
     ):
         """Initialize websocket connection with the dock password."""
         if self.dock_password:
@@ -64,9 +53,6 @@ class DockWebsocket(Websocket):
                     if first:
                         first = False
                     else:
-                        # Call reconnection callback after reconnection success:
-                        # useful to extract fresh information with APIs after a
-                        # long period of disconnection (sleep)
                         asyncio.ensure_future(reconnection_callback())
                     asyncio.ensure_future(self.subscribe_events())
 
@@ -84,81 +70,33 @@ class DockWebsocket(Websocket):
                                             }
                                         )
                                     )
+                                if validate_password:
+                                    try:
+                                        if data["type"] == "authentication":
+                                            await self.close_websocket()
+                                            if data["code"] == 200:
+                                                return True
+                                            return False
+                                    except Exception:
+                                        await self.close_websocket()
+                                    finally:
+                                        await self.close_websocket()
                                 asyncio.ensure_future(receive_callback(message))
                             except Exception as ex:
                                 _LOGGER.error(
-                                    "UnfoldedCircleRemote exception in websocket receive callback %s",
+                                    "UCR exception in websocket receive callback %s",
                                     ex,
                                 )
                 except websockets.ConnectionClosed as error:
                     _LOGGER.debug(
-                        "UnfoldedCircleRemote websocket closed. Waiting before reconnecting... %s",
+                        "UCR websocket closed. Waiting before reconnecting... %s",
                         error,
                     )
                     await asyncio.sleep(WS_RECONNECTION_DELAY)
                     continue
-            _LOGGER.error(
-                "UnfoldedCircleRemote exiting init_websocket, this is not normal"
-            )
+            _LOGGER.error("UCR exiting init_websocket, this is not normal")
 
-    async def is_password_valid(
-        self,
-    ):
+    async def is_password_valid(self):
         """Initialize websocket connection with the dock password."""
         if self.dock_password:
-            await self.close_websocket()
-            _LOGGER.debug(
-                "UnfoldedCircleDock websocket init connection to %s",
-                self.endpoint,
-            )
-
-            async for websocket in websockets.connect(
-                self.endpoint,
-                ping_interval=30,
-                ping_timeout=30,
-                close_timeout=20,
-            ):
-                try:
-                    _LOGGER.debug("UnfoldedCircleDock websocket connection initialized")
-                    self.websocket = websocket
-
-                    while self.awaits_password:
-                        async for message in websocket:
-                            try:
-                                data = json.loads(message)
-                                _LOGGER.debug("RC2 received websocket message %s", data)
-                                if data["type"] == "auth_required":
-                                    asyncio.ensure_future(
-                                        self.send_message(
-                                            {
-                                                "type": "auth",
-                                                "token": f"{self.dock_password}",
-                                            }
-                                        )
-                                    )
-                                if data["type"] == "authentication":
-                                    await self.close_websocket()
-                                    if data["code"] == 200:
-                                        return True
-                                    return False
-
-                            except Exception as ex:
-                                _LOGGER.debug(
-                                    "UnfoldedCircleRemote exception in websocket receive callback %s",
-                                    ex,
-                                )
-                            finally:
-                                await self.close_websocket()
-                except websockets.ConnectionClosed as error:
-                    _LOGGER.debug(
-                        "UnfoldedCircleRemote websocket closed. Waiting before reconnecting... %s",
-                        error,
-                    )
-                    await asyncio.sleep(WS_RECONNECTION_DELAY)
-                    continue
-                finally:
-                    await self.close_websocket()
-            _LOGGER.error(
-                "UnfoldedCircleRemote exiting init_websocket, this is not normal"
-            )
-        return False
+            return await self.init_websocket(None, None, True)

@@ -13,6 +13,7 @@ from homeassistant.components.remote import (
     RemoteEntity,
     RemoteEntityFeature,
 )
+from homeassistant.config_entries import ConfigSubentry
 from homeassistant.components import persistent_notification
 from homeassistant.core import HomeAssistant, callback, ServiceCall
 from homeassistant.helpers import config_validation as cv
@@ -85,16 +86,25 @@ async def async_setup_entry(
 ) -> None:
     """Set up Platform."""
     coordinator = config_entry.runtime_data.coordinator
-    dock_coordinators = config_entry.runtime_data.dock_coordinators
     platform = entity_platform.async_get_current_platform()
 
     async_add_entities([RemoteSensor(coordinator)])
 
-    for dock_coordinator in dock_coordinators:
-        async_add_entities([RemoteDockSensor(dock_coordinator)])
+    for (
+        subentry_id,
+        dock_coordinator,
+    ) in config_entry.runtime_data.docks.items():
+        async_add_entities(
+            [
+                RemoteDockSensor(
+                    dock_coordinator, config_entry, config_entry.subentries[subentry_id]
+                )
+            ],
+            config_subentry_id=subentry_id,
+        )
 
     def get_dock_name(dock_coordinator: UnfoldedCircleDockCoordinator):
-        return dock_coordinator.api.name
+        return dock_coordinator[1].api.name
 
     send_codeset_schema = cv.make_entity_service_schema(
         {
@@ -104,7 +114,10 @@ async def async_setup_entry(
             vol.Optional("num_repeats"): str,
             vol.Optional("dock"): SelectSelector(
                 SelectSelectorConfig(
-                    options=list(map(get_dock_name, dock_coordinators)), sort=True
+                    options=list(
+                        map(get_dock_name, config_entry.runtime_data.docks.items())
+                    ),
+                    sort=True,
                 )
             ),
             vol.Optional("port"): str,
@@ -190,17 +203,20 @@ class RemoteDockSensor(UnfoldedCircleDockEntity, RemoteEntity):
         RemoteEntityFeature.LEARN_COMMAND | RemoteEntityFeature.DELETE_COMMAND
     )
 
-    def __init__(self, coordinator) -> None:
+    def __init__(
+        self,
+        coordinator,
+        config_entry: UnfoldedCircleConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{self.coordinator.api.model_number}_{self.coordinator.api.serial_number}_remote"
-        self._attr_has_entity_name = True
+        super().__init__(coordinator, config_entry, subentry)
+        self._attr_unique_id = f"{subentry.unique_id}_{self.coordinator.api.model_number}_{self.coordinator.api.serial_number}_remote"
         self._attr_name = "Remote"
         self._attr_activity_list = []
         self._extra_state_attributes = None
         self._attr_is_on = False
         self._attr_icon = "mdi:remote"
-        self.coordinator = coordinator
 
     @property
     def is_on(self) -> bool | None:
@@ -253,7 +269,6 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
     def __init__(self, coordinator) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
-        self._attr_has_entity_name = True
         self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_remote"
         self._attr_name = "Remote"
         self._attr_activity_list = []
