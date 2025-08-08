@@ -12,7 +12,7 @@
 
 ## Unfolded Circle for Home Assistant
 
-Home Assistant integration for [Unfolded Circle Remote Two](https://www.unfoldedcircle.com/).
+Home Assistant integration for [Unfolded Circle Remote Two/3](https://www.unfoldedcircle.com/).
 
 ## Installation
 
@@ -42,7 +42,7 @@ While the manual installation above seems like less steps, it's important to not
 There is a config flow for this integration. After installing the custom component and restarting:
 
 1. You should receive a notification that a new device was discovered.
-2. Navigate to **Settings** -> **Devices & Services** and click Configure on the newly discovered Remote Two Device.
+2. Navigate to **Settings** -> **Devices & Services** and click Configure on the newly discovered Unfolded Circle Device.
 3. _You will now begin the configuration flow process_
 4. **PIN** can be found on the remote by enabling the web configurator
    1. Enable the web configurator by tapping in the upper right on your profile icon
@@ -65,7 +65,7 @@ There is a config flow for this integration. After installing the custom compone
 
 ## Usage
 
-After the device is configured, the integration will expose 22 entities plus the number of activities you have defined on your remote. These are grouped by device. Four of these entities will be disabled by default. These are all diagnostic in nature and report the device stats and if polling of the remote is enabled. (This is only true if any of the three device stat entities are enabled.)
+After the device is configured, the integration will expose 22 entities plus the number of activities you have defined on your remote. These are grouped by device. Four of these entities will be disabled by default. These are all diagnostic in nature and report the device stats and if polling of the remote is enabled. (Polling is only true if any of the three device stat entities are enabled.)
 
 - Sensors
   - Battery Level: Reporting current charge percentage
@@ -93,17 +93,21 @@ After the device is configured, the integration will expose 22 entities plus the
   - A media player entity is created providing controls and information about currently playing media. If multiple media player entities are active, the integration attempts to select the most appropriate based on activity and recency.
     - You can override this behavior by selecting a different media source from the sound mode menu in the Media Player control
     - Options exist to create a media player per activity group or per activity.
-  - **Update** The media player controls are now mapped to the selected activity's button mapping on the remote. The default is still the active media player, but if you have defined custom volume, next, previous, or power button commands, those will be executed when interacting with the control within home assistant.
+  - The media player controls are now mapped to the selected activity's button mapping on the remote. The default is still the active media player, but if you have defined custom volume, next, previous, or power button commands, those will be executed when interacting with the control within home assistant.
 - Number
-
   - Configuration Controls: All numerical settings are now controllable via the integration.
 
   \*\* Disabled by default to avoid polling the remote every thirty seconds to read data. If one of these sensors is enabled, polling only for that specific data will also be enabled.
 
 ## Dock Support
 
-Dock support has now been added. If you have an existing remote configured, you will be prompted with a repair for each dock associated with your remote. You can also add docks via a configuration flow when adding a remote. Each Dock exposes 4 entities:
+Dock support has been reworked. Docks are now `Subentries` and can be added and removed at will. During a one time migration, any Docks you have configured and any Docks with an initial password will be added as `Subenty Devices`. To add further Docks, click the `Add Dock` button in the top right. If you have multiple `UC Remotes`, you will be prompted to select which UC remote the dock is associated with. If a single dock is associated with multiple UC remotes, you can add the dock to any amount of your configured UC remotes. If you no longer wish to have your a dock loaded in Home Assistant, it is now independantly removable. Delete it or disable it like any other deivce. 
 
+Each Dock exposes 6 entities:
+
+- Remote
+  - This entity represents the IR remote capabilities of the dock itself
+ 
 - Buttons
 
   - Reboot Dock: Allows you to remotely reboot the dock
@@ -112,10 +116,14 @@ Dock support has now been added. If you have an existing remote configured, you 
 - Number
   - LED Brightness: Allows you to set the LED brightness level
   - Ethernet Brightness: Allows you to set the Ethernet LED brightness level
+ 
+- Update
+  - An update entity that reports the latest version
 
-During a config flow, if you are unsure of your password, you can skip adding that dock for the moment by submitting the form without a password supplied. This will cause a repair to be created so you can set it at your leasure.
+### Additional Information
 
-If you are unsure of the password you set, you can change it via the web configurator. Click on the Integrations and Dock menu and then select the dock you need to change the password for. Once changed, come back to the repair and let home assistant know what you set it to.
+- Docks will now be automatically setup when they have an initial password. No need to supply it (or be left with a bunch of repairs)
+- During the migration, any existing repairs will be deleted. You are now in charge of when a dock is added.
 
 ## External Entity Management
 
@@ -123,8 +131,7 @@ Home Assistant now has the ability to manage the entities it shares with your Un
 
 To get started, add a new device or click the configure button. See the video below for a quick demo.
 - You must be running v2.0.0 or greater on your unfolded circle remote for this functionality to be available.
-  - v2.2+ is currently in beta (But it's very stable)
-- This release should work fine for anyone not running the remote beta, but it has only been lightly tested.
+  - v2.6.5+ is currently in beta but it's very stable and is the only firmware for Remote 3 devices.
 
 https://github.com/user-attachments/assets/96fa94e8-a5ad-4833-9a49-0bf85373eae0
 
@@ -261,20 +268,24 @@ Your Remote will be automatically discovered on the network.
 
 ## Wake on lan
 
-Wake on lan support is now available for remotes running firmware version 2.0.0 or higher. Once your remote has been upgraded, and you've turned the feature on, anytime you take a direct action within home assistant to communicate with the remote, it will first attempt to wake the remote up.
+Wake on lan support is now available for Remote Two devices running firmware version 2.0.0 or higher. Once your remote has been upgraded, and you've turned the feature on, anytime you take a direct action within home assistant to communicate with the remote, it will first attempt to wake the remote up.
+
+> [!TIP]
+Remote 3 WOL support will be added once it is available on the device.
+>
 
 ## Future Ideas
 
-- [X] Wake on lan was added by the remote developers and has been implemented
+- [ ] Add ability to send raw IR commands using the `remote.send_command` action
 
 ## Notes
 
 - The remote entity does not need to be "on" for it to send commands.
 - The Remote Two will go to sleep when unpowered. If you have wake on lan enabled on your remote, Home Assistant will attempt to wake your remote prior to issuing a command. Only commands initiated by you will attempt to wake the remote.
 - The remote can now generate its own diagnostic data to aid in debugging via the overflow menu in the Device Info section
-- The integration supports multiple Languages: English, French
-- The integration will now identify a repair and prompt for a new PIN if it can no longer authenticate to the remote
+- The integration supports multiple Languages: English, French, Portuguese and PRs are always welcome
+- The integration will create a repair and prompt for a new PIN if it can no longer authenticate to the remote
 
 ## About This Project
 
-I am now working with the Unfolded Circle staff but am not affiliated with them, and provide this custom component purely for your own enjoyment and home automation needs. Those guys are still awesome!
+I am collaborating with the Unfolded Circle staff but am not affiliated with them, and provide this custom component purely for your own enjoyment and home automation needs. Those guys are awesome!
