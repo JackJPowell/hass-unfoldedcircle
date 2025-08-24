@@ -1,0 +1,139 @@
+name: "Build & Draft Release"
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    name: Build Release
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.get-version.outputs.VERSION }}
+      tag: ${{ steps.get-version.outputs.TAG }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version and tag
+        id: get-version
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG#v}
+          echo "TAG=$TAG" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set version in manifest
+        run: |
+          yq -i -o json '.version="${{ env.VERSION }}"' \
+            "${{ github.workspace }}/custom_components/unfoldedcircle/manifest.json"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create ZIP artifact
+        run: |
+          cd "${{ github.workspace }}/custom_components/unfoldedcircle"
+          zip -r "unfoldedcircle-${{ env.VERSION }}.zip" ./ -x '*pyUnfoldedCircleRemote*'
+          mv "unfoldedcircle-${{ env.VERSION }}.zip" "${{ github.workspace }}/"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unfoldedcircle-${{ env.VERSION }}
+          path: unfoldedcircle-${{ env.VERSION }}.zip
+          retention-days: 3
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-24.04
+    needs: [build]
+    permissions:
+      contents: write
+      packages: read
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: unfoldedcircle-${{ needs.build.outputs.version }}
+
+      - name: Create hash file
+        run: |
+          sha256sum unfoldedcircle-${{ needs.build.outputs.version }}.zip > unfoldedcircle-${{ needs.build.outputs.version }}.sha256
+
+      - name: Create release draft
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "unfoldedcircle-${{ needs.build.outputs.version }}.zip,unfoldedcircle-${{ needs.build.outputs.version }}.sha256"
+          draft: true
+          generateReleaseNotes: true
+          artifactErrorsFailBuild: true
+          tag: ${{ needs.build.outputs.tag }}
+          name: Release ${{ needs.build.outputs.tag }}
+          body: |
+            ## Docker Images
+
+            This release is also available as Docker images:
+
+            ```bash
+            # Pull the specific version
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.version }}
+            
+            # Pull the latest version  
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ```
+
+            ## Installation
+
+            ### HACS (Recommended)
+            1. Install via HACS custom repositories
+            2. Restart Home Assistant
+            3. Configure via UI
+
+            ### Manual Installation
+            1. Download `unfoldedcircle-${{ needs.build.outputs.version }}.zip`
+            2. Extract to `custom_components/unfoldedcircle/`
+            3. Restart Home Assistant
+            4. Configure via UI

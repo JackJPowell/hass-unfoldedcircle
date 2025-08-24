@@ -1,0 +1,61 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# GitHub files
+.github
+!.github/workflows
+
+# Development files
+.devcontainer
+.vscode
+.pre-commit-config.yaml
+
+# Documentation
+README.md
+CODE_OF_CONDUCT.md
+LICENSE
+info.md
+*.md
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# IDE files
+.idea
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+.env
+
+# Test files
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Linting
+pylintrc
+pyproject.toml
+.mypy_cache/
+
+# HACS files (not needed in Docker)
+hacs.json
