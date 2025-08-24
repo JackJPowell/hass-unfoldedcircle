@@ -119,10 +119,10 @@ jobs:
 
             ```bash
             # Pull the specific version
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.version }}
+            docker pull ghcr.io/${{ github.repository }}:${{ needs.build.outputs.version }}
             
             # Pull the latest version  
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            docker pull ghcr.io/${{ github.repository }}:latest
             ```
 
             ## Installation
