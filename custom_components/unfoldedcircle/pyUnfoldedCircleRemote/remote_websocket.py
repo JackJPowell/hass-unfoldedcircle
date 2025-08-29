@@ -68,13 +68,13 @@ class RemoteWebsocket(Websocket):
                 if first:
                     first = False
                 else:
-                    asyncio.ensure_future(reconnection_callback())
-                asyncio.ensure_future(self.subscribe_events())
+                    asyncio.create_task(reconnection_callback())
+                asyncio.create_task(self.subscribe_events())
 
                 while True:
                     async for message in websocket:
                         try:
-                            asyncio.ensure_future(receive_callback(message))
+                            asyncio.create_task(receive_callback(message))
                         except Exception as ex:
                             _LOGGER.debug(
                                 "UCR exception in websocket receive callback %s",

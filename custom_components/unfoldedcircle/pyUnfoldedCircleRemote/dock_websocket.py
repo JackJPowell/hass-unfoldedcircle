@@ -53,8 +53,9 @@ class DockWebsocket(Websocket):
                     if first:
                         first = False
                     else:
-                        asyncio.ensure_future(reconnection_callback())
-                    asyncio.ensure_future(self.subscribe_events())
+                        if reconnection_callback is not None:
+                            asyncio.create_task(reconnection_callback())
+                    asyncio.create_task(self.subscribe_events())
 
                     while True:
                         async for message in websocket:
@@ -62,7 +63,7 @@ class DockWebsocket(Websocket):
                                 data = json.loads(message)
                                 _LOGGER.debug("RC2 received websocket message %s", data)
                                 if data.get("type", "") == "auth_required":
-                                    asyncio.ensure_future(
+                                    asyncio.create_task(
                                         self.send_message(
                                             {
                                                 "type": "auth",
@@ -81,7 +82,8 @@ class DockWebsocket(Websocket):
                                         await self.close_websocket()
                                     finally:
                                         await self.close_websocket()
-                                asyncio.ensure_future(receive_callback(message))
+                                if receive_callback is not None:
+                                    asyncio.create_task(receive_callback(message))
                             except Exception as ex:
                                 _LOGGER.error(
                                     "UCR exception in websocket receive callback %s",
