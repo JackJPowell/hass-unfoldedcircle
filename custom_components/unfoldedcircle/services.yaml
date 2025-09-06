@@ -52,6 +52,12 @@ learn_ir_command:
       name: IR Codeset Information
       description: IR Codeset Dictionary containing -> Name and a list of commands
       required: true
+    dock:
+      name: Dock Name
+      description: The name of the Dock to learn the command
+      required: true
+      selector:
+        text:
 
 send_ir_command:
   name: Send IR Commands

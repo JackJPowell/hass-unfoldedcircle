@@ -387,8 +387,6 @@ class IR:
     async def async_learn_command(self, **kwargs: Any) -> None:
         """Learn a list of commands from a remote."""
 
-        # await self.dock_coordinator.init_websocket()
-
         await self.dock_coordinator.api.get_remotes_complete()
 
         name = self.data.get("remote").get("name")
