@@ -13,6 +13,29 @@ update_activity:
       selector:
         boolean:
 
+inhibit_standby:
+  name: Prevent Device Standby
+  description: Prevent the remote from going into standby mode for a custom duration
+  target:
+      entity:
+        - integration: unfoldedcircle
+
+  fields:
+    why:
+      name: Why
+      description: Why are you preventing standby?
+      default: "User Requested"
+      required: false
+      selector:
+        text:
+    duration:
+      name: Duration
+      description: Duration in seconds to prevent standby
+      default: 300
+      required: true
+      selector:
+        number:
+
 learn_ir_command:
   name: Learn IR Commands
   description: Allows for the automated learning of a sequence of IR commands
@@ -41,7 +64,7 @@ send_ir_command:
     device:
       name: Device Name / Manufacturer
       description: Custom Codeset Device Name / Manufacturer
-      required: true
+      required: false
       selector:
         text:
     codeset:
@@ -52,7 +75,7 @@ send_ir_command:
         text:
     command:
       name: IR Command
-      description: Predefined IR command
+      description: IR command (Raw code or learned command)
       required: true
       selector:
           text:

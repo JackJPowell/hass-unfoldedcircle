@@ -9,10 +9,12 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
+from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 from .const import DOMAIN, UC_HA_SYSTEM, UC_HA_TOKEN_ID
+from .services import async_setup_services
 from .coordinator import (
     UnfoldedCircleRemoteCoordinator,
     UnfoldedCircleDockCoordinator,
@@ -24,19 +26,19 @@ from .helpers import (
     get_registered_websocket_url,
     async_create_issue_dock_password,
     async_create_issue_websocket_connection,
-    validate_dock_password,
 )
 
 PLATFORMS: list[Platform] = [
-    Platform.SWITCH,
-    Platform.SENSOR,
     Platform.BINARY_SENSOR,
-    Platform.UPDATE,
     Platform.BUTTON,
-    Platform.REMOTE,
-    Platform.NUMBER,
-    Platform.SELECT,
+    Platform.LIGHT,
     Platform.MEDIA_PLAYER,
+    Platform.NUMBER,
+    Platform.REMOTE,
+    Platform.SELECT,
+    Platform.SENSOR,
+    Platform.SWITCH,
+    Platform.UPDATE,
 ]
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
@@ -63,7 +65,6 @@ async def async_setup_entry(
     await coordinator.api.init()
 
     if entry.version < 3:
-        is_valid = None
         dock_data = {}
         if "docks" in entry.data:
             for config_dock in entry.data["docks"]:
@@ -75,16 +76,29 @@ async def async_setup_entry(
                         dock_data["password"] = config_dock["password"]
                     dock_data["id"] = dock.id
                     dock_data["name"] = dock.name
-                    is_valid = await validate_dock_password(remote_api, dock_data)
-                    if is_valid or dock_data["password"] != "0000":
-                        create_subentry(hass, entry, dock_data)
+                    create_subentry(hass, entry, dock_data)
 
-                    hass.add_job(async_remove_device(hass, dock))
+                    await async_remove_device(hass, dock)
 
             copy_data = copy.deepcopy(dict(entry.data))
             copy_data["docks"] = []
             hass.config_entries.async_update_entry(entry, data=copy_data)
         hass.config_entries.async_update_entry(entry, version=3)
+
+    if entry.version < 4:
+        # get entity registry and remove deleted button_backlight and button_backlight_brightness entities
+        entity_registry = er.async_get(hass)
+        for entity in er.async_entries_for_config_entry(
+            entity_registry, entry.entry_id
+        ):
+            if (
+                entity.domain == Platform.SWITCH or entity.domain == Platform.NUMBER
+            ) and (
+                entity.unique_id.endswith("button_backlight_brightness")
+                or entity.unique_id.endswith("button_backlight")
+            ):
+                entity_registry.async_remove(entity.entity_id)
+        hass.config_entries.async_update_entry(entry, version=4)
 
     docks = {}
     for subentry_id, subentry in entry.subentries.items():
@@ -122,6 +136,7 @@ async def async_setup_entry(
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     await zeroconf.async_get_async_instance(hass)
     await coordinator.init_websocket()
+    async_setup_services(hass, entry)
     return True
 
 

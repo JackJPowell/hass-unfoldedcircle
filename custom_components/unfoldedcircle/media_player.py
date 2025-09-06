@@ -16,8 +16,8 @@ from homeassistant.components.media_player import (
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from pyUnfoldedCircleRemote.const import RemoteUpdateType
-from pyUnfoldedCircleRemote.remote import (
+from .pyUnfoldedCircleRemote.const import RemoteUpdateType
+from .pyUnfoldedCircleRemote.remote import (
     Activity,
     ActivityGroup,
     UCMediaPlayerEntity,
@@ -527,7 +527,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
                 _LOGGER.debug(
                     "Unfolded circle changed active media player entity not initialized, update it"
                 )
-                asyncio.ensure_future(self._active_media_entity.update_data())
+                asyncio.create_task(self._active_media_entity.update_data())
         except (KeyError, IndexError):
             _LOGGER.debug(
                 "Unfolded Circle Remote MediaPlayer _handle_coordinator_update error"

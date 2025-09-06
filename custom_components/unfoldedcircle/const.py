@@ -10,6 +10,7 @@ CONF_GLOBAL_MEDIA_ENTITY = "global_media_entity"
 CONF_ACTIVITY_MEDIA_ENTITIES = "activity_media_entities"
 CONF_ACTIVITIES_AS_SWITCHES = "activities_as_switches"
 CONF_SUPPRESS_ACTIVITIY_GROUPS = "suppress_activity_groups"
+REMOTE_ON_BEHAVIOR = "remote_on_behavior"
 CONF_HA_WEBSOCKET_URL = "ha_ws_url"
 CONF_DOCK_ID = "dock_id"
 DEVICE_SCAN_INTERVAL = timedelta(seconds=30)
@@ -21,6 +22,7 @@ UPDATE_ACTIVITY_SERVICE = "update_activity"
 LEARN_IR_COMMAND_SERVICE = "learn_ir_command"
 SEND_IR_COMMAND_SERVICE = "send_ir_command"
 SEND_BUTTON_COMMAND_SERVICE = "send_button_command"
+INHIBIT_STANDBY_SERVICE = "inhibit_standby"
 HA_SUPPORTED_DOMAINS = [
     "binary_sensor",
     "button",

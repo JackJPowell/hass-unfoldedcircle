@@ -53,16 +53,17 @@ class DockWebsocket(Websocket):
                     if first:
                         first = False
                     else:
-                        asyncio.ensure_future(reconnection_callback())
-                    asyncio.ensure_future(self.subscribe_events())
+                        if reconnection_callback is not None:
+                            asyncio.create_task(reconnection_callback())
+                    asyncio.create_task(self.subscribe_events())
 
                     while True:
                         async for message in websocket:
                             try:
                                 data = json.loads(message)
                                 _LOGGER.debug("RC2 received websocket message %s", data)
-                                if data.get("type", "") == "auth_required":
-                                    asyncio.ensure_future(
+                                if data.get("type") == "auth_required":
+                                    asyncio.create_task(
                                         self.send_message(
                                             {
                                                 "type": "auth",
@@ -70,18 +71,8 @@ class DockWebsocket(Websocket):
                                             }
                                         )
                                     )
-                                if validate_password:
-                                    try:
-                                        if data["type"] == "authentication":
-                                            await self.close_websocket()
-                                            if data["code"] == 200:
-                                                return True
-                                            return False
-                                    except Exception:
-                                        await self.close_websocket()
-                                    finally:
-                                        await self.close_websocket()
-                                asyncio.ensure_future(receive_callback(message))
+                                if receive_callback is not None:
+                                    asyncio.create_task(receive_callback(message))
                             except Exception as ex:
                                 _LOGGER.error(
                                     "UCR exception in websocket receive callback %s",
@@ -99,4 +90,23 @@ class DockWebsocket(Websocket):
     async def is_password_valid(self):
         """Initialize websocket connection with the dock password."""
         if self.dock_password:
-            return await self.init_websocket(None, None, True)
+            return await self.init_websocket(self.receive_message, None, True)
+
+    async def receive_message(self, message: any) -> None:
+        """Receive a message from the connected websocket."""
+        try:
+            data = json.loads(message)
+            try:
+                if data["type"] == "authentication":
+                    await self.close_websocket()
+                    if data["code"] == 200:
+                        return True
+                    return False
+            except Exception:
+                await self.close_websocket()
+            _LOGGER.debug("UCD received websocket message %s", data)
+        except Exception as ex:
+            _LOGGER.warning(
+                "UCD exception in websocket receive callback %s",
+                ex,
+            )

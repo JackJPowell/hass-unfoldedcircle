@@ -7,10 +7,10 @@ import re
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
-from pyUnfoldedCircleRemote.const import SIMULATOR_MAC_ADDRESS
-from pyUnfoldedCircleRemote.dock import Dock
-from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
-from pyUnfoldedCircleRemote.remote import (
+from .pyUnfoldedCircleRemote.const import SIMULATOR_MAC_ADDRESS
+from .pyUnfoldedCircleRemote.dock import Dock
+from .pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
+from .pyUnfoldedCircleRemote.remote import (
     HTTPError,
     IntegrationNotFound,
     Remote,
@@ -158,6 +158,9 @@ async def validate_and_register_system_and_driver(
     if validate_websocket_address(websocket_url):
         if not await validate_tokens(hass, remote):
             _LOGGER.debug("No valid external token, register one")
+            return await register_system_and_driver(remote, hass, websocket_url)
+        remote_websocket_url = await get_registered_websocket_url(remote)
+        if remote_websocket_url != websocket_url:
             return await register_system_and_driver(remote, hass, websocket_url)
         return await connect_integration(remote, driver_id=UC_HA_DRIVER_ID)
 

@@ -17,10 +17,9 @@ from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
 )
-from pyUnfoldedCircleRemote.remote import Remote
-from pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
-from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
-from pyUnfoldedCircleRemote.dock import Dock
+from .pyUnfoldedCircleRemote.remote import Remote
+from .pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
+from .pyUnfoldedCircleRemote.dock import Dock
 
 from .const import DEVICE_SCAN_INTERVAL, DOMAIN
 from .websocket import UCWebsocketClient
@@ -63,7 +62,7 @@ class UnfoldedCircleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self.hass = hass
         self.api = UCDevice
-        self.websocket = None
+        self.websocket: RemoteWebsocket = None
         self.websocket_task = None
         self.subscribe_events = {}
         self.polling_data = False
@@ -73,6 +72,7 @@ class UnfoldedCircleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def init_websocket(self, initial_events: str):
         """Initialize the Web Socket"""
+        self.websocket = RemoteWebsocket(self.api.endpoint, self.api.apikey)
         self.websocket.events_to_subscribe = [
             initial_events,
             *list(self.subscribe_events.keys()),
@@ -167,12 +167,7 @@ class UnfoldedCircleDockCoordinator(
         """Initialize the Coordinator."""
         super().__init__(hass, dock, config_entry=entry)
         self.subentry = subentry
-        self.websocket = DockWebsocket(
-            dock.ws_endpoint,
-            api_key=dock.apikey,
-            dock_password=subentry.data["password"],
-        )
 
     async def init_websocket(self, initial_events: str = ""):
         """Initialize the Web Socket"""
-        await super().init_websocket("all")
+        pass
