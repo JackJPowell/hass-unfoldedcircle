@@ -41,3 +41,28 @@ HA_SUPPORTED_DOMAINS = [
 UC_HA_TOKEN_ID = "ws-ha-api"
 UC_HA_SYSTEM = "hass"
 UC_HA_DRIVER_ID = "hass"
+
+COMMAND_LIST = [
+    "BACK",
+    "HOME",
+    "VOICE",
+    "VOLUME_UP",
+    "VOLUME_DOWN",
+    "GREEN",
+    "DPAD_UP",
+    "YELLOW",
+    "DPAD_LEFT",
+    "DPAD_MIDDLE",
+    "DPAD_RIGHT",
+    "RED",
+    "DPAD_DOWN",
+    "BLUE",
+    "CHANNEL_UP",
+    "CHANNEL_DOWN",
+    "MUTE",
+    "PREV",
+    "PLAY",
+    "PAUSE",
+    "NEXT",
+    "POWER",
+]

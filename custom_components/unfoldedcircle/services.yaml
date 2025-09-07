@@ -55,7 +55,7 @@ learn_ir_command:
     dock:
       name: Dock Name
       description: The name of the Dock to learn the command
-      required: true
+      required: false
       selector:
         text:
 

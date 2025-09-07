@@ -29,6 +29,13 @@ from .const import (
     UC_HA_DRIVER_ID,
     UC_HA_SYSTEM,
     UC_HA_TOKEN_ID,
+    COMMAND_LIST,
+)
+from .pyUnfoldedCircleRemote.remote import (
+    InvalidButtonCommand,
+    NoActivityRunning,
+    RemoteIsSleeping,
+    EntityCommandError,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -436,6 +443,47 @@ def async_create_issue_websocket_connection(
         translation_key="websocket_connection",
         translation_placeholders={"name": coordinator.api.name},
     )
+
+
+class Command:
+    def __init__(
+        self,
+        coordinator,
+        hass,
+        data,
+    ):
+        self.coordinator = coordinator
+        self.hass = hass
+        self.data = data
+
+    async def async_send(self, **kwargs):
+        """Send a remote command."""
+        commands: list[str] = []
+        if type(self.data.get("command")) is list:
+            commands = self.data.get("command")
+        else:
+            commands.append(self.data.get("command"))
+
+        for indv_command in commands:
+            if indv_command in COMMAND_LIST:
+                if indv_command == "PAUSE":
+                    indv_command = "PLAY"
+                try:
+                    await self.coordinator.api.send_button_command(
+                        command=indv_command,
+                        repeat=self.data.get("num_repeats"),
+                        activity=self.data.get("activity"),
+                        hold=self.data.get("hold"),
+                        delay_secs=self.data.get("delay_secs"),
+                    )
+                except NoActivityRunning:
+                    _LOGGER.error("No activity is running")
+                except InvalidButtonCommand:
+                    _LOGGER.error("Invalid button command: %s", indv_command)
+                except RemoteIsSleeping:
+                    _LOGGER.error("The remote did not repond to the wake command")
+                except EntityCommandError as err:
+                    _LOGGER.error("Failed to send command: %s", err.message)
 
 
 class UnableToExtractMacAddress(Exception):
