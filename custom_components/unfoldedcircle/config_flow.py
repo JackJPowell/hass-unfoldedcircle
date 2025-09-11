@@ -43,8 +43,8 @@ from .helpers import (
     validate_and_register_system_and_driver,
     validate_websocket_address,
 )
-from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME
-from .pyUnfoldedCircleRemote.remote import (
+from pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME
+from pyUnfoldedCircleRemote.remote import (
     ApiKeyCreateError,
     ApiKeyRevokeError,
     AuthenticationError,

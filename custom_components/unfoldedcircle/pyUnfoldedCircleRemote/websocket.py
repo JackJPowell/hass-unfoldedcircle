@@ -38,10 +38,7 @@ class Websocket:
 
         self.endpoint = f"{self.protocol}://{self.hostname}/ws"
         self.api_endpoint = api_url
-        self.events_to_subscribe = [
-            "software_updates",
-            "code",
-        ]
+        self.events_to_subscribe = ["software_updates"]
 
     async def init_websocket(
         self,

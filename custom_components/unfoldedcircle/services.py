@@ -18,7 +18,7 @@ from .coordinator import UnfoldedCircleConfigEntry
 from .const import DOMAIN
 from .coordinator import UnfoldedCircleCoordinator, UnfoldedCircleDockCoordinator
 from .helpers import Command
-from .pyUnfoldedCircleRemote.remote import AuthenticationError
+from pyUnfoldedCircleRemote.remote import AuthenticationError
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
 

@@ -15,10 +15,10 @@ from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from homeassistant.exceptions import HomeAssistantError
 
 from .const import COMMAND_LIST, DOMAIN, UC_HA_DRIVER_ID, UC_HA_SYSTEM, UC_HA_TOKEN_ID
-from .pyUnfoldedCircleRemote.const import SIMULATOR_MAC_ADDRESS
-from .pyUnfoldedCircleRemote.dock import Dock
-from .pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
-from .pyUnfoldedCircleRemote.remote import (
+from pyUnfoldedCircleRemote.const import SIMULATOR_MAC_ADDRESS
+from pyUnfoldedCircleRemote.dock import Dock
+from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
+from pyUnfoldedCircleRemote.remote import (
     EntityCommandError,
     HTTPError,
     IntegrationNotFound,

@@ -12,7 +12,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from .pyUnfoldedCircleRemote.const import RemoteUpdateType
+from pyUnfoldedCircleRemote.const import RemoteUpdateType
 
 from .const import CONF_ACTIVITIES_AS_SWITCHES
 from .coordinator import UnfoldedCircleRemoteCoordinator
