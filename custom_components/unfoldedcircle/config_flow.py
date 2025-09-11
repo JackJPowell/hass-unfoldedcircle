@@ -534,26 +534,6 @@ class DockSubentryFlowHandler(ConfigSubentryFlow):
                 last_step=True,
             )
 
-        # try:
-        #     dock_data["id"] = self.current_dock.id
-        #     dock_data["password"] = user_input.get("password", "")
-        #     dock_data["name"] = self.current_dock.name
-        #     is_valid = await validate_dock_password(self.remote, dock_data)
-
-        #     if is_valid:
-        #         await synchronize_dock_password(self.hass, dock_data, "")
-        #     else:
-        #         dock_data["password"] = ""
-        #         raise InvalidDockPassword
-
-        # except CannotConnect:
-        #     errors["base"] = "cannot_connect"
-        # except InvalidDockPassword:
-        #     errors["base"] = "invalid_dock_password"
-        # except Exception:  # pylint: disable=broad-except
-        #     _LOGGER.exception("Unexpected exception")
-        #     errors["base"] = "unknown"
-
         if errors:
             return self.async_show_form(
                 step_id="dock",
