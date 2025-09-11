@@ -74,9 +74,8 @@ class UnfoldedCircleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Initialize the Web Socket"""
         self.websocket = RemoteWebsocket(self.api.endpoint, self.api.apikey)
         self.websocket.events_to_subscribe = [
-            initial_events,
-            *list(self.subscribe_events.keys()),
-        ]
+            s.strip() for s in initial_events.split(",") if s.strip()
+        ] + list(self.subscribe_events.keys())
         _LOGGER.debug(
             "Unfolded Circle Remote events list to subscribe %s",
             self.websocket.events_to_subscribe,
@@ -149,7 +148,9 @@ class UnfoldedCircleRemoteCoordinator(
 
     async def init_websocket(self, initial_events: str = ""):
         """Initialize the Web Socket"""
-        await super().init_websocket("all")
+        if initial_events:
+            initial_events = f",{initial_events}"
+        await super().init_websocket(f"software_updates,docks,emitters{initial_events}")
 
 
 class UnfoldedCircleDockCoordinator(

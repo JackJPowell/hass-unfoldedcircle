@@ -13,15 +13,9 @@ from homeassistant.components import persistent_notification
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv, entity_registry as er
 from homeassistant.util import dt as dt_util
+from homeassistant.exceptions import HomeAssistantError
 from .coordinator import UnfoldedCircleConfigEntry
-from .const import (
-    DOMAIN,
-    INHIBIT_STANDBY_SERVICE,
-    LEARN_IR_COMMAND_SERVICE,
-    SEND_BUTTON_COMMAND_SERVICE,
-    SEND_IR_COMMAND_SERVICE,
-    UPDATE_ACTIVITY_SERVICE,
-)
+from .const import DOMAIN
 from .coordinator import UnfoldedCircleCoordinator, UnfoldedCircleDockCoordinator
 from .helpers import Command
 from .pyUnfoldedCircleRemote.remote import AuthenticationError
@@ -29,6 +23,11 @@ from .pyUnfoldedCircleRemote.remote import AuthenticationError
 _LOGGER: logging.Logger = logging.getLogger(__package__)
 
 LEARNING_TIMEOUT = timedelta(seconds=30)
+UPDATE_ACTIVITY_SERVICE = "update_activity"
+LEARN_IR_COMMAND_SERVICE = "learn_ir_command"
+SEND_IR_COMMAND_SERVICE = "send_ir_command"
+SEND_BUTTON_COMMAND_SERVICE = "send_button_command"
+INHIBIT_STANDBY_SERVICE = "inhibit_standby"
 
 INHIBIT_STANDBY_SERVICE_SCHEMA = cv.make_entity_service_schema(
     {
@@ -106,7 +105,7 @@ def async_setup_services(
 
     async def async_call_unfolded_circle_service(service_call: ServiceCall) -> None:
         """Call correct Unfolded Circle service."""
-        await services[service_call.service](hass, service_call, config_entry)
+        await services[service_call.service](hass, service_call)
 
     for service in SUPPORTED_SERVICES:
         hass.services.async_register(
@@ -120,10 +119,10 @@ def async_setup_services(
 async def async_inhibit_standby(
     hass: HomeAssistant,
     service_call: ServiceCall,
-    config_entry: UnfoldedCircleConfigEntry,
 ) -> None:
     """Inhibit standby on the Unfolded Circle Remote."""
 
+    config_entry = get_config_entry_by_entity_id(hass, service_call)
     duration = service_call.data["duration"]
     if duration is None:
         return
@@ -146,9 +145,10 @@ async def async_inhibit_standby(
 async def async_prevent_sleep(
     hass: HomeAssistant,
     service_call: ServiceCall,
-    config_entry: UnfoldedCircleConfigEntry,
 ) -> None:
     """Handle dispatched services."""
+
+    config_entry = get_config_entry_by_entity_id(hass, service_call)
     entity_registry = er.async_get(hass)
     for selected_entity in service_call.data.get("entity_id", []):
         entities = [
@@ -159,7 +159,10 @@ async def async_prevent_sleep(
             if entity.entity_id == selected_entity
         ]
         if not entities:
-            continue
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="activity_not_found",
+            )
 
         for entity in entities:
             if service_call.service == UPDATE_ACTIVITY_SERVICE:
@@ -172,40 +175,30 @@ async def async_prevent_sleep(
 async def async_service_handle(
     hass: HomeAssistant,
     service_call: ServiceCall,
-    config_entry: UnfoldedCircleConfigEntry,
 ) -> None:
     """Handle dispatched services."""
     dock_coordinator = None
     dock_name = None
+    config_entry = get_config_entry_by_entity_id(hass, service_call)
 
-    # Get dock from entity registry
-    entity_registry = er.async_get(hass)
-    for selected_entity in service_call.data.get("entity_id", []):
-        entity = next(
-            (
-                e
-                for e in er.async_entries_for_config_entry(
-                    entity_registry, config_entry.entry_id
-                )
-                if e.entity_id == selected_entity
-            ),
-            None,
-        )
-        if hasattr(entity, "dock_name"):
-            dock_name = entity.dock_name
-
-    # If we have a dock name, find the corresponding dock coordinator
-    if dock_name is None and "dock" in service_call.data:
-        dock_name = service_call.data.get("dock")
-
+    # If a dock is specified in the service call, use that one
     if "dock" in service_call.data:
-        for (
-            _,
-            coor,
-        ) in config_entry.runtime_data.docks.items():
-            if coor.api.name == dock_name:
-                dock_coordinator = coor
-                break
+        dock_name = service_call.data.get("dock")
+    # If there's only one dock, use that one
+    elif len(config_entry.runtime_data.docks.items()) == 1:
+        dock_name = next(iter(config_entry.runtime_data.docks.values())).api.name
+    else:
+        # If there are multiple docks, and none is specified, we can't proceed
+        if service_call.service == LEARN_IR_COMMAND_SERVICE:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="unknown_dock",
+            )
+
+    for _, coor in config_entry.runtime_data.docks.items():
+        if coor.api.name == dock_name:
+            dock_coordinator = coor
+            break
 
     if service_call.service == LEARN_IR_COMMAND_SERVICE:
         ir = IR(None, dock_coordinator, hass, data=service_call.data)
@@ -281,12 +274,23 @@ class IR:
 
         is_existing_list = False
         remote_entity_id = ""
+        await self.dock_coordinator.api.get_remotes_complete()
         for remote in self.dock_coordinator.api.remotes_complete:
             if remote.get("options").get("ir").get("codeset").get("name") == device:
                 remote_entity_id = remote.get("entity_id")
                 is_existing_list = True
 
         if not is_existing_list:
+            # First check the codeset isn't already created
+            await self.dock_coordinator.api.get_custom_codesets()
+            for codeset in self.dock_coordinator.api.codesets:
+                if codeset.get("device") == device:
+                    # delete the codeset, if it exists but isn't assigned to a remote
+                    await self.dock_coordinator.api.delete_custom_codeset(
+                        codeset.get("device_id")
+                    )
+                    break
+
             try:
                 new_remote = await self.dock_coordinator.api.create_remote(
                     name=name,
@@ -296,11 +300,13 @@ class IR:
                 )
                 remote_entity_id = new_remote.get("entity_id")
                 await self.dock_coordinator.api.get_remotes_complete()
-            except Exception:
-                pass
+            except Exception as err:
+                _LOGGER.error("Failed to create new remote: %s", err)
+                raise
 
         try:
             start_time = dt_util.utcnow()
+            self.dock_coordinator.api._learned_code = None
             while (dt_util.utcnow() - start_time) < LEARNING_TIMEOUT:
                 await asyncio.sleep(1)
                 try:
@@ -374,11 +380,17 @@ class IR:
                     code=code,
                 )
             except (AuthenticationError, OSError) as err:
-                _LOGGER.error("Failed to send '%s': %s", command, err)
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="failed_to_send_command",
+                ) from err
                 break
 
             except Exception as err:
-                _LOGGER.error("Failed to send '%s': %s", command, err)
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="failed_to_send_command",
+                ) from err
                 continue
 
     def translate_port(self, port_name) -> str:
@@ -399,3 +411,36 @@ class IR:
                 return "9"
             case _:
                 return port_name
+
+
+def get_config_entry_by_entity_id(
+    hass: HomeAssistant, service_call: ServiceCall
+) -> UnfoldedCircleConfigEntry | None:
+    """Return the config entry for the given entity_id"""
+
+    config_entries: list[UnfoldedCircleConfigEntry] = (
+        hass.config_entries.async_loaded_entries(DOMAIN)
+    )
+
+    if "entity_id" in service_call.data:
+        for config_entry in config_entries:
+            entity_registry = er.async_get(hass)
+            for selected_entity in service_call.data.get("entity_id", []):
+                for entity in er.async_entries_for_config_entry(
+                    entity_registry, config_entry.entry_id
+                ):
+                    if entity.entity_id == selected_entity:
+                        return config_entry
+    elif "device_id" in service_call.data:
+        for config_entry in config_entries:
+            entity_registry = er.async_get(hass)
+            for selected_device in service_call.data.get("device_id", []):
+                for device_id in er.async_entries_for_device(
+                    entity_registry, selected_device
+                ):
+                    if device_id.device_id == selected_device:
+                        return config_entry
+    raise HomeAssistantError(
+        translation_domain=DOMAIN,
+        translation_key="unknown_config_entry",
+    )

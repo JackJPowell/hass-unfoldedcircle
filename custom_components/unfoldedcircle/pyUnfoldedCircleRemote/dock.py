@@ -483,8 +483,8 @@ class Dock:
 
     async def get_remotes_complete(self) -> list:
         """Get list of remotes defined. (IR Remotes as defined by Unfolded Circle)."""
-        if not self.remotes:
-            await self.get_remotes()
+        self._remotes_complete = []
+        await self.get_remotes()
 
         for remote in self.remotes:
             entity_id = remote.get("entity_id")
@@ -507,6 +507,18 @@ class Dock:
             codesets = await response.json()
             self._codesets = codesets
             return self._codesets
+
+    async def delete_custom_codeset(self, codeset_device_id: str) -> dict:
+        """Delete a custom ir codeset."""
+        async with (
+            self.client() as session,
+            session.delete(
+                self.url(f"ir/codes/custom/{codeset_device_id}")
+            ) as response,
+        ):
+            await self.raise_on_error(response)
+            result = await response.json()
+            return result
 
     async def create_remote(
         self, name: str, device: str, description: str, icon: str = "uc:movie"

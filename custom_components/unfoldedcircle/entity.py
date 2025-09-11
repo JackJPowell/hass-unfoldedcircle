@@ -39,6 +39,8 @@ class UnfoldedCircleEntity(CoordinatorEntity[UnfoldedCircleRemoteCoordinator]):
 class UnfoldedCircleDockEntity(CoordinatorEntity[UnfoldedCircleDockCoordinator]):
     """Common entity class for all Unfolded Circle Dock entities"""
 
+    _attr_has_entity_name = True
+
     def __init__(
         self,
         coordinator: UnfoldedCircleDockCoordinator,

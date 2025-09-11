@@ -5,16 +5,6 @@ import logging
 from typing import Any, Awaitable, Callable, Type
 
 from aiohttp import ClientConnectionError
-from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME
-from .pyUnfoldedCircleRemote.remote import (
-    ApiKeyCreateError,
-    ApiKeyRevokeError,
-    AuthenticationError,
-    ExternalSystemAlreadyRegistered,
-    Remote,
-    RemoteConnectionError,
-    TokenRegistrationError,
-)
 import voluptuous as vol
 from voluptuous import Optional, Required
 
@@ -37,12 +27,9 @@ from .const import (
     CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
     CONF_ACTIVITY_MEDIA_ENTITIES,
     CONF_GLOBAL_MEDIA_ENTITY,
-    CONF_HA_WEBSOCKET_URL,
-    CONF_SERIAL,
     CONF_SUPPRESS_ACTIVITIY_GROUPS,
     DOMAIN,
     HA_SUPPORTED_DOMAINS,
-    CONF_DOCK_ID,
     REMOTE_ON_BEHAVIOR,
 )
 from .helpers import (
@@ -56,9 +43,22 @@ from .helpers import (
     validate_and_register_system_and_driver,
     validate_websocket_address,
 )
+from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME
+from .pyUnfoldedCircleRemote.remote import (
+    ApiKeyCreateError,
+    ApiKeyRevokeError,
+    AuthenticationError,
+    ExternalSystemAlreadyRegistered,
+    Remote,
+    RemoteConnectionError,
+    TokenRegistrationError,
+)
 from .websocket import SubscriptionEvent, UCWebsocketClient
 
 _LOGGER = logging.getLogger(__name__)
+CONF_DOCK_ID = "dock_id"
+CONF_SERIAL = "serial"
+CONF_HA_WEBSOCKET_URL = "ha_ws_url"
 
 
 class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):

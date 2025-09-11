@@ -164,6 +164,31 @@
       }
     }
   },
+  "exceptions": {
+    "integration_not_loaded": { "message": "Integration not loaded" },
+    "activity_not_found": {
+      "message": "Unable to determine activity from entity"
+    },
+    "unknown_config_entry": {
+      "message": "Unable to determine remote from the given input"
+    },
+    "unknown_dock": {
+      "message": "Unable to determine dock from the given input"
+    },
+    "no_activity_running": {
+      "message": "No activity is running, activity was not specified, or activity was invalid"
+    },
+    "invalid_button_command": { "message": "The button command is not valid" },
+    "remote_is_sleeping": {
+      "message": "The remote is sleeping and did not respond to the wake command"
+    },
+    "entity_command_error": {
+      "message": "There was an error sending the command to the remote"
+    },
+    "failed_to_send_command": {
+      "message": "Failed to send command to remote. Please double check your inputs"
+    }
+  },
   "issues": {
     "websocket_connection": {
       "title": "Enable improved communications between {name} and Home Assistant",

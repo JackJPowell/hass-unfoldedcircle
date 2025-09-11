@@ -96,8 +96,8 @@ send_ir_command:
           unit_of_measurement: times
           mode: box
     dock:
-      name: Dock Name
-      description: The name of the Dock to send the command to
+      name: IR Emitter Name
+      description: The name of the IR Emitter to send the command to
       required: false
       selector:
         text:

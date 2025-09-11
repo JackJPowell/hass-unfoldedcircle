@@ -7,38 +7,30 @@ import re
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
-from .pyUnfoldedCircleRemote.const import SIMULATOR_MAC_ADDRESS
-from .pyUnfoldedCircleRemote.dock import Dock
-from .pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
-from .pyUnfoldedCircleRemote.remote import (
-    HTTPError,
-    IntegrationNotFound,
-    Remote,
-    TokenRegistrationError,
-)
-
 from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN, RefreshToken
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import issue_registry
 from homeassistant.helpers.network import NoURLAvailableError, get_url
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
+from homeassistant.exceptions import HomeAssistantError
 
-from .const import (
-    DEFAULT_HASS_URL,
-    DOMAIN,
-    UC_HA_DRIVER_ID,
-    UC_HA_SYSTEM,
-    UC_HA_TOKEN_ID,
-    COMMAND_LIST,
-)
+from .const import COMMAND_LIST, DOMAIN, UC_HA_DRIVER_ID, UC_HA_SYSTEM, UC_HA_TOKEN_ID
+from .pyUnfoldedCircleRemote.const import SIMULATOR_MAC_ADDRESS
+from .pyUnfoldedCircleRemote.dock import Dock
+from .pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
 from .pyUnfoldedCircleRemote.remote import (
+    EntityCommandError,
+    HTTPError,
+    IntegrationNotFound,
     InvalidButtonCommand,
     NoActivityRunning,
+    Remote,
     RemoteIsSleeping,
-    EntityCommandError,
+    TokenRegistrationError,
 )
 
 _LOGGER = logging.getLogger(__name__)
+DEFAULT_HASS_URL = "http://homeassistant.local:8123"
 
 
 def get_ha_websocket_url(hass: HomeAssistant) -> str:
@@ -476,14 +468,30 @@ class Command:
                         hold=self.data.get("hold"),
                         delay_secs=self.data.get("delay_secs"),
                     )
-                except NoActivityRunning:
+                except NoActivityRunning as err:
                     _LOGGER.error("No activity is running")
-                except InvalidButtonCommand:
+                    raise HomeAssistantError(
+                        translation_domain=DOMAIN,
+                        translation_key="no_activity_running",
+                    ) from err
+                except InvalidButtonCommand as err:
                     _LOGGER.error("Invalid button command: %s", indv_command)
-                except RemoteIsSleeping:
-                    _LOGGER.error("The remote did not repond to the wake command")
+                    raise HomeAssistantError(
+                        translation_domain=DOMAIN,
+                        translation_key="invalid_button_command",
+                    ) from err
+                except RemoteIsSleeping as err:
+                    _LOGGER.error("The remote did not respond to the wake command")
+                    raise HomeAssistantError(
+                        translation_domain=DOMAIN,
+                        translation_key="remote_is_sleeping",
+                    ) from err
                 except EntityCommandError as err:
                     _LOGGER.error("Failed to send command: %s", err.message)
+                    raise HomeAssistantError(
+                        translation_domain=DOMAIN,
+                        translation_key="entity_command_error",
+                    ) from err
 
 
 class UnableToExtractMacAddress(Exception):
