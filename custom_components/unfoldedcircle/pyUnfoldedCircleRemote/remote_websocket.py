@@ -3,7 +3,6 @@
 import asyncio
 import logging
 from typing import Callable, Coroutine
-from urllib.parse import urlparse
 
 import websockets
 from requests import Session
@@ -23,24 +22,6 @@ class RemoteWebsocket(Websocket):
     api_key_name = AUTH_APIKEY_NAME
     api_key: str = None
     websocket: None
-
-    def __init__(self, api_url: str, api_key: str = None) -> None:
-        super().__init__(api_url, api_key)
-        self.session = None
-        self.hostname = urlparse(api_url).hostname
-        self.api_key = api_key
-        self.websocket = None
-
-        if urlparse(api_url).scheme == "https":
-            self.protocol = "wss"
-        else:
-            self.protocol = "ws"
-
-        self.endpoint = f"{self.protocol}://{self.hostname}/ws"
-        self.api_endpoint = api_url
-        self.events_to_subscribe = [
-            "software_updates",
-        ]
 
     async def init_websocket(
         self,
@@ -68,13 +49,13 @@ class RemoteWebsocket(Websocket):
                 if first:
                     first = False
                 else:
-                    asyncio.ensure_future(reconnection_callback())
-                asyncio.ensure_future(self.subscribe_events())
+                    asyncio.create_task(reconnection_callback())
+                asyncio.create_task(self.subscribe_events())
 
                 while True:
                     async for message in websocket:
                         try:
-                            asyncio.ensure_future(receive_callback(message))
+                            asyncio.create_task(receive_callback(message))
                         except Exception as ex:
                             _LOGGER.debug(
                                 "UCR exception in websocket receive callback %s",

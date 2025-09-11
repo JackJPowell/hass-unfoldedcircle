@@ -101,13 +101,13 @@ After the device is configured, the integration will expose 22 entities plus the
 
 ## Dock Support
 
-Dock support has been reworked. Docks are now `Subentries` and can be added and removed at will. During a one time migration, any Docks you have configured and any Docks with an initial password will be added as `Subenty Devices`. To add further Docks, click the `Add Dock` button in the top right. If you have multiple `UC Remotes`, you will be prompted to select which UC remote the dock is associated with. If a single dock is associated with multiple UC remotes, you can add the dock to any amount of your configured UC remotes. If you no longer wish to have your a dock loaded in Home Assistant, it is now independantly removable. Delete it or disable it like any other deivce. 
+Dock support has been reworked. Docks are now `Subentries` and can be added and removed at will. During a one time migration, any Docks you have configured and any Docks with an initial password will be added as `Subenty Devices`. To add further Docks, click the `Add Dock` button in the top right. If you have multiple `UC Remotes`, you will be prompted to select which UC remote the dock is associated with. If a single dock is associated with multiple UC remotes, you can add the dock to any amount of your configured UC remotes. If you no longer wish to have your a dock loaded in Home Assistant, it is now independantly removable. Delete it or disable it like any other deivce.
 
 Each Dock exposes 6 entities:
 
 - Remote
   - This entity represents the IR remote capabilities of the dock itself
- 
+
 - Buttons
 
   - Reboot Dock: Allows you to remotely reboot the dock
@@ -116,7 +116,7 @@ Each Dock exposes 6 entities:
 - Number
   - LED Brightness: Allows you to set the LED brightness level
   - Ethernet Brightness: Allows you to set the Ethernet LED brightness level
- 
+
 - Update
   - An update entity that reports the latest version
 
@@ -127,7 +127,7 @@ Each Dock exposes 6 entities:
 
 ## External Entity Management
 
-Home Assistant now has the ability to manage the entities it shares with your Unfolded Circle Remote. When setting up a new device or when reconfiguring an existing device, you will be taken through an optional step to configure which Home Assistant entities are available on the remote. This functionality mirrors the same options on the integrations page of your remote. If you are upgrading to this release, you will get a repair to address on first boot. Complete it to switch over to using the much improved communication method with your remote. 
+Home Assistant now has the ability to manage the entities it shares with your Unfolded Circle Remote. When setting up a new device or when reconfiguring an existing device, you will be taken through an optional step to configure which Home Assistant entities are available on the remote. This functionality mirrors the same options on the integrations page of your remote. If you are upgrading to this release, you will get a repair to address on first boot. Complete it to switch over to using the much improved communication method with your remote.
 
 To get started, add a new device or click the configure button. See the video below for a quick demo.
 - You must be running v2.0.0 or greater on your unfolded circle remote for this functionality to be available.
@@ -228,6 +228,7 @@ data:
     name: Sony TV
     icon: uc:tv
     description: My Sony TV Remote
+  dock: R3 Dock
   ir_dataset:
     name: Sony A95L
     command:

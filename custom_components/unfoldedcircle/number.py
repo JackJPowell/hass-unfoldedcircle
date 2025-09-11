@@ -80,17 +80,6 @@ UNFOLDED_CIRCLE_NUMBER: tuple[UnfoldedCircleNumberEntityDescription, ...] = (
         native_max_value=100,
     ),
     UnfoldedCircleNumberEntityDescription(
-        key="button_backlight_brightness",
-        device_class=None,
-        entity_category=EntityCategory.CONFIG,
-        name="Button Backlight Brightness",
-        unique_id="button_backlight_brightness",
-        icon="mdi:keyboard-settings-outline",
-        control_fn=update_remote_button_settings,
-        native_min_value=0,
-        native_max_value=100,
-    ),
-    UnfoldedCircleNumberEntityDescription(
         key="sound_effects_volume",
         device_class=None,
         entity_category=EntityCategory.CONFIG,

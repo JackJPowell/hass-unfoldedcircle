@@ -34,7 +34,7 @@
         "menu_options": {
           "remote_websocket": "Remote is not connected, try to reconfigure the URL",
           "finish": "Ignore this step and finish",
-          "error": "Unable to communicate with the remote. Retry?"
+          "fix_ws": "Update Home Assistant Websocket URL"
         }
       },
       "zeroconf_confirm": {
@@ -99,8 +99,9 @@
       "init": {
         "title": "Unfolded Circle Options",
         "menu_options": {
-          "select_entities": "Configure entities to share with {remote}",
-          "activities": "Configure this integration"
+          "select_entities": "Share entities with {remote}",
+          "activities": "Configure local settings",
+          "remote_host": "Configure connection settings"
         }
       },
       "media_player": {
@@ -120,6 +121,12 @@
           "suppress_activity_groups": "Suppress creation of activity group entities"
         }
       },
+      "remote": {
+        "title": "Unfolded Circle Options",
+        "data": {
+          "remote_on_behavior": "Activity to start when remote entity is toggled on"
+        }
+      },
       "remote_host": {
         "title": "Unfolded Circle Options",
         "description": "Configure Host / IP Address of {name}",
@@ -128,6 +135,13 @@
         }
       },
       "websocket": {
+        "title": "Unfolded Circle Options",
+        "description": "Configure Home Assistant Websocket Address",
+        "data": {
+          "websocket_url": "Home Assistant Websocket Address"
+        }
+      },
+      "fix_ws": {
         "title": "Unfolded Circle Options",
         "description": "Configure Home Assistant Websocket Address",
         "data": {
@@ -145,9 +159,34 @@
         "menu_options": {
           "remote_websocket": "Remote is not connected, try to reconfigure the URL",
           "finish": "Ignore this step and finish",
-          "error": "Unable to communicate with the remote. Retry?"
+          "fix_ws": "Update Home Assistant Websocket URL"
         }
       }
+    }
+  },
+  "exceptions": {
+    "integration_not_loaded": { "message": "Integration not loaded" },
+    "activity_not_found": {
+      "message": "Unable to determine activity from entity"
+    },
+    "unknown_config_entry": {
+      "message": "Unable to determine remote from the given input"
+    },
+    "unknown_dock": {
+      "message": "Unable to determine dock from the given input"
+    },
+    "no_activity_running": {
+      "message": "No activity is running, activity was not specified, or activity was invalid"
+    },
+    "invalid_button_command": { "message": "The button command is not valid" },
+    "remote_is_sleeping": {
+      "message": "The remote is sleeping and did not respond to the wake command"
+    },
+    "entity_command_error": {
+      "message": "There was an error sending the command to the remote"
+    },
+    "failed_to_send_command": {
+      "message": "Failed to send command to remote. Please double check your inputs"
     }
   },
   "issues": {

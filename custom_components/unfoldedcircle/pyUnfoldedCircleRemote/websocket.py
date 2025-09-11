@@ -2,7 +2,9 @@
 
 import json
 import logging
+from typing import Callable, Coroutine
 from urllib.parse import urlparse
+
 from requests import Session
 
 from .const import AUTH_APIKEY_NAME
@@ -34,11 +36,16 @@ class Websocket:
         else:
             self.protocol = "ws"
 
-        self.endpoint = api_url
+        self.endpoint = f"{self.protocol}://{self.hostname}/ws"
         self.api_endpoint = api_url
-        self.events_to_subscribe = [
-            "software_updates",
-        ]
+        self.events_to_subscribe = ["software_updates"]
+
+    async def init_websocket(
+        self,
+        receive_callback: Callable[..., Coroutine],
+        reconnection_callback: Callable[..., Coroutine],
+    ):
+        pass
 
     async def close_websocket(self):
         """Terminate web socket connection"""
@@ -70,4 +77,3 @@ class Websocket:
                 "UnfoldedCircle error while sending message %s",
                 ex,
             )
-            raise ex

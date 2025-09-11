@@ -240,11 +240,20 @@ class Remote:
         self._bt_enabled: bool = False
         self._wifi_enabled: bool = False
         self._new_web_configurator = True
+        self._charging_options = []
+        self._is_wireless_charging = False
+        self._is_wireless_charging_enabled = False
+        self._button_features = []
+        self._button_static_color = None
+        self._standby_inhibitors = []
 
     @property
     def name(self):
         """Name of the remote."""
-        return self._name or "Unfolded Circle Remote Two"
+        return (
+            self._name
+            or f"Unfolded Circle {self.name_from_model_id(self._model_number)}"
+        )
 
     @property
     def hostname(self) -> str:
@@ -268,7 +277,7 @@ class Remote:
     @property
     def model_name(self):
         """Model Name."""
-        return self._model_name or "Remote Two"
+        return self._model_name or self.name_from_model_id(self._model_number)
 
     @property
     def model_number(self):
@@ -294,6 +303,26 @@ class Remote:
     def battery_level(self):
         """Integer percent of battery level remaining."""
         return self._battery_level
+
+    @property
+    def charging_options(self):
+        """List of available charging options"""
+        return self._charging_options
+
+    @property
+    def is_wireless_charging(self):
+        """Is the remote wirelessly charging"""
+        return self._is_wireless_charging
+
+    @property
+    def is_wireless_charging_enabled(self):
+        """Is the remote wireless charging enabled"""
+        return self._is_wireless_charging_enabled
+
+    @property
+    def wake_on_lan_available(self):
+        """Is Wake on Lan available"""
+        return self._wake_on_lan_available
 
     @property
     def ambient_light_intensity(self):
@@ -475,6 +504,11 @@ class Remote:
         self._wake_on_lan_retries = value
 
     @property
+    def standby_inhibitors(self):
+        """Return list of standby inhibitors"""
+        return self._standby_inhibitors
+
+    @property
     def wake_on_lan(self):
         """Is Wake on Lan Enabled"""
         return self._wake_on_lan
@@ -483,6 +517,21 @@ class Remote:
     def docks(self):
         """Return list of docks"""
         return self._docks
+
+    @property
+    def ir_emitters(self):
+        """Return list of IR Emitters"""
+        return self._ir_emitters
+
+    @property
+    def button_features(self):
+        """Return list of button features"""
+        return self._button_features
+
+    @property
+    def button_static_color(self):
+        """Return button static color"""
+        return self._button_static_color
 
     @property
     def external_entity_configuration_available(self):
@@ -540,9 +589,12 @@ class Remote:
     @staticmethod
     def name_from_model_id(model_id) -> str:
         """Returns the Remote Model name for a given model ID"""
-        if model_id == "UCR2":
+        if model_id in ["UCR2", "ucr2"]:
             return "Remote Two"
-        return "Remote 3"
+        elif model_id in ["UCR3", "ucr3"]:
+            return "Remote 3"
+        else:
+            return "Unknown Remote"
 
     ### HTTP methods ###
     def client(self) -> aiohttp.ClientSession:
@@ -1205,6 +1257,108 @@ class Remote:
             self._is_charging = information["power_supply"]
             return information
 
+    async def get_remote_power_information(self) -> json:
+        """Get Power information from remote. power_mode"""
+        async with (
+            self.client() as session,
+            session.get(self.url("system/power")) as response,
+        ):
+            await self.raise_on_error(response)
+            information = await response.json()
+            self._power_mode = RemotePowerModes(information["mode"])
+            return information
+
+    async def get_remote_charger_information(self) -> json:
+        """Get Charger information from remote. charger_connected"""
+        async with (
+            self.client() as session,
+            session.get(self.url("system/power/charger")) as response,
+        ):
+            await self.raise_on_error(response)
+            information = await response.json()
+            self._charging_options = information.get("features", [])
+            self._is_wireless_charging = information.get("wireless_charging", False)
+            self._is_wireless_charging_enabled = information.get(
+                "wireless_charging_enabled", False
+            )
+            return information
+
+    async def set_remote_wireless_charging(self, enabled: bool) -> bool:
+        """Set Wireless Charging Enabled on remote."""
+        if self._wake_if_asleep and self._wake_on_lan:
+            if not await self.wake():
+                raise RemoteIsSleeping
+
+        body = {"wireless_charging_enabled": enabled}
+        async with (
+            self.client() as session,
+            session.put(self.url("system/power/charger"), json=body) as response,
+        ):
+            await self.raise_on_error(response)
+            self._is_wireless_charging_enabled = enabled
+            return True
+
+    async def get_standby_inhibitors(self) -> json:
+        """Get Standby Inhibitors from remote."""
+        if self._wake_if_asleep and self._wake_on_lan:
+            if not await self.wake():
+                raise RemoteIsSleeping
+
+        async with (
+            self.client() as session,
+            session.get(self.url("system/power/standby_inhibitors")) as response,
+        ):
+            await self.raise_on_error(response)
+            inhibitors = await response.json()
+            self._standby_inhibitors = inhibitors
+            return inhibitors
+
+    async def set_standby_inhibitor(
+        self, inhibitor_id: str, who: str, why: str, delay: int
+    ) -> bool:
+        """Set Standby Inhibitor on remote."""
+        if self._wake_if_asleep and self._wake_on_lan:
+            if not await self.wake():
+                raise RemoteIsSleeping
+
+        body = {"id": inhibitor_id, "who": who, "why": why, "delay": delay}
+        async with (
+            self.client() as session,
+            session.post(
+                self.url("system/power/standby_inhibitors"), json=body
+            ) as response,
+        ):
+            await self.raise_on_error(response)
+            return True
+
+    async def remove_standby_inhibitor(self, inhibitor_id: str) -> bool:
+        """Remove Standby Inhibitor on remote."""
+        if self._wake_if_asleep and self._wake_on_lan:
+            if not await self.wake():
+                raise RemoteIsSleeping
+
+        async with (
+            self.client() as session,
+            session.delete(
+                self.url(f"system/power/standby_inhibitors/{inhibitor_id}")
+            ) as response,
+        ):
+            await self.raise_on_error(response)
+            return True
+
+    async def remove_all_standby_inhibitors(self) -> bool:
+        """Remove All Standby Inhibitors on remote."""
+        if self._wake_if_asleep and self._wake_on_lan:
+            if not await self.wake():
+                raise RemoteIsSleeping
+
+        async with (
+            self.client() as session,
+            session.delete(self.url("system/power/standby_inhibitors")) as response,
+        ):
+            await self.raise_on_error(response)
+            return True
+
     async def get_stats(self) -> json:
         """Get usage stats from the remote."""
         async with (
@@ -1285,10 +1439,12 @@ class Remote:
             settings = await response.json()
             self._button_backlight = settings.get("auto_brightness")
             self._button_backlight_brightness = settings.get("brightness")
+            self._button_features = settings.get("features", [])
+            self._button_static_color = settings.get("static_color", None)
             return settings
 
     async def patch_remote_button_settings(
-        self, auto_brightness=None, brightness=None
+        self, auto_brightness=None, brightness=None, static_color=None
     ) -> bool:
         """Update remote button settings"""
         if self._wake_if_asleep and self._wake_on_lan:
@@ -1300,6 +1456,12 @@ class Remote:
             button_settings["auto_brightness"] = auto_brightness
         if brightness is not None:
             button_settings["brightness"] = brightness
+        if (
+            static_color is not None
+            and "RGB_COLOR" in self._button_features
+            and static_color != {}
+        ):
+            button_settings["static_color"] = static_color
 
         async with (
             self.client() as session,
@@ -1838,10 +2000,10 @@ class Remote:
             if not await self.wake():
                 raise RemoteIsSleeping
 
-        if "code" in kwargs and "format" in kwargs:
+        if kwargs.get("code") is not None and kwargs.get("format") is not None:
             # Send an IR command (HEX/PRONTO)
             body = {"code": kwargs.get("code"), "format": kwargs.get("format")}
-        if device != "" and command != "":
+        elif device != "" and command != "":
             # Send a predefined code
             ir_code = next(
                 (code for code in self._ir_codesets if code.get("name") == device),
@@ -1870,10 +2032,10 @@ class Remote:
         if repeat > 0:
             body_repeat = {"repeat": repeat}
 
-        if "port" in kwargs:
+        if kwargs.get("port") is not None:
             body_port = {"port_id": kwargs.get("port")}
 
-        if "dock" in kwargs:
+        if kwargs.get("dock") is not None:
             dock_name: str = kwargs.get("dock")
             emitter = next(
                 (
@@ -1959,6 +2121,12 @@ class Remote:
                 self._is_charging = data["msg_data"]["power_supply"]
                 self._last_update_type = RemoteUpdateType.BATTERY
                 return
+            if data["msg"] == "ir_learning":
+                _LOGGER.debug("Unfolded circle remote update ir learning")
+                self.get_dock_by_id(data["msg_data"]["device_id"])._learned_code = data[
+                    "msg_data"
+                ]["code"]
+                return
             if data["msg"] == "software_update":
                 _LOGGER.debug("Unfolded circle remote software update")
                 total_steps = 0
@@ -2018,6 +2186,10 @@ class Remote:
                     self._button_backlight_brightness = state.get("button").get(
                         "brightness"
                     )
+                    if "RGB_COLOR" in self.button_features:
+                        self._button_static_color = state.get("button").get(
+                            "static_color"
+                        )
                 if state.get("sound") is not None:
                     self._sound_effects = state.get("sound").get("enabled")
                     self._sound_effects_volume = state.get("sound").get("volume")
@@ -2199,6 +2371,7 @@ class Remote:
             self.get_remote_power_saving_settings(),
             self.get_remote_update_settings(),
             self.get_remote_network_settings(),
+            self.get_remote_charger_information(),
             self.get_activities(),
             self.get_remote_codesets(),
             self.get_ir_emitters(),
@@ -2239,6 +2412,7 @@ class Remote:
             self.get_remote_update_settings(),
             self.get_remote_network_settings(),
             self.get_activities_state(),
+            self.get_remote_charger_information(),
         ]
         for coroutine in asyncio.as_completed(tasks):
             try:

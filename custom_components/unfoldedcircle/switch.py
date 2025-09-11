@@ -3,20 +3,18 @@
 from dataclasses import dataclass
 from typing import Callable
 
-import voluptuous as vol
 from homeassistant.components.switch import (
     SwitchDeviceClass,
     SwitchEntity,
     SwitchEntityDescription,
 )
 from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant, ServiceCall, callback
-from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers import entity_platform, service
+from homeassistant.core import HomeAssistant, callback
+
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from pyUnfoldedCircleRemote.const import RemoteUpdateType
 
-from .const import CONF_ACTIVITIES_AS_SWITCHES, UPDATE_ACTIVITY_SERVICE, DOMAIN
+from .const import CONF_ACTIVITIES_AS_SWITCHES
 from .coordinator import UnfoldedCircleRemoteCoordinator
 from .entity import UnfoldedCircleEntity
 from . import UnfoldedCircleConfigEntry
@@ -65,6 +63,13 @@ async def update_remote_network_settings(
     await coordinator.api.patch_remote_network_settings(wake_on_lan=enable)
 
 
+async def update_remote_wireless_charging_settings(
+    coordinator: UnfoldedCircleRemoteCoordinator, enable: bool
+) -> None:
+    """Update remote wireless charging settings"""
+    await coordinator.api.set_remote_wireless_charging(enable)
+
+
 UNFOLDED_CIRCLE_SWITCH: tuple[UnfoldedCircleSwitchEntityDescription, ...] = (
     UnfoldedCircleSwitchEntityDescription(
         key="display_auto_brightness",
@@ -74,15 +79,6 @@ UNFOLDED_CIRCLE_SWITCH: tuple[UnfoldedCircleSwitchEntityDescription, ...] = (
         unique_id="display_auto_brightness",
         icon="mdi:brightness-auto",
         control_fn=update_remote_display_settings,
-    ),
-    UnfoldedCircleSwitchEntityDescription(
-        key="button_backlight",
-        device_class=SwitchDeviceClass.SWITCH,
-        entity_category=EntityCategory.CONFIG,
-        name="Button Backlight",
-        unique_id="button_backlight",
-        icon="mdi:keyboard-settings",
-        control_fn=update_remote_button_settings,
     ),
     UnfoldedCircleSwitchEntityDescription(
         key="sound_effects",
@@ -111,9 +107,16 @@ UNFOLDED_CIRCLE_SWITCH: tuple[UnfoldedCircleSwitchEntityDescription, ...] = (
         icon="mdi:lan-check",
         control_fn=update_remote_network_settings,
     ),
+    UnfoldedCircleSwitchEntityDescription(
+        key="is_wireless_charging_enabled",
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.CONFIG,
+        name="Wireless Charging",
+        unique_id="is_wireless_charging_enabled",
+        icon="mdi:battery-charging-wireless",
+        control_fn=update_remote_wireless_charging_settings,
+    ),
 )
-
-ATTR_PREVENT_SLEEP = "prevent_sleep"
 
 
 async def async_setup_entry(
@@ -124,13 +127,10 @@ async def async_setup_entry(
     """Set up the Switch platform."""
     # Setup connection with devices
     coordinator = config_entry.runtime_data.coordinator
-    platform = entity_platform.async_get_current_platform()
 
     activities = []
     # Skip populating the array of activities in groups if the user requested that all
     # activities are created as switches
-    # IF it is true, the activities array will be empty and all activities will be
-    # added as switches (since non are in activity groups)
     if config_entry.options.get(CONF_ACTIVITIES_AS_SWITCHES, False) is False:
         for activity_group in coordinator.api.activity_groups:
             activities.extend(activity_group.activities)
@@ -141,47 +141,19 @@ async def async_setup_entry(
         for switch in filter(lambda a: a not in activities, coordinator.api.activities)
     )
 
-    # Remove WOL switch if it is not available on the remote
-    switches: list = []
-    if not coordinator.api._wake_on_lan_available:
-        for item in UNFOLDED_CIRCLE_SWITCH:
-            if item.key != "wake_on_lan":
-                switches.append(item)
-    else:
-        switches = UNFOLDED_CIRCLE_SWITCH
+    # Remove switches that are not supported by the remote
+    switches = UNFOLDED_CIRCLE_SWITCH
+    if not coordinator.api.wake_on_lan_available:
+        switches = tuple(
+            filter(lambda s: s.key != "wake_on_lan", UNFOLDED_CIRCLE_SWITCH)
+        )
+    if "WIRELESS_CHARGING" not in coordinator.api.charging_options:
+        switches = tuple(
+            filter(lambda s: s.key != "is_wireless_charging_enabled", switches)
+        )
 
     async_add_entities(
         UCRemoteConfigSwitch(coordinator, configSwitch) for configSwitch in switches
-    )
-
-    @service.verify_domain_control(hass, DOMAIN)
-    async def async_service_handle(service_call: ServiceCall) -> None:
-        """Handle dispatched services."""
-
-        assert platform is not None
-        entities = await platform.async_extract_from_service(service_call)
-
-        if not entities:
-            return
-
-        for entity in entities:
-            assert isinstance(entity, UCRemoteSwitch)
-
-            if service_call.service == UPDATE_ACTIVITY_SERVICE:
-                coordinator = config_entry.runtime_data.coordinator
-                await coordinator.api.get_activity_by_id(entity.unique_id).edit(
-                    service_call.data
-                )
-
-    prevent_sleep_schema = cv.make_entity_service_schema(
-        {vol.Optional(ATTR_PREVENT_SLEEP, default=False): cv.boolean}
-    )
-
-    hass.services.async_register(
-        DOMAIN,
-        UPDATE_ACTIVITY_SERVICE,
-        async_service_handle,
-        prevent_sleep_schema,
     )
 
 
@@ -253,10 +225,6 @@ class UCRemoteConfigSwitch(UnfoldedCircleEntity, SwitchEntity):
     def is_on(self) -> bool | None:
         """Return true if switch is on."""
         return self._state == "ON"
-
-    @property
-    def should_poll(self) -> bool:
-        return False
 
     async def async_turn_on(self, **kwargs) -> None:
         """Instruct the switch to turn on."""

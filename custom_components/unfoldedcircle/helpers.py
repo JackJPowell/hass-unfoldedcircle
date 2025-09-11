@@ -7,31 +7,30 @@ import re
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
-from pyUnfoldedCircleRemote.const import SIMULATOR_MAC_ADDRESS
-from pyUnfoldedCircleRemote.dock import Dock
-from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
-from pyUnfoldedCircleRemote.remote import (
-    HTTPError,
-    IntegrationNotFound,
-    Remote,
-    TokenRegistrationError,
-)
-
 from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN, RefreshToken
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import issue_registry
 from homeassistant.helpers.network import NoURLAvailableError, get_url
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
+from homeassistant.exceptions import HomeAssistantError
 
-from .const import (
-    DEFAULT_HASS_URL,
-    DOMAIN,
-    UC_HA_DRIVER_ID,
-    UC_HA_SYSTEM,
-    UC_HA_TOKEN_ID,
+from .const import COMMAND_LIST, DOMAIN, UC_HA_DRIVER_ID, UC_HA_SYSTEM, UC_HA_TOKEN_ID
+from pyUnfoldedCircleRemote.const import SIMULATOR_MAC_ADDRESS
+from pyUnfoldedCircleRemote.dock import Dock
+from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
+from pyUnfoldedCircleRemote.remote import (
+    EntityCommandError,
+    HTTPError,
+    IntegrationNotFound,
+    InvalidButtonCommand,
+    NoActivityRunning,
+    Remote,
+    RemoteIsSleeping,
+    TokenRegistrationError,
 )
 
 _LOGGER = logging.getLogger(__name__)
+DEFAULT_HASS_URL = "http://homeassistant.local:8123"
 
 
 def get_ha_websocket_url(hass: HomeAssistant) -> str:
@@ -158,6 +157,9 @@ async def validate_and_register_system_and_driver(
     if validate_websocket_address(websocket_url):
         if not await validate_tokens(hass, remote):
             _LOGGER.debug("No valid external token, register one")
+            return await register_system_and_driver(remote, hass, websocket_url)
+        remote_websocket_url = await get_registered_websocket_url(remote)
+        if remote_websocket_url != websocket_url:
             return await register_system_and_driver(remote, hass, websocket_url)
         return await connect_integration(remote, driver_id=UC_HA_DRIVER_ID)
 
@@ -433,6 +435,63 @@ def async_create_issue_websocket_connection(
         translation_key="websocket_connection",
         translation_placeholders={"name": coordinator.api.name},
     )
+
+
+class Command:
+    def __init__(
+        self,
+        coordinator,
+        hass,
+        data,
+    ):
+        self.coordinator = coordinator
+        self.hass = hass
+        self.data = data
+
+    async def async_send(self, **kwargs):
+        """Send a remote command."""
+        commands: list[str] = []
+        if type(self.data.get("command")) is list:
+            commands = self.data.get("command")
+        else:
+            commands.append(self.data.get("command"))
+
+        for indv_command in commands:
+            if indv_command in COMMAND_LIST:
+                if indv_command == "PAUSE":
+                    indv_command = "PLAY"
+                try:
+                    await self.coordinator.api.send_button_command(
+                        command=indv_command,
+                        repeat=self.data.get("num_repeats"),
+                        activity=self.data.get("activity"),
+                        hold=self.data.get("hold"),
+                        delay_secs=self.data.get("delay_secs"),
+                    )
+                except NoActivityRunning as err:
+                    _LOGGER.error("No activity is running")
+                    raise HomeAssistantError(
+                        translation_domain=DOMAIN,
+                        translation_key="no_activity_running",
+                    ) from err
+                except InvalidButtonCommand as err:
+                    _LOGGER.error("Invalid button command: %s", indv_command)
+                    raise HomeAssistantError(
+                        translation_domain=DOMAIN,
+                        translation_key="invalid_button_command",
+                    ) from err
+                except RemoteIsSleeping as err:
+                    _LOGGER.error("The remote did not respond to the wake command")
+                    raise HomeAssistantError(
+                        translation_domain=DOMAIN,
+                        translation_key="remote_is_sleeping",
+                    ) from err
+                except EntityCommandError as err:
+                    _LOGGER.error("Failed to send command: %s", err.message)
+                    raise HomeAssistantError(
+                        translation_domain=DOMAIN,
+                        translation_key="entity_command_error",
+                    ) from err
 
 
 class UnableToExtractMacAddress(Exception):
