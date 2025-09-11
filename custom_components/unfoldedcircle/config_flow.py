@@ -740,7 +740,6 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
                     self.hass,
                     user_input.get("websocket_url"),
                 )
-                errors["base"] = "ha_driver_failure"
             except InvalidWebsocketAddress as ex:
                 _LOGGER.error("Invalid Websocket Address: %s", ex)
                 errors["base"] = "invalid_websocket_address"

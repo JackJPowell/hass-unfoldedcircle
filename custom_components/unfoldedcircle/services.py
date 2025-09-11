@@ -384,14 +384,12 @@ class IR:
                     translation_domain=DOMAIN,
                     translation_key="failed_to_send_command",
                 ) from err
-                break
 
             except Exception as err:
                 raise HomeAssistantError(
                     translation_domain=DOMAIN,
                     translation_key="failed_to_send_command",
                 ) from err
-                continue
 
     def translate_port(self, port_name) -> str:
         match port_name:
