@@ -32,7 +32,7 @@ INHIBIT_STANDBY_SERVICE = "inhibit_standby"
 INHIBIT_STANDBY_SERVICE_SCHEMA = cv.make_entity_service_schema(
     {
         vol.Required("duration"): int,
-        vol.Optional("why", default="User Action"): str,
+        vol.Optional("reason", default="User Action"): str,
     }
 )
 
@@ -127,9 +127,9 @@ async def async_inhibit_standby(
     if duration is None:
         return
 
-    why = service_call.data["why"]
-    if why is None:
-        why = "User Requested"
+    reason = service_call.data["reason"]
+    if reason is None:
+        reason = "User Requested"
 
     inhibitors = (
         await config_entry.runtime_data.coordinator.api.get_standby_inhibitors()
@@ -138,7 +138,7 @@ async def async_inhibit_standby(
     inhibitor_id = f"HA{length}"
 
     await config_entry.runtime_data.coordinator.api.set_standby_inhibitor(
-        inhibitor_id, "Home Assistant", why=why, delay=duration
+        inhibitor_id, "Home Assistant", why=reason, delay=duration
     )
 
 

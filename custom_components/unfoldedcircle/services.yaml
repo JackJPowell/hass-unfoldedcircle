@@ -21,9 +21,9 @@ inhibit_standby:
         - integration: unfoldedcircle
 
   fields:
-    why:
-      name: Why
-      description: Why are you preventing standby?
+    reason:
+      name: Reason
+      description: Reason for preventing standby
       default: "User Requested"
       required: false
       selector:
