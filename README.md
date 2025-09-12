@@ -1,149 +1,234 @@
 [![Discord](https://badgen.net/discord/online-members/zGVYf58)](https://discord.gg/zGVYf58)
 ![GitHub Release](https://img.shields.io/github/v/release/jackjpowell/hass-unfoldedcircle)
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/jackjpowell/hass-unfoldedcircle/total)
-<a href="#"><img src="https://img.shields.io/maintenance/yes/2025.svg"></a>
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy_Me_A_Coffee&nbsp;☕-FFDD00?logo=buy-me-a-coffee&logoColor=white&labelColor=grey)](https://buymeacoffee.com/jackpowell)
-## hass-unfoldedcircle
+![Maintenance](https://img.shields.io/maintenance/yes/2025.svg)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy_Me_A_Coffee%20☕-FFDD00?logo=buy-me-a-coffee&logoColor=white&labelColor=555)](https://buymeacoffee.com/jackpowell)
+
+# Unfolded Circle Integration
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://brands.home-assistant.io/unfoldedcircle/dark_logo.png">
   <img alt="Unfolded Circle logo" src="https://brands.home-assistant.io/unfoldedcircle/logo.png">
 </picture>
 
-## Unfolded Circle for Home Assistant
+Home Assistant integration for the [Unfolded Circle Remote Two / Remote 3](https://www.unfoldedcircle.com/) and associated docks.
+A rich integration providing activity control, remote settings and diagnostics, firmware management, IR transmission & learning, wake features, dock management, wireless charging control and advanced automation hooks.
 
-Home Assistant integration for [Unfolded Circle Remote Two/3](https://www.unfoldedcircle.com/).
+---
+
+## Table of Contents
+- [Key Features](#key-features)
+- [Supported Devices & Concepts](#supported-devices--concepts)
+- [Installation](#installation)
+  - [HACS (Recommended)](#hacs-recommended)
+  - [Manual Installation](#manual-installation)
+- [Configuration](#configuration)
+  - [Manual Setup](#manual-setup)
+- [Entities Overview](#entities-overview)
+- [Dock Support](#dock-support)
+- [External Entity Management](#external-entity-management)
+- [Mapped Button Remote Commands](#mapped-button-remote-commands)
+- [IR Remote Commands](#ir-remote-commands)
+- [Activity Update Actions](#activity-update-actions)
+- [IR Learning](#ir-learning)
+- [Options](#options)
+- [Zeroconf](#zeroconf)
+- [Wake on LAN](#wake-on-lan)
+- [Planned / Future Ideas](#planned--future-ideas)
+- [Notes & Behavior](#notes--behavior)
+- [Services & Actions Summary](#services--actions-summary)
+- [Troubleshooting & Support](#troubleshooting--support)
+- [Localization](#localization)
+- [About This Project](#about-this-project)
+- [License](#license)
+- [Support the Project](#support-the-project)
+
+---
+
+## Key Features
+- Automatic device & dock discovery (zeroconf)
+- Guided configuration flow and options flow
+- Flexible entity exposure: activities, groups, media players (global / per group / per activity)
+- Firmware update control with progress reporting
+- External Entity Management (select which HA entities are exposed back to the remote)
+- IR send (codeset/custom) with dock & port targeting
+- IR learning workflow that builds ready-to-use codesets
+- Mapped button command dispatch (long press, repeats, delays, activity scoping)
+- Activity maintenance services (e.g., prevent sleep toggling, standby inhibitors)
+- Wake on LAN for Remote Two (Remote 3 when firmware supports it)
+- Resource usage sensors (opt-in polling)
+- Docks as sub-entries: IR, brightness, identity, reboot, firmware
+- Button backlight Light entity (brightness + color control)
+- Multi-language support (EN, Partial (FR, PT))
+
+---
+
+## Supported Devices & Concepts
+| Component | Description |
+|-----------|-------------|
+| Remote Two / Remote 3 | Primary handheld device defining activities, buttons, media surface. |
+| Dock | IR emission, LED brightness, reboot, identity flash, firmware update. |
+| Activity / Activity Group | Logical usage contexts exposed as switches/selects with optional media players. |
+| Firmware | Update entity supports version awareness & install execution. |
+| IR Dataset | Learned or manufacturer-based sets of IR commands. |
+| Button Backlight | Light entity allowing dynamic brightness and color adjustment of remote button illumination. |
+| Wireless Charging | Toggle wireless charging on and off to control battery setpoint. |
+
+---
 
 ## Installation
 
-There are two main ways to install this custom component within your Home Assistant instance:
-
-1. Using HACS (see https://hacs.xyz/ for installation instructions if you do not already have it installed):
+### HACS (Recommended)
 
    [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=JackJPowell&repository=hass-unfoldedcircle&category=Integration)
 
-   Or
+1. Install [HACS](https://hacs.xyz/) if not already.
+2. Home Assistant → HACS → Integrations.
+3. Search “Unfolded Circle” → Install.
+4. Restart Home Assistant.
+5. Continue with [Configuration](#configuration).
 
-   1. From within Home Assistant, click on the link to **HACS**
-   2. Click on **Integrations**
-   3. Search for Unfolded Circle and Install
+### Manual Installation
+1. Clone or download this repository.
+2. Copy `custom_components/unfoldedcircle` into your HA `custom_components/` directory.
+3. Restart HA.
+4. Proceed to [Configuration](#configuration).
 
-   Restart your Home Assistant instance and then proceed to the _Configuration_ section below.
+Manual installs won’t auto-notify updates—watch the repo if you go this route.
 
-2. Manual Installation:
-   1. Download or clone this repository
-   2. Copy the contents of the folder **custom_components/unfoldedcircle** into the same file structure on your Home Assistant instance
-   3. Restart your Home Assistant instance and then proceed to the _Configuration_ section below.
-
-While the manual installation above seems like less steps, it's important to note that you will not be able to see updates to this custom component unless you are subscribed to the watch list. You will then have to repeat each step in the process. By using HACS, you'll be able to see that an update is available and easily update the custom component. Trust me, HACS is the worth the small upfront investment to get it setup.
+---
 
 ## Configuration
 
-There is a config flow for this integration. After installing the custom component and restarting:
+After restart (HACS or manual):
+1. A discovery notification should appear.
+2. Go to **Settings** → **Devices & Services** → **Configure** and click Configure on the newly discovered Unfolded Circle Device.
+3. Enter PIN (from remote web configurator).
+   - On the remote: profile icon (upper-right) → enable web configurator → **PIN** appears (refresh if needed).
+   - **PIN** only needed initially; you can change it after pairing.
+4. Assign an Area.
 
-1. You should receive a notification that a new device was discovered.
-2. Navigate to **Settings** -> **Devices & Services** and click Configure on the newly discovered Unfolded Circle Device.
-3. _You will now begin the configuration flow process_
-4. **PIN** can be found on the remote by enabling the web configurator
-   1. Enable the web configurator by tapping in the upper right on your profile icon
-   2. Make sure the toggle is 'ON' and a PIN will be displayed. If not, click the refresh button
-   3. The **PIN** is only required during initial setup. You are free to change it immediately after
-5. Click Submit and select your device area.
+### Manual Setup
+If not discovered:
+1. Settings → Devices & Services → Integrations → + Add Integration.
+2. Search “Unfolded Circle”.
+3. Supply PIN and Host (IP/hostname).
 
-**Alternatively, if you do not have zeroconf discovery enabled, or your remote was not automatically discovered:**
+---
 
-1. Go to **Settings** -> **Devices & Services** -> **Integrations**
-2. Click **+ ADD INTEGRATION** to setup a new integration
-3. Search for **Unfolded Circle** and select it
-4. _You will now begin the configuration flow process_
-5. **PIN** can be found on the remote by enabling the web configurator
-   1. Enable the web configurator by tapping in the upper right on your profile icon
-   2. Make sure the toggle is 'ON' and a PIN will be displayed. If not, click the refresh button
-   3. The **PIN** is only required during initial setup. You are free to change it immediately after
-6. **Host** is the IP address or hostname of your remote
-   1. _(Optional) If you have a custom api url, you can pass in the full endpoint address_
+## Entities Overview
+| Category | Examples / Notes |
+|----------|------------------|
+| Sensors | Battery, Illuminance, Resource Usage (CPU/Mem/Storage)*, Config flags |
+| Binary Sensor | Charging status |
+| Update | Firmware reporting + install |
+| Switch | Activities (configurable), configuration toggles |
+| Select | Activity groups (optional) |
+| Button | Restart remote |
+| Remote | Mapped button & IR dispatch |
+| Media Player | Global and/or per group / per activity |
+| Number | Numeric configuration, dock LEDs |
+| Light | Button backlight (brightness + color control) |
+| Dock Sub-Entities | Remote (IR), Buttons (Reboot, Identity), Update, Brightness controls |
 
-## Usage
+*Resource usage sensors disabled by default; enabling one enables selective polling.
 
-After the device is configured, the integration will expose 22 entities plus the number of activities you have defined on your remote. These are grouped by device. Four of these entities will be disabled by default. These are all diagnostic in nature and report the device stats and if polling of the remote is enabled. (Polling is only true if any of the three device stat entities are enabled.)
+### Button Backlight Light Entity
+A `light` entity exposes remote button backlight control:
+- Adjustable brightness
+- Adjustable color (depending on device capabilities)
+- Suitable for themes/ambience automations (e.g., dim during night mode)
 
-- Sensors
-  - Battery Level: Reporting current charge percentage
-  - Illuminance: Reporting current lux value from ambient light sensor
-  - Resource Usage\*\*: CPU load, Memory, and Storage Statistics
-  - Configuration Sensors: All boolean settings are now controllable via the integration
-- Binary Sensor
-  - Battery Charging Status: Charging state of device: Helpful in automations to tell if the device is charging (online and available)
-- Update
-  - Verion info: Reports the current and latest version of the remote firware
-  - The ability to install Remote Two firmware from within home assistant including progress and release notes
-  - If the firmware has not been downloaded when the install is initiated, the first 10% of the progress bar will be used to show download progress. If no progress has been made in 30 seconds, the update will stop and not be applied
-- Switches
-  - A switch is created for every activity defined that is not apart of an activity group.
-    - An option exists to create a switch for each activity regardless of activity group.
-  - Settings for each configuration option on the remote are also exposed as switches
-- Select
-  - A select is created for every activity group defined.
-    - An option exists to suppress the creation of activity groups
-- Button
-  - A button is available to restart the remote.
-- Remote
-  - A remote is available to send pre-configured IR commands from the dock (See Below). It also provides a select to activate an activity and extra state about the status of activities and media player entities
-- Media player
-  - A media player entity is created providing controls and information about currently playing media. If multiple media player entities are active, the integration attempts to select the most appropriate based on activity and recency.
-    - You can override this behavior by selecting a different media source from the sound mode menu in the Media Player control
-    - Options exist to create a media player per activity group or per activity.
-  - The media player controls are now mapped to the selected activity's button mapping on the remote. The default is still the active media player, but if you have defined custom volume, next, previous, or power button commands, those will be executed when interacting with the control within home assistant.
-- Number
-  - Configuration Controls: All numerical settings are now controllable via the integration.
+Example automation:
+```yaml
+automation:
+  - alias: Dim remote backlight at night
+    trigger:
+      - platform: time
+        at: "23:00:00"
+    action:
+      - service: light.turn_on
+        target:
+          entity_id: light.remote_two_button_backlight
+        data:
+          brightness_pct: 10
+          rgb_color: [255, 80, 10]
+```
 
-  \*\* Disabled by default to avoid polling the remote every thirty seconds to read data. If one of these sensors is enabled, polling only for that specific data will also be enabled.
+---
+
+### Wireless Charging Switch
+A switch entity enables and disables the wireless charger on your Remote 3. 
+
+Example Automation:
+```yaml
+alias: Preserve Battery
+description: "Toggle wireless charging functionality based on battery percentage"
+triggers:
+  - trigger: numeric_state
+    entity_id:
+      - sensor.remote_3_battery
+    above: 80
+    id: "OFF"
+  - trigger: numeric_state
+    entity_id:
+      - sensor.remote_3_battery
+    below: 60
+    id: "ON"
+conditions: []
+actions:
+  - if:
+      - condition: trigger
+        id:
+          - "OFF"
+    then:
+      - action: switch.turn_off
+        metadata: {}
+        data: {}
+        target:
+          entity_id: switch.unfolded_circle_remote_two_wireless_charging
+  - if:
+      - condition: trigger
+        id:
+          - "OFF"
+    then:
+      - action: switch.turn_on
+        metadata: {}
+        data: {}
+        target:
+          entity_id: switch.unfolded_circle_remote_two_wireless_charging
+mode: single
+```
 
 ## Dock Support
+- Docks are Sub-entries
+- One-time migration cleans legacy definitions & repairs.
+- Removed reliance on dock passwords 🎉
 
-Dock support has been reworked. Docks are now `Subentries` and can be added and removed at will. During a one time migration, any Docks you have configured and any Docks with an initial password will be added as `Subenty Devices`. To add further Docks, click the `Add Dock` button in the top right. If you have multiple `UC Remotes`, you will be prompted to select which UC remote the dock is associated with. If a single dock is associated with multiple UC remotes, you can add the dock to any amount of your configured UC remotes. If you no longer wish to have your a dock loaded in Home Assistant, it is now independantly removable. Delete it or disable it like any other deivce.
+Each dock exposes:
+- Remote (IR)
+- Buttons: Reboot, Identity flash
+- Numbers: LED Brightness
+- Update: Firmware visibility
 
-Each Dock exposes 6 entities:
-
-- Remote
-  - This entity represents the IR remote capabilities of the dock itself
-
-- Buttons
-
-  - Reboot Dock: Allows you to remotely reboot the dock
-  - Identity: Causes the LED to flash to help you identify which dock is which
-
-- Number
-  - LED Brightness: Allows you to set the LED brightness level
-  - Ethernet Brightness: Allows you to set the Ethernet LED brightness level
-
-- Update
-  - An update entity that reports the latest version
-
-### Additional Information
-
-- Docks will now be automatically setup when they have an initial password. No need to supply it (or be left with a bunch of repairs)
-- During the migration, any existing repairs will be deleted. You are now in charge of when a dock is added.
+---
 
 ## External Entity Management
+Select which HA entities are shared to the remote (Options flow).
 
-Home Assistant now has the ability to manage the entities it shares with your Unfolded Circle Remote. When setting up a new device or when reconfiguring an existing device, you will be taken through an optional step to configure which Home Assistant entities are available on the remote. This functionality mirrors the same options on the integrations page of your remote. If you are upgrading to this release, you will get a repair to address on first boot. Complete it to switch over to using the much improved communication method with your remote.
+Requirements:
+- Remote firmware ≥ 2.0.0 (≥ 2.6.9 recommended; Remote 3 currently beta but stable)
 
-To get started, add a new device or click the configure button. See the video below for a quick demo.
-- You must be running v2.0.0 or greater on your unfolded circle remote for this functionality to be available.
-  - v2.6.5+ is currently in beta but it's very stable and is the only firmware for Remote 3 devices.
-
+Demo video:
 https://github.com/user-attachments/assets/96fa94e8-a5ad-4833-9a49-0bf85373eae0
 
+---
+
 ## Mapped Button Remote Commands
+Preferred service: `unfoldedcircle.send_button_command`
+Options: `num_repeats`, `delay_secs`, `hold`, `activity`
 
-For your running activity, you can now send your mapped button commands from within Home Assistant. Using the
-remote.send_command or unfoldedcircle.send_button_command action, just specify the `button` from the list below and any additional options.
-
-**num_repeats** (Optional) The number of times to repeat sending the command.
-**delay_secs** (Optional) The number of seconds to wait in between sending commands.
-**hold** (Optional) Trigger a long press of the supplied button
-**activity** (Optional) Identify which activity the button is mapped under. This is only needed if multiple activities are running.
+Supported buttons:
 
     - BACK
     - HOME
@@ -168,15 +253,17 @@ remote.send_command or unfoldedcircle.send_button_command action, just specify t
     - NEXT
     - POWER
 
+---
+
 ## IR Remote Commands
 
-The remote entity supports sending predefined IR commands using the unfoldedcircle.send_ir_command action.
+The remote entity supports sending predefined or (HEX/PRONTO) IR commands using the unfoldedcircle.send_ir_command action.
 
 **device:** will match the case-sensitive name of your remote defined in the web configurator on the remote page. This will be your custom name or the manufacturer name selected.
 
 **codeset** (Optional) If you supplied a manufacturer name, you also need to supply the codeset name you are using.
 
-**command** will match the case-senstitive name of the pre-defined (custom or codeset) command defined for that remote.
+**command** will match the case-senstitive name of the pre-defined (custom or codeset) or (Hex or Pronto) command defined for the remote.
 
 **num_repeats** (Optional) The number of times to repeat sending the command.
 
@@ -188,7 +275,7 @@ The remote entity supports sending predefined IR commands using the unfoldedcirc
 
 Yaml of the above image:
 
-```
+```yaml
 action: unfoldedcircle.send_ir_command
 data:
   device: Samsung
@@ -200,14 +287,14 @@ target:
   entity_id: remote.remote_two_remote
 ```
 
-> [!TIP]
-You can still use the standard remote.send_command action, however, only custom defined remote codes can be sent due to a limitation with this action.
+> TIP: Core `remote.send_command` only supports custom codes (platform limitation).
 
-## Additional Actions
+---
 
-There is now an action to update defined activities. This will be initially released with the option to enable/disable the 'prevent sleep' option within the selected activity.
+## Activity Update Actions
+Service: `unfoldedcircle.update_activity`
 
-```
+```yaml
 service: unfoldedcircle.update_activity
 target:
   entity_id: switch.remote_two_control_projector
@@ -215,9 +302,12 @@ data:
   prevent_sleep: true
 ```
 
-## IR Learning
+Currently supports `prevent_sleep` (more may follow).
 
-You can now rapidly learn IR commands through your dock. To get started, go to your developer tools and then to the services tab and recreate the example below with your data. Start by providing a remote entity of the dock you want to learn through. Then add information about the remote to be created in the Unfolded Circle Software (name, icon, and description). Follow that with your IR dataset. Give it a name and a list of commands you would like to learn.
+---
+
+## IR Learning
+Service: `unfoldedcircle.learn_ir_command`
 
 ```
 service: unfoldedcircle.learn_ir_command
@@ -241,52 +331,110 @@ data:
       - home
 ```
 
-Finally, run this by clicking call service. This will start the dock listening for your commands. If you check your home assistant notifications, you'll get feedback on which step you are on. Continue by clicking the button on your remote that is shown in the notification while pointing at your dock.
+Follow HA notifications for capture steps. Resulting dataset appears in remote web configurator.
 
-![Screenshot 2024-08-02 at 6 44 12 PM](https://github.com/user-attachments/assets/7b312f16-4c76-4d67-81bc-901f3e07e095)
+Screenshots:
 
-If you run the above you will end up with the following in your Unfolded Circle Remote's web configurator that you can then assign to virtual or physical buttons:
+![Learning Step](https://github.com/user-attachments/assets/7b312f16-4c76-4d67-81bc-901f3e07e095)
 
-![Screenshot 2024-08-02 at 6 27 48 PM](https://github.com/user-attachments/assets/c1b37321-3a61-4e22-b0c1-aeef94379e77)
+![Configurator Result 1](https://github.com/user-attachments/assets/c1b37321-3a61-4e22-b0c1-aeef94379e77)
+![Configurator Result 2](https://github.com/user-attachments/assets/2722b8ff-9d9d-4e22-a809-f75091372b5d)
 
-![Screenshot 2024-08-02 at 6 34 13 PM](https://github.com/user-attachments/assets/2722b8ff-9d9d-4e22-a809-f75091372b5d)
+---
 
 ## Options
+Access via Integration → Configure:
 
-Additional options have been added to the intergration for further customization:
-
-- Activity Options:
+**Control local settings**
+- Activity:
   - Create all activities as switches
-  - Suppress the creation of activity groups as selects (best combined with the previous option)
-- Media Player Options:
-  - Create a global media player
-  - Create a media player for each activity group on your remote
-  - Create a media player for each activity on your remote
+  - Suppress activity groups as selects
+- Media Player:
+  - Global media player
+  - Per activity group
+  - Per activity
+
+- Remote start
+  - Define which activity starts when toggling the remote entity (Good fit with HomeKit Bridge)
+
+** Configure connection settings**
+
+- Update remote hostname
+- Update Home Assistant websocket URL
+---
 
 ## Zeroconf
+Automatic network discovery; no manual intervention required.
 
-Your Remote will be automatically discovered on the network.
+---
 
-## Wake on lan
+## Wake on LAN
+Available for Remote Two (firmware ≥ 2.0.0).
+Remote 3 support will follow once the firmware adds the feature.
 
-Wake on lan support is now available for Remote Two devices running firmware version 2.0.0 or higher. Once your remote has been upgraded, and you've turned the feature on, anytime you take a direct action within home assistant to communicate with the remote, it will first attempt to wake the remote up.
+Behavior:
+- HA attempts wake before user-triggered commands when needed.
 
-> [!TIP]
-Remote 3 WOL support will be added once it is available on the device.
->
+---
 
-## Future Ideas
+## Planned / Future Ideas
+- [X] Raw IR command sending via core `remote.send_command`
 
-- [ ] Add ability to send raw IR commands using the `remote.send_command` action
+---
 
-## Notes
-
-- The remote entity does not need to be "on" for it to send commands.
+## Notes & Behavior
+- Remote entity does not need to be “on” to send commands.
 - The Remote Two will go to sleep when unpowered. If you have wake on lan enabled on your remote, Home Assistant will attempt to wake your remote prior to issuing a command. Only commands initiated by you will attempt to wake the remote.
-- The remote can now generate its own diagnostic data to aid in debugging via the overflow menu in the Device Info section
-- The integration supports multiple Languages: English, French, Portuguese and PRs are always welcome
-- The integration will create a repair and prompt for a new PIN if it can no longer authenticate to the remote
+- Diagnostics available via Device Info overflow menu.
+- Authentication loss triggers a repair to re-enter PIN.
+- Resource usage polling is opt-in per sensor.
+
+---
+
+## Services & Actions Summary
+| Service | Purpose | Key Fields |
+|---------|---------|-----------|
+| `unfoldedcircle.send_button_command` | Send mapped remote button | `button`, `activity?`, `num_repeats?`, `delay_secs?`, `hold?` |
+| `unfoldedcircle.send_ir_command` | Emit predefined IR command | `device`, `codeset?`, `command`, `dock_name?`, `port?`, `num_repeats?` |
+| `unfoldedcircle.learn_ir_command` | Start IR learning workflow | `remote{}`, `ir_dataset{}` |
+| `unfoldedcircle.update_activity` | Modify activity attributes | `prevent_sleep?` |
+| `unfoldedcircle.inhibit_standby` | Create a new standby inhibitor | `reason?`, `duration` |
+
+Confirm exact service IDs in Developer Tools → Services.
+
+---
+
+## Troubleshooting & Support
+| Issue | Resolution |
+|-------|------------|
+| Not discovered | Ensure zeroconf and network visibility; try manual add. |
+| PIN failing | Regenerate PIN in remote web configurator. |
+| IR not firing | Verify device/codeset names & dock availability. |
+
+Join the community on Discord (link at top).
+
+---
+
+## Localization
+Supported: English, French, Portuguese.
+Contribute additional translations via PR (follow HA localization format).
+
+---
 
 ## About This Project
+Independent community-driven integration built in collaboration (not affiliation) with Unfolded Circle. Hardware team is awesome. Consider supporting both the platform and this integration.
 
-I am collaborating with the Unfolded Circle staff but am not affiliated with them, and provide this custom component purely for your own enjoyment and home automation needs. Those guys are awesome!
+---
+
+## License
+See [LICENSE](LICENSE) for details.
+
+---
+
+## Support the Project
+- Star the repository
+- Open constructive issues / PRs
+- Share ideas for roadmap
+- [Buy Me A Coffee](https://buymeacoffee.com/jackpowell)
+
+---
