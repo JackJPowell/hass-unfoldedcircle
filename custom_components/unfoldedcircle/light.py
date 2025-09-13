@@ -89,11 +89,12 @@ class UnfoldedCircleLight(UnfoldedCircleEntity, LightEntity):
         """Return the rgb color value [int, int, int]."""
         if "RGB_COLOR" not in self.coordinator.api.button_features:
             return None
-        return (
-            tuple(self.coordinator.api.button_static_color["rgb"])
-            if "rgb" in self.coordinator.api.button_static_color
-            else tuple(255, 255, 255)
-        )
+        if (
+            self.coordinator.api.button_static_color is not None
+            and "rgb" in self.coordinator.api.button_static_color
+        ):
+            return tuple(self.coordinator.api.button_static_color["rgb"])
+        return (255, 255, 255)
 
     async def async_turn_on(self, **kwargs):
         """Turn the light on."""
@@ -121,9 +122,14 @@ class UnfoldedCircleLight(UnfoldedCircleEntity, LightEntity):
         self._attr_is_on = self.coordinator.api.button_backlight_brightness > 10
         self._attr_brightness = self.coordinator.api.button_backlight_brightness
         if "RGB_COLOR" in self.coordinator.api.button_features:
-            self._attr_rgb_color = (
-                tuple(self.coordinator.api.button_static_color["rgb"])
-                if "rgb" in self.coordinator.api.button_static_color
-                else tuple(255, 255, 255)
-            )
+            if (
+                self.coordinator.api.button_static_color is not None
+                and "rgb" in self.coordinator.api.button_static_color
+            ):
+                self._attr_rgb_color = tuple(
+                    self.coordinator.api.button_static_color["rgb"]
+                )
+            else:
+                self._attr_rgb_color = (255, 255, 255)
+
         self.async_write_ha_state()
