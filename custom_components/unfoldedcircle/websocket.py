@@ -348,7 +348,7 @@ class UCWebsocketClient(metaclass=Singleton):
                         "data": {
                             "entity_id": entity_id,
                             "new_state": new_state,
-                            "old_state": old_state,  # TODO : old state useful ?
+                            "old_state": old_state,
                         }
                     }
                 )

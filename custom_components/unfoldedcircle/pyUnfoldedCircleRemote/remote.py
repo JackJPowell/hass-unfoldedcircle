@@ -1137,12 +1137,15 @@ class Remote:
     async def remove_remote_entities(self, entity_ids: list[str]) -> bool:
         """Remove the given subscribed entities."""
         _LOGGER.debug("Remove entities to remote %s : %s", self._ip_address, entity_ids)
+        if (
+            not entity_ids or len(entity_ids) == 0
+        ):  # Bail if list is empty as it will delete all entities
+            return True
+
         async with (
             self.client() as session,
-            session.request(
-                method="DELETE",
-                url=self.url("/entities"),
-                json={"entity_ids": entity_ids},
+            session.delete(
+                self.url("entities"), json={"entity_ids": entity_ids}
             ) as response,
         ):
             await self.raise_on_error(response)
@@ -1243,6 +1246,21 @@ class Remote:
                 await response2.json()
                 self.activity_groups.append(activity_group)
             return await response.json()
+
+    async def get_all_entities_in_use(
+        self, integration_id_filter: str = ""
+    ) -> list[dict]:
+        """Get all entities in use by activities."""
+        await self.get_activities()
+        all_entities = []
+        for activity in self.activities:
+            for entity in activity.included_entities:
+                if (
+                    entity["entity_id"].startswith(integration_id_filter)
+                    and entity not in all_entities
+                ):
+                    all_entities.append(entity["entity_id"])
+        return all_entities
 
     async def get_remote_battery_information(self) -> json:
         """Get Battery information from remote. battery_level, battery_status, is_charging."""
@@ -2335,6 +2353,7 @@ class Remote:
             activity.name,
             included_entities,
         )
+        activity._included_entities = included_entities
         for included_entity in included_entities:
             entity_type = included_entity.get("entity_type", None)
             if entity_type is None:
@@ -2911,6 +2930,7 @@ class Activity:
         self._remote = remote
         self._state = activity.get("attributes").get("state")
         self._mediaplayer_entities: list[UCMediaPlayerEntity] = []
+        self._included_entities: list[any] = []
         self._next_track_command = None
         self._prev_track_command = None
         self._volume_up_command = None
@@ -2995,6 +3015,11 @@ class Activity:
     def mediaplayer_entities(self) -> list[UCMediaPlayerEntity]:
         """Media player entities associated to this activity"""
         return self._mediaplayer_entities
+
+    @property
+    def included_entities(self) -> list[any]:
+        """Raw included entities data from the API"""
+        return self._included_entities
 
     def add_mediaplayer_entity(self, entity: UCMediaPlayerEntity):
         for existing_entity in self._mediaplayer_entities:

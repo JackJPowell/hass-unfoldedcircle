@@ -875,7 +875,6 @@ async def async_step_select_entities(
     subscribed_entities_subscription: SubscriptionEvent | None = None
     configure_entities_subscription: SubscriptionEvent | None = None
     websocket_client = UCWebsocketClient(hass)
-    filtered_domains = HA_SUPPORTED_DOMAINS
     _LOGGER.debug("Extracted remote information %s", await remote.get_version())
     _LOGGER.debug(
         'Using remote ID "%s" to get and set subscribed entities', remote.hostname
@@ -985,25 +984,25 @@ async def async_step_select_entities(
         # Selector for entities to add (all except those already in the available list
         config: EntitySelectorConfig = {
             "exclude_entities": available_entities,
-            "filter": [{"domain": filtered_domains}],
+            "filter": [{"domain": HA_SUPPORTED_DOMAINS}],
             "multiple": True,
         }
         data_schema: dict[any, any] = {"add_entities": EntitySelector(config)}
 
         # Selector for entities to be removed from available list :
         # all in available list except those already subscribed which should be kept in the list
-        removable_list = available_entities.copy()
-        for entity_id in subscribed_entities:
-            if entity_id in removable_list:
-                removable_list.remove(entity_id)
+        # removable_list = available_entities.copy()
+        # for entity_id in subscribed_entities:
+        #     if entity_id in removable_list:
+        #         removable_list.remove(entity_id)
 
-        if len(removable_list) > 0:
-            config: EntitySelectorConfig = {
-                "include_entities": removable_list,
-                "filter": [{"domain": filtered_domains}],
-                "multiple": True,
-            }
-            data_schema.update({"remove_entities": EntitySelector(config)})
+        # if len(removable_list) > 0:
+        #     config: EntitySelectorConfig = {
+        #         "include_entities": removable_list,
+        #         "filter": [{"domain": HA_SUPPORTED_DOMAINS}],
+        #         "multiple": True,
+        #     }
+        #     data_schema.update({"remove_entities": EntitySelector(config)})
 
         data_schema.update({vol.Required("subscribe_entities", default=True): bool})
 
