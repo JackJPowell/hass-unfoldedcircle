@@ -1696,7 +1696,9 @@ class Remote:
             self._wifi_enabled = settings.get("wifi_enabled")
 
             try:
-                if self._model_number.upper() == "UCR3":
+                if self._model_number.upper() == "UCR3" and Version(
+                    self._sw_version
+                ) < Version("2.7.0"):
                     self._wake_on_lan = False
                     self._wake_on_lan_available = False
                 else:
