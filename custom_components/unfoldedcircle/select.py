@@ -28,6 +28,10 @@ async def async_setup_entry(
     coordinator = config_entry.runtime_data.coordinator
     # IF the option to suppress activity groups is true, skip adding activity groups
     if config_entry.options.get(CONF_SUPPRESS_ACTIVITIY_GROUPS, False) is False:
+        # Filter out activity groups with no activities
+        coordinator.api.activity_groups = [
+            ag for ag in coordinator.api.activity_groups if ag.activities
+        ]
         async_add_entities(
             SelectUCRemoteActivity(coordinator, activity_group)
             for activity_group in coordinator.api.activity_groups
