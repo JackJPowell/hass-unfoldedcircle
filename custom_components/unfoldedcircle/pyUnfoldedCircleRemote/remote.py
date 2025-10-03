@@ -1,6 +1,7 @@
 """Module to interact with the Unfolded Circle Remote Two."""
 
 import asyncio
+from dataclasses import dataclass
 import copy
 import json
 import logging
@@ -169,6 +170,17 @@ class RemoteGroup(list):
         super().__init__(args[0])
 
 
+@dataclass
+class LocalizationInfo:
+    """Localization information for the remote."""
+
+    language_code: str = "en_UK"
+    country_code: str = "GB"
+    time_zone: str = "UTC"
+    time_format_24h: bool = True
+    measurement_unit: str = "UK"
+
+
 class Remote:
     """Unfolded Circle Remote Class."""
 
@@ -246,6 +258,7 @@ class Remote:
         self._button_features = []
         self._button_static_color = None
         self._standby_inhibitors = []
+        self._localization_info: LocalizationInfo = LocalizationInfo()
 
     @property
     def name(self):
@@ -542,6 +555,11 @@ class Remote:
     def new_web_configurator(self):
         """Is remote running new web configurator"""
         return self._new_web_configurator
+
+    @property
+    def localization_info(self):
+        """Return localization information"""
+        return self._localization_info
 
     ### URL Helpers ###
     def validate_url(self, uri):
@@ -1040,7 +1058,7 @@ class Remote:
         async with self.client() as session, session.get(self.url("cfg")) as response:
             await self.raise_on_error(response)
             information = await response.json()
-            self._name = information.get("device").get("name")
+            self._name = information.get("device").get("name")  # No locale
             return information
 
     async def get_remote_drivers(self) -> list[dict[str, any]]:
@@ -1222,15 +1240,12 @@ class Remote:
             await self.raise_on_error(response)
             self.activity_groups = []
             for activity_group_data in await response.json():
-                # _LOGGER.debug("get_activity_groups %s", json.dumps(activity_group_data, indent=2))
-                name = "DEFAULT"
-                if activity_group_data.get("name", None) and isinstance(
-                    activity_group_data.get("name", None), dict
-                ):
-                    name = next(iter(activity_group_data.get("name").values()))
                 activity_group = ActivityGroup(
                     group_id=activity_group_data.get("group_id"),
-                    name=name,
+                    name=self.get_text_for_locale(
+                        activity_group_data.get("name", {}),
+                        default_text="Undefined Activity Group Name",
+                    ),
                     remote=self,
                     state=activity_group_data.get("state"),
                 )
@@ -1626,8 +1641,8 @@ class Remote:
                         ):
                             self._release_notes_url = update.get("release_notes_url")
                             self._latest_sw_version = update.get("version")
-                            self._release_notes = update.get("description").get(
-                                "en", update.get("description").get("en_US", "")
+                            self._release_notes = self.get_text_for_locale(
+                                update.get("description", {})
                             )
                             download_status = update.get("download")
                     else:
@@ -1665,8 +1680,8 @@ class Remote:
                         ):
                             self._release_notes_url = update.get("release_notes_url")
                             self._latest_sw_version = update.get("version")
-                            self._release_notes = update.get("description").get(
-                                "en", update.get("description").get("en_US", "")
+                            self._release_notes = self.get_text_for_locale(
+                                update.get("description", {})
                             )
                             download_status = update.get("download")
                     else:
@@ -1694,6 +1709,9 @@ class Remote:
 
             self._bt_enabled = settings.get("bt_enabled")
             self._wifi_enabled = settings.get("wifi_enabled")
+
+            if self._sw_version == "":
+                await self.get_version()
 
             try:
                 if self._model_number.upper() == "UCR3" and Version(
@@ -1734,6 +1752,27 @@ class Remote:
             await self.raise_on_error(response)
             response = await response.json()
             return True
+
+    async def get_localization_settings(self) -> str:
+        """Get remote localization settings"""
+        async with (
+            self.client() as session,
+            session.get(self.url("cfg/localization")) as response,
+        ):
+            await self.raise_on_error(response)
+            settings = await response.json()
+            self._localization_info.country_code = settings.get("country_code", "GB")
+            self._localization_info.language_code = settings.get(
+                "language_code", "en_UK"
+            )
+            self._localization_info.time_zone = settings.get("time_zone", "UTC")
+            self._localization_info.time_format_24h = settings.get(
+                "time_format_24h", True
+            )
+            self._localization_info.measurement_unit = settings.get(
+                "measurement_unit", "UK"
+            )
+            return settings
 
     async def update_remote(self, download_only: bool = False) -> str:
         """Update Remote."""
@@ -1832,8 +1871,8 @@ class Remote:
                     "integration_id"
                 ).startswith("uc.main"):
                     remote_data = {
-                        "name": remote.get("name").get(
-                            "en", remote.get("name").get("en_US", "")
+                        "name": self.get_text_for_locale(
+                            remote.get("name", {}), default_text="Undefined Remote Name"
                         ),
                         "entity_id": remote.get("entity_id"),
                     }
@@ -1891,7 +1930,7 @@ class Remote:
                     dock_id=info.get("dock_id"),
                     remote_endpoint=self.endpoint,
                     apikey=self.apikey,
-                    name=info.get("name"),
+                    name=info.get("name"),  # No Locale
                     ws_url=info.get("resolved_ws_url"),
                     is_active=info.get("active"),
                     model_number=info.get("model"),
@@ -1924,7 +1963,7 @@ class Remote:
             for dock in docks:
                 if dock.get("active") is True:
                     dock_data = {
-                        "name": dock.get("name"),
+                        "name": dock.get("name"),  # No Locale
                         "device_id": dock.get("device_id"),
                     }
                     self._ir_emitters.append(dock_data.copy())
@@ -2365,7 +2404,7 @@ class Remote:
             entity: UCMediaPlayerEntity = self.get_entity(included_entity["entity_id"])
             entity._activity = activity
             if included_entity.get("name", None) is not None:
-                entity._name = next(iter(included_entity["name"].values()))
+                entity._name = self.get_text_for_locale(included_entity["name"])
             if included_entity.get("entity_commands", None) is not None:
                 entity._entity_commands = included_entity["entity_commands"]
             activity.add_mediaplayer_entity(entity)
@@ -2384,6 +2423,7 @@ class Remote:
             self.get_remote_update_information(),
             self.get_remote_configuration(),
             self.get_remote_information(),
+            self.get_localization_settings(),
             self.get_stats(),
             self.get_remote_display_settings(),
             self.get_remote_button_settings(),
@@ -2424,6 +2464,7 @@ class Remote:
             self.get_remote_update_information(),
             self.get_remote_configuration(),
             self.get_remote_information(),
+            self.get_localization_settings(),
             self.get_stats(),
             self.get_remote_display_settings(),
             self.get_remote_button_settings(),
@@ -2453,6 +2494,24 @@ class Remote:
         _LOGGER.debug("Unfolded circle remote update data")
         group = asyncio.gather(self.get_stats())
         await group
+
+    def get_text_for_locale(
+        self, text: dict, locale: str = None, default_text: str = "Undefined Text"
+    ) -> str:
+        """Get the text for a specific locale"""
+        if not locale:
+            locale = self._localization_info.language_code
+
+        if isinstance(text, str):
+            return text
+
+        if text.get(locale):
+            return text.get(locale)
+        elif text.get("en_US"):
+            return text.get("en_US")
+        elif text.get("en"):
+            return text.get("en")
+        return default_text
 
 
 class UCMediaPlayerEntity:
@@ -2925,8 +2984,9 @@ class Activity:
 
     def __init__(self, activity: str, remote: Remote) -> None:
         """Create activity."""
-        self._name = activity.get("name").get(
-            "en", activity.get("name").get("en_US", "")
+        self._name = remote.get_text_for_locale(
+            activity.get("name", {}),
+            default_text="Undefined Name",
         )
         self._id = activity["entity_id"]
         self._remote = remote
@@ -3104,7 +3164,7 @@ class Activity:
                 try:
                     entity = self._remote.get_entity(entity_info["entity_id"])
                     entity._entity_commands = entity_info["entity_commands"]
-                    entity._name = next(iter(entity_info["name"].values()))
+                    entity._name = self._remote.get_text_for_locale(entity_info["name"])
                     await entity.update_data()
                 except Exception:
                     pass
