@@ -1,0 +1,243 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "Gerät ist bereits konfiguriert",
+      "already_in_progress": "Gerät wird gerade eingerichtet",
+      "no_mac": "Dieses Gerät wird nicht als gültige Unfolded-Circle-Fernbedienung erkannt (keine MAC-Adresse)",
+      "reauth_successful": "Erneute Anmeldung war erfolgreich",
+      "unique_id_required": "Gerät besitzt keine eindeutige Kennung für die Erkennung"
+    },
+    "error": {
+      "cannot_connect": "Verbindung fehlgeschlagen",
+      "invalid_dock_password": "Falsches Dock-Passwort. Leer lassen, um zu überspringen",
+      "invalid_auth": "Falscher PIN-Code. Bitte erneut versuchen",
+      "unknown": "Unerwarteter Fehler",
+      "cannot_create_ha_token": "Home-Assistant-Token konnte nicht erstellt werden",
+      "invalid_websocket_address": "Ungültige Home-Assistant-WebSocket-Adresse angegeben"
+    },
+    "step": {
+      "user": {
+        "data": {
+          "host": "Host",
+          "pin": "PIN-Code",
+          "ha_ws_url": "Home-Assistant-WebSocket-URL"
+        }
+      },
+      "select_entities": {
+        "title": "Entitäten konfigurieren",
+        "description": "Abschließen der [Konfiguration]({remote_ha_config_url}) auf der Fernbedienung",
+        "data": {
+          "add_entities": "Entitäten, die mit der Fernbedienung geteilt werden sollen",
+          "remove_entities": "Entitäten, die entfernt werden sollen",
+          "subscribe_entities": "Gemeinsame Entitäten automatisch konfigurieren"
+        },
+        "menu_options": {
+          "remote_websocket": "Fernbedienung nicht verbunden – URL neu konfigurieren",
+          "finish": "Diesen Schritt überspringen und beenden",
+          "fix_ws": "Home-Assistant-WebSocket-URL aktualisieren"
+        }
+      },
+      "zeroconf_confirm": {
+        "data": {
+          "pin": "PIN-Code",
+          "ha_ws_url": "Home-Assistant-WebSocket-URL"
+        },
+        "title": "Unfolded-Circle-Fernbedienung"
+      },
+      "reauth_confirm": {
+        "data": {
+          "pin": "PIN-Code",
+          "ha_ws_url": "Home-Assistant-WebSocket-URL"
+        },
+        "title": "Mit PIN erneut authentifizieren"
+      }
+    }
+  },
+  "config_subentries": {
+    "dock": {
+      "title": "Docks",
+      "step": {
+        "user": {
+          "title": "Docks",
+          "data": {
+            "dock_id": "Welches Dock soll hinzugefügt werden?"
+          }
+        },
+        "dock": {
+          "title": "Passwort für {name} eingeben",
+          "description": "Falls das Dock-Passwort unbekannt ist, kann es im Web-Konfigurator geändert werden.",
+          "data": {
+            "password": "Passwort"
+          }
+        }
+      },
+      "initiate_flow": {
+        "user": "Dock hinzufügen"
+      },
+      "entry_type": "Dock",
+      "error": {
+        "cannot_connect": "Verbindung fehlgeschlagen",
+        "invalid_dock_password": "Falsches Dock-Passwort. Bitte erneut versuchen",
+        "invalid_auth": "Falscher PIN-Code. Bitte erneut versuchen",
+        "unknown": "Unerwarteter Fehler"
+      },
+      "abort": {
+        "reauth_successful": "Dock-Authentifizierung erfolgreich",
+        "no_docks_available": "Keine verfügbaren Docks zum Konfigurieren gefunden"
+      }
+    }
+  },
+  "options": {
+    "error": {
+      "ha_driver_failure": "Unerwarteter Fehler bei der Einrichtung der Fernbedienungs-Entitäten",
+      "cannot_create_ha_token": "Home-Assistant-Token konnte nicht erstellt werden",
+      "invalid_websocket_address": "Ungültige Home-Assistant-WebSocket-Adresse angegeben",
+      "invalid_host": "Ungültiger Host für die Fernbedienung angegeben",
+      "user_determination": "Home-Assistant-Benutzer konnte nicht ermittelt werden"
+    },
+    "step": {
+      "init": {
+        "title": "Unfolded-Circle-Optionen",
+        "menu_options": {
+          "select_entities": "Entitäten mit {remote} teilen",
+          "activities": "Lokale Einstellungen konfigurieren",
+          "remote_host": "Verbindungseinstellungen konfigurieren"
+        }
+      },
+      "media_player": {
+        "title": "Unfolded-Circle-Optionen",
+        "description": "Medienplayer konfigurieren",
+        "data": {
+          "global_media_entity": "Globalen Medienplayer für alle Aktivitäten erstellen",
+          "activity_group_media_entities": "Zusätzliche Medienplayer für jede Aktivitätsgruppe erstellen",
+          "activity_media_entities": "Zusätzliche Medienplayer für jede Aktivität erstellen"
+        }
+      },
+      "activities": {
+        "title": "Unfolded-Circle-Optionen",
+        "description": "Aktivitäten konfigurieren",
+        "data": {
+          "activities_as_switches": "Alle Aktivitäten als Schalter-Entitäten erstellen",
+          "suppress_activity_groups": "Erstellung von Aktivitätsgruppen-Entitäten unterdrücken"
+        }
+      },
+      "remote": {
+        "title": "Unfolded-Circle-Optionen",
+        "data": {
+          "remote_on_behavior": "Zu startende Aktivität, wenn die Fernbedienung eingeschaltet wird"
+        }
+      },
+      "remote_host": {
+        "title": "Unfolded-Circle-Optionen",
+        "description": "Host/IP-Adresse von {name} konfigurieren",
+        "data": {
+          "host": "Host / IP-Adresse"
+        }
+      },
+      "websocket": {
+        "title": "Unfolded-Circle-Optionen",
+        "description": "Home-Assistant-WebSocket-Adresse konfigurieren",
+        "data": {
+          "websocket_url": "Home-Assistant-WebSocket-Adresse"
+        }
+      },
+      "fix_ws": {
+        "title": "Unfolded-Circle-Optionen",
+        "description": "Home-Assistant-WebSocket-Adresse konfigurieren",
+        "data": {
+          "websocket_url": "Home-Assistant-WebSocket-Adresse"
+        }
+      },
+      "select_entities": {
+        "title": "Entitäten konfigurieren",
+        "description": "Nach dem Senden die [Konfiguration]({remote_ha_config_url}) auf der Fernbedienung abschließen",
+        "data": {
+          "add_entities": "Entitäten, die mit der Fernbedienung geteilt werden sollen",
+          "remove_entities": "Entitäten, die entfernt werden sollen",
+          "subscribe_entities": "Gemeinsame Entitäten automatisch konfigurieren"
+        },
+        "menu_options": {
+          "remote_websocket": "Fernbedienung nicht verbunden – URL neu konfigurieren",
+          "finish": "Diesen Schritt überspringen und beenden",
+          "fix_ws": "Home-Assistant-WebSocket-URL aktualisieren"
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "integration_not_loaded": {
+      "message": "Integration nicht geladen"
+    },
+    "activity_not_found": {
+      "message": "Aktivität konnte nicht aus der Entität ermittelt werden"
+    },
+    "unknown_config_entry": {
+      "message": "Fernbedienung konnte aus der Eingabe nicht ermittelt werden"
+    },
+    "unknown_dock": {
+      "message": "Dock konnte aus der Eingabe nicht ermittelt werden"
+    },
+    "no_activity_running": {
+      "message": "Keine Aktivität läuft oder Aktivität ungültig"
+    },
+    "invalid_button_command": {
+      "message": "Der Tastbefehl ist ungültig"
+    },
+    "remote_is_sleeping": {
+      "message": "Die Fernbedienung schläft und reagiert nicht auf den Aufweckbefehl"
+    },
+    "entity_command_error": {
+      "message": "Fehler beim Senden des Befehls an die Fernbedienung"
+    },
+    "failed_to_send_command": {
+      "message": "Befehl konnte nicht an die Fernbedienung gesendet werden. Eingaben prüfen"
+    }
+  },
+  "issues": {
+    "websocket_connection": {
+      "title": "Verbesserte Kommunikation zwischen {name} und Home Assistant aktivieren",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Home-Assistant-WebSocket-URL",
+            "description": "Zur Verbesserung der Kommunikation benötigt {name} die WebSocket-Adresse dieses Home-Assistant-Servers.",
+            "data": {
+              "websocket_url": "Home-Assistant-WebSocket-Adresse"
+            }
+          }
+        },
+        "error": {
+          "cannot_connect": "Verbindung fehlgeschlagen",
+          "websocket_failure": "Ungültige WebSocket-URL",
+          "unknown": "Unerwarteter Fehler"
+        },
+        "abort": {
+          "ws_connection_successful": "Verbesserte Kommunikation aktiviert"
+        }
+      }
+    },
+    "dock_password": {
+      "title": "Dock-Passwort für {name} eingeben",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Dock-Passwort für {name} eingeben",
+            "description": "Das Dock-Passwort wird benötigt, um Lernfunktionen zu aktivieren",
+            "data": {
+              "password": "{name} Passwort"
+            }
+          }
+        },
+        "error": {
+          "cannot_connect": "Verbindung fehlgeschlagen",
+          "invalid_dock_password": "Falsches Dock-Passwort. Bitte erneut versuchen",
+          "invalid_auth": "Falscher PIN-Code. Bitte erneut versuchen",
+          "unknown": "Unerwarteter Fehler"
+        },
+        "abort": {
+          "reauth_successful": "Dock-Authentifizierung erfolgreich"
+        }
+      }
+    }
+  }
+}
