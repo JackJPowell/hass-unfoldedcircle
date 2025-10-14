@@ -186,7 +186,7 @@ actions:
         metadata: {}
         data: {}
         target:
-          entity_id: switch.unfolded_circle_remote_two_wireless_charging
+          entity_id: switch.remote_3_wireless_charging
   - if:
       - condition: trigger
         id:
@@ -196,7 +196,7 @@ actions:
         metadata: {}
         data: {}
         target:
-          entity_id: switch.unfolded_circle_remote_two_wireless_charging
+          entity_id: switch.remote_3_wireless_charging
 mode: single
 ```
 
