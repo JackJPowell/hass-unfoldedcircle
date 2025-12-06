@@ -5,7 +5,8 @@
       "already_in_progress": "Device is pending setup",
       "no_mac": "This device is not recognized as a valid Unfolded Circle Remote (No MAC Address)",
       "reauth_successful": "Reauthentication was successful",
-      "unique_id_required": "Device missing unique identification required for discovery."
+      "unique_id_required": "Device missing unique identification required for discovery.",
+      "reconfigure_successful": "Reconfigured successfully"
     },
     "error": {
       "cannot_connect": "Failed to connect",
@@ -50,6 +51,31 @@
           "ha_ws_url": "Home Assistant Websocket URL"
         },
         "title": "Reauthenticate with PIN"
+      },
+      "reconfigure": {
+        "title": "Reconfigure Connection",
+        "description": "Choose which connection setting to update.",
+        "menu_options": {
+          "reconfigure_host": "Update Remote Host",
+          "reconfigure_websocket": "Update WebSocket URL"
+        },
+        "abort": {
+          "reconfigure_successful": "Reconfigured successfully"
+        }
+      },
+      "reconfigure_host": {
+        "title": "Update Remote Host",
+        "description": "Update the IP address or hostname of your Unfolded Circle Remote.",
+        "data": {
+          "host": "[%key:common::config_flow::data::host%]"
+        }
+      },
+      "reconfigure_websocket": {
+        "title": "Update WebSocket URL",
+        "description": "Update the Home Assistant WebSocket URL used by the remote.",
+        "data": {
+          "websocket_url": "WebSocket URL"
+        }
       }
     }
   },
@@ -234,6 +260,10 @@
           "reauth_successful": "Dock authentication was successful"
         }
       }
+    },
+    "dock_unreachable": {
+      "title": "Dock {name} is unreachable",
+      "description": "The dock could not be reached during initialization. Error: {error}. The main remote will continue to work normally, but dock-specific features will be unavailable until the dock is back online. Try reloading the integration once the dock is accessible."
     }
   }
 }
