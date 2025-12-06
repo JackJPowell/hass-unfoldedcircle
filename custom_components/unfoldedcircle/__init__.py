@@ -25,6 +25,8 @@ from .coordinator import (
 from .helpers import (
     get_registered_websocket_url,
     async_create_issue_dock_password,
+    async_create_issue_dock_unreachable,
+    async_delete_issue_dock_unreachable,
     async_create_issue_websocket_connection,
 )
 
@@ -104,6 +106,12 @@ async def async_setup_entry(
     for subentry_id, subentry in entry.subentries.items():
         if subentry.data["password"] != "":
             dock = remote_api.get_dock_by_id(subentry.data["id"])
+            if dock is None:
+                _LOGGER.warning(
+                    "Dock with ID %s not found on remote, skipping",
+                    subentry.data["id"],
+                )
+                continue
             dock_coordinator = UnfoldedCircleDockCoordinator(
                 hass, dock, entry, subentry
             )
@@ -111,15 +119,22 @@ async def async_setup_entry(
                 await dock_coordinator.api.update()
                 await dock_coordinator.async_config_entry_first_refresh()
                 docks[subentry_id] = dock_coordinator
+                # Clear any previous unreachable issue for this dock
+                async_delete_issue_dock_unreachable(hass, dock.id)
             except Exception as ex:
-                _LOGGER.error(
-                    "Could not initialize connection to dock %s (%s): %s",
+                _LOGGER.warning(
+                    "Could not initialize connection to dock %s (%s): %s. "
+                    "The main remote will continue to work, but dock features will be unavailable.",
                     dock.name,
                     dock.endpoint,
                     ex,
                 )
+                # Create a repair issue for the unreachable dock
+                async_create_issue_dock_unreachable(hass, dock, entry, subentry, ex)
         else:
-            async_create_issue_dock_password(hass, dock, entry, subentry)
+            dock = remote_api.get_dock_by_id(subentry.data["id"])
+            if dock:
+                async_create_issue_dock_password(hass, dock, entry, subentry)
 
     entry.runtime_data = UnfoldedCircleRuntimeData(
         coordinator=coordinator, remote=remote_api, docks=docks

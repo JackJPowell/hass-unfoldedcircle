@@ -20,6 +20,7 @@ async def async_setup_entry(
         [
             RebootButton(coordinator),
             UpdateCheckButton(coordinator),
+            ShutdownButton(coordinator),
         ]
     )
 
@@ -59,6 +60,23 @@ class RebootButton(UnfoldedCircleEntity, ButtonEntity):
     async def async_press(self) -> None:
         """Press the button."""
         await self.coordinator.api.post_system_command("REBOOT")
+
+
+class ShutdownButton(UnfoldedCircleEntity, ButtonEntity):
+    """Representation of a Button entity."""
+
+    def __init__(self, coordinator) -> None:
+        """Initialize the button."""
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_shutdown_button"
+        self._attr_name = "Power Off"
+        self._attr_entity_category = EntityCategory.CONFIG
+        self._attr_icon = "mdi:gesture-tap-button"
+        self._attr_device_class = ButtonDeviceClass.RESTART
+
+    async def async_press(self) -> None:
+        """Press the button."""
+        await self.coordinator.api.post_system_command("POWER_OFF")
 
 
 class UpdateCheckButton(UnfoldedCircleEntity, ButtonEntity):
@@ -114,7 +132,7 @@ class IdentifyDockButton(UnfoldedCircleDockEntity, ButtonEntity):
         super().__init__(coordinator, config_entry, subentry)
         self._attr_unique_id = f"{subentry.unique_id}_{self.coordinator.api.model_number}_{self.coordinator.api.serial_number}_identify_button"
         self._attr_name = "Identify"
-        self._attr_entity_category = EntityCategory.CONFIG
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._attr_icon = "mdi:gesture-tap-button"
         self._attr_device_class = ButtonDeviceClass.IDENTIFY
 

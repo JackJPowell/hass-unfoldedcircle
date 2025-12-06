@@ -416,6 +416,38 @@ def async_create_issue_dock_password(
 
 
 @callback
+def async_create_issue_dock_unreachable(
+    hass: HomeAssistant, dock: Dock, entry, subentry, error: str
+) -> None:
+    """Create an issue in the issue registry for an unreachable dock."""
+    _LOGGER.warning("Dock unreachable: %s - %s", dock.name, error)
+    issue_registry.async_create_issue(
+        hass,
+        DOMAIN,
+        f"dock_unreachable_{dock.id}",
+        breaks_in_ha_version=None,
+        data={
+            "id": dock.id,
+            "name": dock.name,
+            "config_entry": entry,
+            "subentry": subentry,
+        },
+        is_fixable=False,
+        is_persistent=False,
+        learn_more_url="https://github.com/jackjpowell/hass-unfoldedcircle",
+        severity=issue_registry.IssueSeverity.WARNING,
+        translation_key="dock_unreachable",
+        translation_placeholders={"name": dock.name, "error": str(error)},
+    )
+
+
+@callback
+def async_delete_issue_dock_unreachable(hass: HomeAssistant, dock_id: str) -> None:
+    """Delete the unreachable dock issue when dock becomes available."""
+    issue_registry.async_delete_issue(hass, DOMAIN, f"dock_unreachable_{dock_id}")
+
+
+@callback
 def async_create_issue_websocket_connection(
     hass: HomeAssistant,
     entry,

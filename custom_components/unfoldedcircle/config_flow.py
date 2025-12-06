@@ -71,6 +71,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self.api_keyname: str | None = None
         self.discovery_info: dict[str, Any] = {}
         self._remote: Remote | None = None
+        self._reconfigure_entry: ConfigEntry | None = None
         self.dock_count: int = 0
         self.info: dict[str, any] = {}
         self.options: dict[str, any] = {}
@@ -432,6 +433,66 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.error("Error while creating registry entry %s", ex)
             raise ex
 
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle reconfiguration of the integration."""
+        self._reconfigure_entry = self.hass.config_entries.async_get_entry(
+            self.context["entry_id"]
+        )
+        self._remote = Remote(
+            api_url=self._reconfigure_entry.data["host"],
+            apikey=self._reconfigure_entry.data["apiKey"],
+        )
+        try:
+            await self._remote.validate_connection()
+            await self._remote.get_version()
+        except Exception:
+            pass  # Continue anyway, we're reconfiguring
+
+        if self._remote.external_entity_configuration_available:
+            return self.async_show_menu(
+                step_id="reconfigure",
+                menu_options=["reconfigure_host", "reconfigure_websocket"],
+            )
+        return await self.async_step_reconfigure_host()
+
+    async def async_step_reconfigure_host(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle reconfiguration of the remote host."""
+        return await async_step_remote_host(
+            self,
+            self.hass,
+            self._remote,
+            self._reconfigure_entry,
+            self.async_step_reconfigure_finish,
+            user_input,
+            step_id="reconfigure_host",
+        )
+
+    async def async_step_reconfigure_websocket(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle reconfiguration of the websocket URL."""
+        return await async_step_websocket(
+            self,
+            self.hass,
+            self._remote,
+            self.async_step_reconfigure_finish,
+            user_input,
+            step_id="reconfigure_websocket",
+        )
+
+    async def async_step_reconfigure_finish(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Finish reconfiguration."""
+        return self.async_update_reload_and_abort(
+            self._reconfigure_entry,
+            data=self._reconfigure_entry.data,
+        )
+
 
 class DockSubentryFlowHandler(ConfigSubentryFlow):
     """Handle subentry flow for adding and modifying a dock."""
@@ -683,99 +744,34 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         """Handle a flow initialized by the user."""
         if final_step is True:
             self._bypass_steps = True
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            existing_entry = self._config_entry
 
-            remote_api = Remote(
-                api_url=user_input.get("host"),
-                apikey=existing_entry.data["apiKey"],
-            )
-            try:
-                if await remote_api.validate_connection():
-                    data = existing_entry.data.copy()
-                    _LOGGER.debug("Updating host for remote")
-                    data["host"] = remote_api.endpoint
-            except ClientConnectionError:
-                errors["base"] = "invalid_host"
-            else:
-                self.hass.config_entries.async_update_entry(existing_entry, data=data)
-
-                if (
-                    self._remote.external_entity_configuration_available
-                    and self._bypass_steps is False
-                ):
-                    return await self.async_step_websocket()
-                return await self._update_options()
-
-        last_step = True
+        next_step = None
         if (
             self._remote.external_entity_configuration_available
             and self._bypass_steps is False
         ):
-            last_step = False
+            next_step = self.async_step_websocket
 
-        return self.async_show_form(
+        return await async_step_remote_host(
+            self,
+            self.hass,
+            self._remote,
+            self._config_entry,
+            self._update_options,
+            user_input,
             step_id="remote_host",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        "host",
-                        default=self._config_entry.data["host"],
-                    ): str,
-                }
-            ),
-            description_placeholders={"name": self._remote.name},
-            last_step=last_step,
-            errors=errors,
+            next_step_callback=next_step,
         )
 
     async def async_step_websocket(self, user_input=None):
         """Handle a flow initialized by the user."""
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            try:
-                await validate_and_register_system_and_driver(
-                    self._remote,
-                    self.hass,
-                    user_input.get("websocket_url"),
-                )
-            except InvalidWebsocketAddress as ex:
-                _LOGGER.error("Invalid Websocket Address: %s", ex)
-                errors["base"] = "invalid_websocket_address"
-            except TokenRegistrationError as ex:
-                _LOGGER.error("Error during token registration on remote: %s", ex)
-                errors["base"] = "ha_driver_failure"
-            except UnableToDetermineUser as ex:
-                _LOGGER.error("Error determining Home Assistant user: %s", ex)
-                errors["base"] = "user_determination"
-            except Exception as ex:
-                _LOGGER.error(
-                    "Error during driver registration, continue config flow: %s",
-                    ex,
-                )
-            else:
-                self.options.update(user_input)
-                return await self._update_options()
-
-        url = await get_registered_websocket_url(self._remote)
-        if url is None:
-            url = get_ha_websocket_url(self.hass)
-        if user_input is not None:
-            url = user_input.get("websocket_url")
-
-        return self.async_show_form(
+        return await async_step_websocket(
+            self,
+            self.hass,
+            self._remote,
+            self._update_options,
+            user_input,
             step_id="websocket",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        "websocket_url",
-                        default=url,
-                    ): str,
-                }
-            ),
-            last_step=True,
-            errors=errors,
         )
 
     async def _update_options(self):
@@ -812,6 +808,118 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
     ) -> FlowResult:
         """Finish Step"""
         return await self._update_options()
+
+
+async def async_step_remote_host(
+    config_flow: UnfoldedCircleRemoteConfigFlow
+    | UnfoldedCircleRemoteOptionsFlowHandler,
+    hass: HomeAssistant,
+    remote: Remote,
+    config_entry: ConfigEntry,
+    finish_callback: Callable[..., Awaitable[FlowResult]],
+    user_input: dict[str, Any] | None = None,
+    step_id: str = "remote_host",
+    next_step_callback: Callable[..., Awaitable[FlowResult]] | None = None,
+) -> FlowResult:
+    """Shared function for updating remote host."""
+    errors: dict[str, str] = {}
+
+    if user_input is not None:
+        remote_api = Remote(
+            api_url=user_input.get("host"),
+            apikey=config_entry.data["apiKey"],
+        )
+        try:
+            if await remote_api.validate_connection():
+                data = config_entry.data.copy()
+                _LOGGER.debug("Updating host for remote")
+                data["host"] = remote_api.endpoint
+                hass.config_entries.async_update_entry(config_entry, data=data)
+        except ClientConnectionError:
+            errors["base"] = "cannot_connect"
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.exception("Unexpected exception during host update")
+            errors["base"] = "unknown"
+        else:
+            if next_step_callback is not None:
+                return await next_step_callback()
+            return await finish_callback()
+
+    last_step = next_step_callback is None
+
+    return config_flow.async_show_form(
+        step_id=step_id,
+        data_schema=vol.Schema(
+            {
+                vol.Required(
+                    "host",
+                    default=config_entry.data["host"],
+                ): str,
+            }
+        ),
+        description_placeholders={"name": remote.name if remote else "Remote"},
+        last_step=last_step,
+        errors=errors,
+    )
+
+
+async def async_step_websocket(
+    config_flow: UnfoldedCircleRemoteConfigFlow
+    | UnfoldedCircleRemoteOptionsFlowHandler,
+    hass: HomeAssistant,
+    remote: Remote,
+    finish_callback: Callable[..., Awaitable[FlowResult]],
+    user_input: dict[str, Any] | None = None,
+    step_id: str = "websocket",
+) -> FlowResult:
+    """Shared function for updating websocket URL."""
+    errors: dict[str, str] = {}
+
+    if user_input is not None:
+        try:
+            await validate_and_register_system_and_driver(
+                remote,
+                hass,
+                user_input.get("websocket_url"),
+            )
+        except InvalidWebsocketAddress as ex:
+            _LOGGER.error("Invalid Websocket Address: %s", ex)
+            errors["base"] = "invalid_websocket_address"
+        except TokenRegistrationError as ex:
+            _LOGGER.error("Error during token registration on remote: %s", ex)
+            errors["base"] = "ha_driver_failure"
+        except UnableToDetermineUser as ex:
+            _LOGGER.error("Error determining Home Assistant user: %s", ex)
+            errors["base"] = "user_determination"
+        except Exception as ex:
+            _LOGGER.error(
+                "Error during driver registration, continue config flow: %s",
+                ex,
+            )
+        else:
+            if hasattr(config_flow, "options") and config_flow.options is not None:
+                config_flow.options.update(user_input)
+            return await finish_callback()
+
+    url = await get_registered_websocket_url(remote)
+    if url is None:
+        url = get_ha_websocket_url(hass)
+    if user_input is not None:
+        url = user_input.get("websocket_url")
+
+    return config_flow.async_show_form(
+        step_id=step_id,
+        data_schema=vol.Schema(
+            {
+                vol.Required(
+                    "websocket_url",
+                    default=url,
+                ): str,
+            }
+        ),
+        last_step=True,
+        errors=errors,
+    )
 
 
 async def async_step_fix_ws(

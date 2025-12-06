@@ -86,12 +86,21 @@ class UnfoldedCircleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def reconnection_ws(self):
         """Reconnect WS Connection if dropped"""
-        _LOGGER.debug("Refreshing after ws connection was lost")
+        _LOGGER.warning(
+            "Unfolded Circle Remote websocket reconnected - starting full data refresh to resync state"
+        )
         try:
             await self.api.update()
             self.async_set_updated_data(vars(self.api))
+            _LOGGER.warning(
+                "Unfolded Circle Remote full data refresh completed successfully after websocket reconnection"
+            )
         except Exception as ex:
-            _LOGGER.error("reconnection_ws error while updating: %s", ex)
+            _LOGGER.error(
+                "Unfolded Circle Remote FAILED to refresh data after websocket reconnection: %s. Data may be stale.",
+                ex,
+                exc_info=True,
+            )
 
     async def receive_data(self, message: any):
         """Update data received from WS"""
