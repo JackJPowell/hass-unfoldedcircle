@@ -220,7 +220,7 @@ Requirements:
 - Remote firmware ≥ 2.0.0 (≥ 2.6.9 recommended; Remote 3 currently beta but stable)
 
 Demo video:
-https://github.com/user-attachments/assets/96fa94e8-a5ad-4833-9a49-0bf85373eae0
+https://github.com/user-attachments/assets/7e653b3f-3edb-484c-9cd6-efcd21886b87
 
 ---
 
