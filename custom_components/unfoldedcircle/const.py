@@ -27,6 +27,7 @@ HA_SUPPORTED_DOMAINS = [
     "scene",
     "sensor",
     "switch",
+    "conversation"
 ]
 COMMAND_LIST = [
     "BACK",
