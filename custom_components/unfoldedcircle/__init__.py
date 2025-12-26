@@ -12,6 +12,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
+from wakeonlan import send_magic_packet
 
 from .const import DOMAIN, UC_HA_SYSTEM, UC_HA_TOKEN_ID
 from .services import async_setup_services
@@ -52,6 +53,7 @@ async def async_setup_entry(
     """Set up Unfolded Circle Remote from a config entry."""
 
     try:
+        send_magic_packet(entry.data["mac_address"])
         remote_api = Remote(entry.data["host"], entry.data["pin"], entry.data["apiKey"])
         await remote_api.validate_connection()
         await remote_api.get_remote_information()
