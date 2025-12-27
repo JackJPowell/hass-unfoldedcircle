@@ -52,6 +52,10 @@ async def async_setup_entry(
     """Set up Unfolded Circle Remote from a config entry."""
 
     try:
+        if "host" in entry.data and "mac" in entry.data and entry.data.get("mac"):
+            if not await Remote.wake_by_mac(entry.data["mac"], entry.data["host"]):
+                raise ConnectionError("Could not wake up or connect to remote device")
+
         remote_api = Remote(entry.data["host"], entry.data["pin"], entry.data["apiKey"])
         await remote_api.validate_connection()
         await remote_api.get_remote_information()
