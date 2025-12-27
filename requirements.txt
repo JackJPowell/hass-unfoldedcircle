@@ -1,5 +1,5 @@
 # Home Assistant
-homeassistant>=2025.12.0
+homeassistant>=2025.12.4
 PyTurboJPEG
 
 # Development
