@@ -165,7 +165,7 @@ class UCRemoteSwitch(UnfoldedCircleEntity, SwitchEntity):
         super().__init__(coordinator)
         self.switch = switch
         self._attr_name = switch.name
-        self._attr_unique_id = switch._id
+        self._attr_unique_id = f"{coordinator.api.model_number}_{coordinator.api.serial_number}_{switch._id}"
         self._state = switch.state
         self._attr_icon = "mdi:remote-tv"
         self._attr_native_value = "OFF"

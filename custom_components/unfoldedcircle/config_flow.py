@@ -169,7 +169,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_zeroconf(self, discovery_info: ZeroconfServiceInfo):
         """Handle zeroconf discovery."""
         host = discovery_info.ip_address.compressed
-        port = discovery_info.port
+        port = discovery_info.port or 80  # Default to 80 if port is None
         model = discovery_info.properties.get("model")
 
         (
@@ -187,10 +187,19 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             }
         )
 
-        _LOGGER.debug("Unfolded circle remote found %s :", discovery_info)
+        _LOGGER.debug(
+            "Unfolded Circle remote found via mDNS: %s at %s:%s",
+            mac_address,
+            host,
+            port,
+        )
         if not mac_address:
             return self.async_abort(reason="no_mac")
-        await self._async_set_unique_id_and_abort_if_already_configured(mac_address)
+
+        # Set unique ID and update host/port if already configured (for IP address changes)
+        await self._async_set_unique_id_and_abort_if_already_configured(
+            mac_address, host=host, port=port
+        )
 
         self.context.update(
             {
@@ -216,6 +225,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Optional(
                     CONF_HA_WEBSOCKET_URL, default=get_ha_websocket_url(self.hass)
                 ): str,
+                vol.Optional(CONF_ACTIVITIES_AS_SWITCHES, default=False): bool,
             }
         )
         if user_input is None or user_input == {}:
@@ -231,6 +241,11 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             host = f"{self.discovery_info[CONF_HOST]}:{self.discovery_info[CONF_PORT]}"
             self.info = await self.validate_input(user_input, host)
             self.discovery_info.update({CONF_MAC: self.info[CONF_MAC]})
+            # Store the activities_as_switches option
+            if user_input.get(CONF_ACTIVITIES_AS_SWITCHES) is not None:
+                self.options[CONF_ACTIVITIES_AS_SWITCHES] = user_input[
+                    CONF_ACTIVITIES_AS_SWITCHES
+                ]
             await self._async_set_unique_id_and_abort_if_already_configured(
                 self.info[CONF_MAC]
             )
@@ -275,6 +290,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                     vol.Optional(
                         CONF_HA_WEBSOCKET_URL, default=get_ha_websocket_url(self.hass)
                     ): str,
+                    vol.Optional(CONF_ACTIVITIES_AS_SWITCHES, default=False): bool,
                 }
             )
             return self.async_show_form(
@@ -285,6 +301,11 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.debug("Connect with manual input: %s", user_input)
             self.info = await self.validate_input(user_input, "")
             self.discovery_info.update({CONF_MAC: self.info[CONF_MAC]})
+            # Store the activities_as_switches option
+            if user_input.get(CONF_ACTIVITIES_AS_SWITCHES) is not None:
+                self.options[CONF_ACTIVITIES_AS_SWITCHES] = user_input[
+                    CONF_ACTIVITIES_AS_SWITCHES
+                ]
             await self._async_set_unique_id_and_abort_if_already_configured(
                 self.info[CONF_MAC]
             )
@@ -311,22 +332,40 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Optional(
                     CONF_HA_WEBSOCKET_URL, default=user_input.get(CONF_HA_WEBSOCKET_URL)
                 ): str,
+                vol.Optional(
+                    CONF_ACTIVITIES_AS_SWITCHES,
+                    default=user_input.get(CONF_ACTIVITIES_AS_SWITCHES, False),
+                ): bool,
             }
         )
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
 
     async def _async_set_unique_id_and_abort_if_already_configured(
-        self, unique_id: str
+        self, unique_id: str, host: str | None = None, port: int | None = None
     ) -> None:
-        """Set the unique ID and abort if already configured."""
+        """Set the unique ID and abort if already configured.
+
+        If host and port are provided (from mDNS discovery), update the config entry's
+        host field and reload the integration when the IP address changes.
+        """
+        # Legacy dash check for compatibility (though remote MACs don't have dashes)
         index = unique_id.find("-")
         if index > 0:
             unique_id = unique_id[0:index]
 
         await self.async_set_unique_id(unique_id)
-        self._abort_if_unique_id_configured(
-            updates={CONF_MAC: unique_id},
-        )
+
+        # If host/port provided (from mDNS), update them and reload on change
+        if host is not None and port is not None:
+            self._abort_if_unique_id_configured(
+                updates={CONF_HOST: f"{host}:{port}", CONF_MAC: unique_id},
+                reload_on_update=True,
+            )
+        else:
+            # Standard behavior for manual config
+            self._abort_if_unique_id_configured(
+                updates={CONF_MAC: unique_id},
+            )
 
     async def async_step_reauth(
         self, user_input: dict[str, Any] | None = None

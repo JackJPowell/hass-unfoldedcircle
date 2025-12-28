@@ -106,6 +106,39 @@ async def async_setup_entry(
                 entity_registry.async_remove(entity.entity_id)
         hass.config_entries.async_update_entry(entry, version=4)
 
+    if entry.version < 5:
+        # Migrate activity switch unique IDs to include model_number and serial_number
+        # to prevent collisions when restoring backups to different remotes
+        entity_registry = er.async_get(hass)
+        model_number = remote_api.model_number
+        serial_number = remote_api.serial_number
+        new_prefix = f"{model_number}_{serial_number}_"
+
+        for entity in er.async_entries_for_config_entry(
+            entity_registry, entry.entry_id
+        ):
+            # Only migrate activity switches (domain=switch, not config category, not remote switch)
+            if entity.domain == Platform.SWITCH:
+                # Skip config switches (they already have the correct format)
+                if entity.unique_id.startswith(f"{model_number}_{serial_number}_"):
+                    continue
+                # Skip the remote switch itself (ends with _remote)
+                if entity.unique_id.endswith("_remote"):
+                    continue
+                # This is an activity switch with old format (just the activity GUID)
+                # Migrate to new format: model_number_serial_number_activityGUID
+                old_unique_id = entity.unique_id
+                new_unique_id = f"{new_prefix}{old_unique_id}"
+                _LOGGER.debug(
+                    "Migrating activity switch unique_id from %s to %s",
+                    old_unique_id,
+                    new_unique_id,
+                )
+                entity_registry.async_update_entity(
+                    entity.entity_id, new_unique_id=new_unique_id
+                )
+        hass.config_entries.async_update_entry(entry, version=5)
+
     docks = {}
     for subentry_id, subentry in entry.subentries.items():
         if subentry.data["password"] != "":

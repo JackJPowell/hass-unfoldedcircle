@@ -21,7 +21,8 @@
         "data": {
           "host": "Host",
           "pin": "PIN Code",
-          "ha_ws_url": "Home Assistant Websocket URL"
+          "ha_ws_url": "Home Assistant Websocket URL",
+          "activities_as_switches": "Create activities as Switch entities"
         }
       },
       "select_entities": {
@@ -41,7 +42,8 @@
       "zeroconf_confirm": {
         "data": {
           "pin": "PIN Code",
-          "ha_ws_url": "Home Assistant Websocket URL"
+          "ha_ws_url": "Home Assistant Websocket URL",
+          "activities_as_switches": "Create activities as Switch entities"
         },
         "title": "Unfolded Circle Remote"
       },

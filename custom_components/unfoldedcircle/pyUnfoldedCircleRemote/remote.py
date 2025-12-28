@@ -188,7 +188,7 @@ class Remote:
         self, api_url, pin=None, apikey=None, wake_if_asleep: bool = True
     ) -> None:
         """Create a new UC Remote Object."""
-        self.endpoint = self.validate_url(api_url)
+        self.endpoint = Remote.validate_url(api_url)
         self.configuration_url = self.derive_configuration_url()
         self.apikey = apikey
         self.pin = pin
@@ -246,7 +246,7 @@ class Remote:
         self._docks: list[Dock] = []
         self._wake_if_asleep = wake_if_asleep
         self._wake_on_lan: bool = False
-        self._wake_on_lan_retries = 2
+        self._wake_on_lan_retries = 3
         self._wake_on_lan_available: bool = False
         self._external_entity_configuration_available: bool = False
         self._bt_enabled: bool = False
@@ -562,7 +562,8 @@ class Remote:
         return self._localization_info
 
     ### URL Helpers ###
-    def validate_url(self, uri):
+    @staticmethod
+    def validate_url(uri):
         """Validate passed in URL and attempts to correct api endpoint if path isn't supplied."""
         if re.search("^http.*", uri) is None:
             uri = (
@@ -643,24 +644,62 @@ class Remote:
                 raise AuthenticationError
             return response.status == 200
 
+    @classmethod
+    async def wake_by_mac(
+        cls,
+        mac_address: str,
+        api_url: str,
+        wait_for_confirmation: bool = True,
+        retries: int = 3,
+    ) -> bool:
+        """Sends a magic packet to wake a device by MAC address.
+
+        Args:
+            mac_address: MAC address of the device to wake
+            api_url: API URL of the remote (e.g., http://192.168.1.100/api/)
+            wait_for_confirmation: Whether to wait and verify the device is awake
+            retries: Number of times to check if device is awake (1 second between attempts)
+
+        Returns:
+            bool: True if device was woken successfully, False otherwise
+        """
+        # Validate and normalize the API URL
+        validated_url = cls.validate_url(api_url)
+
+        send_magic_packet(mac_address)
+
+        if not wait_for_confirmation:
+            return True
+
+        # Validate the device is awake by hitting the unauthenticated /pub/status endpoint
+        attempt = 0
+        while attempt < retries:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        urljoin(validated_url, "pub/status"),
+                        timeout=aiohttp.ClientTimeout(total=2),
+                    ) as response:
+                        if response.status == 200:
+                            return True
+            except Exception:
+                pass
+            attempt += 1
+            await asyncio.sleep(1)
+
+        return False
+
     async def wake(self, wait_for_confirmation: bool = True) -> bool:
         """Sends a magic packet to attempt to wake the device while asleep."""
         if self._is_simulator:
             return True
 
-        send_magic_packet(self._mac_address)
-        if wait_for_confirmation is False:
-            return True
-        attempt = 0
-        while attempt < self._wake_on_lan_retries:
-            try:
-                if await self.validate_connection():
-                    return True
-            except Exception:
-                pass
-            attempt += 1
-            await asyncio.sleep(1)
-        return False
+        return await self.wake_by_mac(
+            mac_address=self._mac_address,
+            api_url=self.endpoint,
+            wait_for_confirmation=wait_for_confirmation,
+            retries=self._wake_on_lan_retries,
+        )
 
     async def raise_on_error(self, response):
         """Raise an HTTP error if the response returns poorly."""
@@ -2502,15 +2541,36 @@ class Remote:
         if not locale:
             locale = self._localization_info.language_code
 
+        # Handle None or empty text
+        if not text:
+            return default_text
+
         if isinstance(text, str):
             return text
 
+        # Try exact locale match
         if text.get(locale):
             return text.get(locale)
-        elif text.get("en_US"):
+
+        # Try locale without region (e.g., "de" from "de_DE")
+        if "_" in locale:
+            base_locale = locale.split("_")[0]
+            if text.get(base_locale):
+                return text.get(base_locale)
+
+        # Try common fallbacks
+        if text.get("en_US"):
             return text.get("en_US")
         elif text.get("en"):
             return text.get("en")
+
+        # If still no match, try to return any available language
+        # This handles cases where only specific languages are defined
+        if text:
+            for value in text.values():
+                if value:  # Return first non-empty value
+                    return value
+
         return default_text
 
 
