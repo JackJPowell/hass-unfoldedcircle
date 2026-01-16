@@ -1,7 +1,7 @@
 [![Discord](https://badgen.net/discord/online-members/zGVYf58)](https://discord.gg/zGVYf58)
 ![GitHub Release](https://img.shields.io/github/v/release/jackjpowell/hass-unfoldedcircle)
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/jackjpowell/hass-unfoldedcircle/total)
-![Maintenance](https://img.shields.io/maintenance/yes/2025.svg)
+![Maintenance](https://img.shields.io/maintenance/yes/2026.svg)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy_Me_A_Coffee%20☕-FFDD00?logo=buy-me-a-coffee&logoColor=white&labelColor=555)](https://buymeacoffee.com/jackpowell)
 
 # Unfolded Circle Integration
