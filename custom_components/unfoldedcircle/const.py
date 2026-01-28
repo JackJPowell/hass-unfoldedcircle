@@ -28,6 +28,7 @@ HA_SUPPORTED_DOMAINS = [
     "sensor",
     "switch",
     "select",
+    "input_select",
 ]
 COMMAND_LIST = [
     "BACK",
