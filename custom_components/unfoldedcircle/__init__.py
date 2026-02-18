@@ -141,14 +141,14 @@ async def async_setup_entry(
 
     if entry.version < 6:
         # Remove ethernet_led_brightness number entities from docks
+        # Note: This entity used unique_id="button_backlight_brightness" but was a dock entity
         entity_registry = er.async_get(hass)
         for entity in er.async_entries_for_config_entry(
             entity_registry, entry.entry_id
         ):
-            # Remove ethernet_led_brightness number entities
-            if (
-                entity.domain == Platform.NUMBER
-                and "ethernet_led_brightness" in entity.unique_id
+            # Remove ethernet_led_brightness number entities (they used the wrong unique_id)
+            if entity.domain == Platform.NUMBER and entity.unique_id.endswith(
+                "_button_backlight_brightness"
             ):
                 _LOGGER.debug(
                     "Removing deprecated ethernet_led_brightness entity: %s",
