@@ -5,5 +5,108 @@
     "send_ir_command": "mdi:remote",
     "send_button_command": "mdi:remote",
     "inhibit_standby": "mdi:sleep-off"
+  },
+  "entity": {
+    "sensor": {
+      "battery_level": {
+        "default": "mdi:battery-unknown",
+        "range": {
+          "0": "mdi:battery-outline",
+          "10": "mdi:battery-10",
+          "20": "mdi:battery-20",
+          "30": "mdi:battery-30",
+          "40": "mdi:battery-40",
+          "50": "mdi:battery-50",
+          "60": "mdi:battery-60",
+          "70": "mdi:battery-70",
+          "80": "mdi:battery-80",
+          "90": "mdi:battery-90",
+          "100": "mdi:battery"
+        }
+      },
+      "power_mode": {
+        "default": "mdi:power-plug-battery",
+        "state": {
+          "Normal": "mdi:power-plug",
+          "Low Power": "mdi:power-sleep",
+          "Idle": "mdi:power-sleep",
+          "Suspended": "mdi:sleep"
+        }
+      }
+    },
+    "binary_sensor": {
+      "charging_status": {
+        "default": "mdi:battery",
+        "state": {
+          "on": "mdi:battery-charging",
+          "off": "mdi:battery"
+        }
+      }
+    },
+    "number": {
+      "sound_effects_volume": {
+        "default": "mdi:volume-off",
+        "range": {
+          "0": "mdi:volume-off",
+          "1": "mdi:volume-low",
+          "34": "mdi:volume-medium",
+          "67": "mdi:volume-high"
+        }
+      },
+      "wakeup_sensitivity": {
+        "default": "mdi:sleep-off",
+        "range": {
+          "0": "mdi:sleep",
+          "1": "mdi:motion-sensor",
+          "2": "mdi:motion-sensor",
+          "3": "mdi:motion-sensor"
+        }
+      },
+      "display_brightness": {
+        "default": "mdi:brightness-5",
+        "range": {
+          "0": "mdi:brightness-1",
+          "20": "mdi:brightness-2",
+          "40": "mdi:brightness-4",
+          "60": "mdi:brightness-5",
+          "80": "mdi:brightness-6",
+          "100": "mdi:brightness-7"
+        }
+      },
+      "led_brightness": {
+        "default": "mdi:brightness-5",
+        "range": {
+          "0": "mdi:brightness-1",
+          "20": "mdi:brightness-2",
+          "40": "mdi:brightness-4",
+          "60": "mdi:brightness-5",
+          "80": "mdi:brightness-6",
+          "100": "mdi:brightness-7"
+        }
+      }
+    },
+    "switch": {
+      "is_wireless_charging_enabled": {
+        "default": "mdi:battery-charging-wireless-outline",
+        "state": {
+          "on": "mdi:battery-charging-wireless",
+          "off": "mdi:battery-charging-wireless-outline"
+        }
+      },
+      "sound_effects": {
+        "default": "mdi:music-off",
+        "state": {
+          "on": "mdi:music",
+          "off": "mdi:music-off"
+        }
+      },
+      "haptic_feedback": {
+        "default": "mdi:vibrate-off",
+        "state": {
+          "on": "mdi:vibrate",
+          "off": "mdi:vibrate-off"
+        }
+      }
+    }
   }
 }

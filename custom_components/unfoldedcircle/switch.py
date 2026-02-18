@@ -82,20 +82,20 @@ UNFOLDED_CIRCLE_SWITCH: tuple[UnfoldedCircleSwitchEntityDescription, ...] = (
     ),
     UnfoldedCircleSwitchEntityDescription(
         key="sound_effects",
+        translation_key="sound_effects",
         device_class=SwitchDeviceClass.SWITCH,
         entity_category=EntityCategory.CONFIG,
         name="Sound Effects",
         unique_id="sound_effects",
-        icon="mdi:music",
         control_fn=update_remote_sound_settings,
     ),
     UnfoldedCircleSwitchEntityDescription(
         key="haptic_feedback",
+        translation_key="haptic_feedback",
         device_class=SwitchDeviceClass.SWITCH,
         entity_category=EntityCategory.CONFIG,
         name="Haptic Feedback",
         unique_id="haptic_feedback",
-        icon="mdi:vibrate",
         control_fn=update_remote_haptic_settings,
     ),
     UnfoldedCircleSwitchEntityDescription(
@@ -109,11 +109,11 @@ UNFOLDED_CIRCLE_SWITCH: tuple[UnfoldedCircleSwitchEntityDescription, ...] = (
     ),
     UnfoldedCircleSwitchEntityDescription(
         key="is_wireless_charging_enabled",
+        translation_key="is_wireless_charging_enabled",
         device_class=SwitchDeviceClass.SWITCH,
         entity_category=EntityCategory.CONFIG,
         name="Wireless Charging",
         unique_id="is_wireless_charging_enabled",
-        icon="mdi:battery-charging-wireless",
         control_fn=update_remote_wireless_charging_settings,
     ),
 )

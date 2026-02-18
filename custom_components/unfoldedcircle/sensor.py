@@ -30,6 +30,7 @@ class UnfoldedCircleSensorEntityDescription(SensorEntityDescription):
 UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
     UnfoldedCircleSensorEntityDescription(
         key="battery_level",
+        translation_key="battery_level",
         device_class=SensorDeviceClass.BATTERY,
         unit_of_measurement=PERCENTAGE,
         native_unit_of_measurement=PERCENTAGE,
@@ -47,9 +48,9 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
     ),
     UnfoldedCircleSensorEntityDescription(
         key="power_mode",
+        translation_key="power_mode",
         device_class=None,
         entity_category=EntityCategory.DIAGNOSTIC,
-        icon="mdi:power-plug-battery",
         name="Power Mode",
         unique_id="power_mode",
     ),

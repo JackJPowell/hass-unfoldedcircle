@@ -139,6 +139,24 @@ async def async_setup_entry(
                 )
         hass.config_entries.async_update_entry(entry, version=5)
 
+    if entry.version < 6:
+        # Remove ethernet_led_brightness number entities from docks
+        entity_registry = er.async_get(hass)
+        for entity in er.async_entries_for_config_entry(
+            entity_registry, entry.entry_id
+        ):
+            # Remove ethernet_led_brightness number entities
+            if (
+                entity.domain == Platform.NUMBER
+                and "ethernet_led_brightness" in entity.unique_id
+            ):
+                _LOGGER.debug(
+                    "Removing deprecated ethernet_led_brightness entity: %s",
+                    entity.entity_id,
+                )
+                entity_registry.async_remove(entity.entity_id)
+        hass.config_entries.async_update_entry(entry, version=6)
+
     docks = {}
     for subentry_id, subentry in entry.subentries.items():
         if subentry.data["password"] != "":

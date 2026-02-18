@@ -70,22 +70,22 @@ async def update_remote_sleep_timeout_settings(
 UNFOLDED_CIRCLE_NUMBER: tuple[UnfoldedCircleNumberEntityDescription, ...] = (
     UnfoldedCircleNumberEntityDescription(
         key="display_brightness",
+        translation_key="display_brightness",
         device_class=None,
         entity_category=EntityCategory.CONFIG,
         name="Display Brightness",
         unique_id="display_brightness",
-        icon="mdi:brightness-5",
         control_fn=update_remote_display_settings,
         native_min_value=0,
         native_max_value=100,
     ),
     UnfoldedCircleNumberEntityDescription(
         key="sound_effects_volume",
+        translation_key="sound_effects_volume",
         device_class=None,
         entity_category=EntityCategory.CONFIG,
         name="Sound Effects Volume",
         unique_id="sound_effects_volume",
-        icon="mdi:volume-medium",
         control_fn=update_remote_sound_settings,
         native_min_value=0,
         native_max_value=100,
@@ -103,11 +103,11 @@ UNFOLDED_CIRCLE_NUMBER: tuple[UnfoldedCircleNumberEntityDescription, ...] = (
     ),
     UnfoldedCircleNumberEntityDescription(
         key="wakeup_sensitivity",
+        translation_key="wakeup_sensitivity",
         device_class=None,
         entity_category=EntityCategory.CONFIG,
         name="Wake Sensitivity",
         unique_id="wakeup_sensitivity",
-        icon="mdi:sleep-off",
         control_fn=update_remote_wakeup_sensitivity_settings,
         native_min_value=0,
         native_max_value=3,
@@ -201,39 +201,17 @@ async def update_dock_led_brightness(
     )
 
 
-async def update_dock_ethernet_led_brightness(
-    coordinator: UnfoldedCircleDockCoordinator, value: int
-) -> None:
-    command_value = str(value)
-    await coordinator.api.send_command(
-        command="SET_ETHERNET_LED_BRIGHTNESS", command_value=command_value
-    )
-
-
 UNFOLDED_CIRCLE_DOCK_NUMBER: tuple[UnfoldedCircleNumberEntityDescription, ...] = (
     UnfoldedCircleNumberEntityDescription(
         key="led_brightness",
+        translation_key="led_brightness",
         device_class=None,
         entity_category=EntityCategory.CONFIG,
         name="LED Brightness",
         unique_id="display_brightness",
-        icon="mdi:brightness-5",
         control_fn=update_dock_led_brightness,
         native_min_value=0,
         native_max_value=100,
-    ),
-    UnfoldedCircleNumberEntityDescription(
-        key="ethernet_led_brightness",
-        device_class=None,
-        entity_category=EntityCategory.CONFIG,
-        name="Ethernet LED Brightness",
-        unique_id="button_backlight_brightness",
-        icon="mdi:lan",
-        control_fn=update_dock_ethernet_led_brightness,
-        native_min_value=0,
-        native_max_value=100,
-        entity_registry_enabled_default=False,
-        entity_registry_visible_default=False,
     ),
 )
 
