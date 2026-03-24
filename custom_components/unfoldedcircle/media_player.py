@@ -199,6 +199,10 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
             self._extra_state_attributes["Active media player"] = (
                 self._active_media_entity.name
             )
+            if self._active_media_entity.media_type:
+                self._extra_state_attributes["media_content_type"] = (
+                    self.media_content_type
+                )
         if (
             self._active_media_entity
             and active_media_entity != self._active_media_entity
@@ -345,20 +349,35 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         """Content type of current playing media."""
         if self._active_media_entity:
             if self._active_media_entity.media_type:
-                if self._active_media_entity.media_type.lower() == "channel":
-                    return MediaType.CHANNEL
-                elif self._active_media_entity.media_type.lower() == "music":
-                    return MediaType.MUSIC
-                elif self._active_media_entity.media_type.lower() == "tvshow":
-                    return MediaType.TVSHOW
-                elif self._active_media_entity.media_type.lower() == "movie":
-                    return MediaType.MOVIE
-                elif self._active_media_entity.media_type.lower() == "video":
-                    return MediaType.VIDEO
-                elif self._active_media_entity.media_type.lower() == "radio":
-                    return MediaType.PODCAST
-                elif self._active_media_entity.media_album:
-                    return MediaType.MUSIC
+                media_type = self._active_media_entity.media_type.lower()
+                type_map = {
+                    "album": MediaType.ALBUM,
+                    "app": MediaType.APP,
+                    "apps": MediaType.APPS,
+                    "artist": MediaType.ARTIST,
+                    "channel": MediaType.CHANNEL,
+                    "channels": MediaType.CHANNELS,
+                    "composer": MediaType.COMPOSER,
+                    "episode": MediaType.EPISODE,
+                    "game": MediaType.GAME,
+                    "genre": MediaType.GENRE,
+                    "image": MediaType.IMAGE,
+                    "movie": MediaType.MOVIE,
+                    "music": MediaType.MUSIC,
+                    "playlist": MediaType.PLAYLIST,
+                    "podcast": MediaType.PODCAST,
+                    "radio": MediaType.PODCAST,
+                    "season": MediaType.SEASON,
+                    "track": MediaType.TRACK,
+                    "tv_show": MediaType.TVSHOW,
+                    "tvshow": MediaType.TVSHOW,
+                    "url": MediaType.URL,
+                    "video": MediaType.VIDEO,
+                }
+                if media_type in type_map:
+                    return type_map[media_type]
+            if self._active_media_entity.media_album:
+                return MediaType.MUSIC
             return MediaType.VIDEO
         return None
 
