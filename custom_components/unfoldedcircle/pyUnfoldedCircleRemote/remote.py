@@ -2028,7 +2028,7 @@ class Remote:
             for act in self.activities:
                 if act.is_on():
                     activity_id = act.id
-                    continue
+                    break
 
         if not activity_id:
             raise NoActivityRunning
