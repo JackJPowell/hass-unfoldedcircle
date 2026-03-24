@@ -131,9 +131,9 @@ send_button_command:
       selector:
           text:
     activity:
-      name: Acitvity Name
+      name: Activity Name
       description: Activity name to send the command to (Only needed if multiple activities are running)
-      required: true
+      required: false
       selector:
           text:
     num_repeats:
