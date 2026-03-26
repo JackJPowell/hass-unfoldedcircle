@@ -189,17 +189,19 @@ async def async_service_handle(
     if "dock" in service_call.data:
         dock_name = service_call.data.get("dock")
     else:
-        # For send_ir_command, try to resolve the dock from the targeted HA device
-        if (
-            service_call.service == SEND_IR_COMMAND_SERVICE
-            and "device_id" in service_call.data
+        # For IR services, try to resolve the dock from the target (entity_id or device_id)
+        if service_call.service in (
+            SEND_IR_COMMAND_SERVICE,
+            LEARN_IR_COMMAND_SERVICE,
         ):
+            entity_registry = er.async_get(hass)
             device_registry = dr.async_get(hass)
+
+            # Try resolving from device_id target first
             for selected_device_id in service_call.data.get("device_id", []):
                 ha_device = device_registry.async_get(selected_device_id)
                 if ha_device:
                     for _, coor in config_entry.runtime_data.docks.items():
-                        # Match by checking if the HA device identifiers include the dock's unique_id
                         dock_identifiers = {
                             (
                                 DOMAIN,
@@ -211,6 +213,26 @@ async def async_service_handle(
                         if dock_identifiers & ha_device.identifiers:
                             dock_name = coor.api.name
                             break
+
+            # Fall back to resolving from entity_id target
+            if dock_name is None:
+                for selected_entity_id in service_call.data.get("entity_id", []):
+                    entity = entity_registry.async_get(selected_entity_id)
+                    if entity and entity.device_id:
+                        ha_device = device_registry.async_get(entity.device_id)
+                        if ha_device:
+                            for _, coor in config_entry.runtime_data.docks.items():
+                                dock_identifiers = {
+                                    (
+                                        DOMAIN,
+                                        coor.subentry.unique_id,
+                                        coor.api.model_number,
+                                        coor.api.serial_number,
+                                    )
+                                }
+                                if dock_identifiers & ha_device.identifiers:
+                                    dock_name = coor.api.name
+                                    break
 
         # If still no dock name, fall back to single-dock auto-select
         if dock_name is None:
