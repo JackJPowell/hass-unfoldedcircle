@@ -11,7 +11,11 @@ from voluptuous import Any as VolAny
 
 from homeassistant.components import persistent_notification
 from homeassistant.core import HomeAssistant, ServiceCall, callback
-from homeassistant.helpers import config_validation as cv, entity_registry as er
+from homeassistant.helpers import (
+    config_validation as cv,
+    entity_registry as er,
+    device_registry as dr,
+)
 from homeassistant.util import dt as dt_util
 from homeassistant.exceptions import HomeAssistantError
 from .coordinator import UnfoldedCircleConfigEntry
@@ -181,19 +185,47 @@ async def async_service_handle(
     dock_name = None
     config_entry = get_config_entry_by_entity_id(hass, service_call)
 
-    # If a dock is specified in the service call, use that one
+    # If a dock name is explicitly specified in the service call, use that one
     if "dock" in service_call.data:
         dock_name = service_call.data.get("dock")
-    # If there's only one dock, use that one
-    elif len(config_entry.runtime_data.docks.items()) == 1:
-        dock_name = next(iter(config_entry.runtime_data.docks.values())).api.name
     else:
-        # If there are multiple docks, and none is specified, we can't proceed
-        if service_call.service == LEARN_IR_COMMAND_SERVICE:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="unknown_dock",
-            )
+        # For send_ir_command, try to resolve the dock from the targeted HA device
+        if (
+            service_call.service == SEND_IR_COMMAND_SERVICE
+            and "device_id" in service_call.data
+        ):
+            device_registry = dr.async_get(hass)
+            for selected_device_id in service_call.data.get("device_id", []):
+                ha_device = device_registry.async_get(selected_device_id)
+                if ha_device:
+                    for _, coor in config_entry.runtime_data.docks.items():
+                        # Match by checking if the HA device identifiers include the dock's unique_id
+                        dock_identifiers = {
+                            (
+                                DOMAIN,
+                                coor.subentry.unique_id,
+                                coor.api.model_number,
+                                coor.api.serial_number,
+                            )
+                        }
+                        if dock_identifiers & ha_device.identifiers:
+                            dock_name = coor.api.name
+                            break
+
+        # If still no dock name, fall back to single-dock auto-select
+        if dock_name is None:
+            if len(config_entry.runtime_data.docks.items()) == 1:
+                dock_name = next(
+                    iter(config_entry.runtime_data.docks.values())
+                ).api.name
+            elif service_call.service in (
+                LEARN_IR_COMMAND_SERVICE,
+                SEND_IR_COMMAND_SERVICE,
+            ):
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="unknown_dock",
+                )
 
     for _, coor in config_entry.runtime_data.docks.items():
         if coor.api.name == dock_name:
@@ -207,7 +239,7 @@ async def async_service_handle(
     if service_call.service == SEND_IR_COMMAND_SERVICE:
         coordinator = config_entry.runtime_data.coordinator
 
-        ir = IR(coordinator, None, hass, data=service_call.data)
+        ir = IR(coordinator, None, hass, data=service_call.data, dock_name=dock_name)
         await ir.async_send_command()
 
     if service_call.service == SEND_BUTTON_COMMAND_SERVICE:
@@ -224,11 +256,13 @@ class IR:
         dock_coordinator: UnfoldedCircleDockCoordinator | None,
         hass,
         data,
+        dock_name: str | None = None,
     ):
         self.coordinator = coordinator
         self.dock_coordinator = dock_coordinator
         self.hass = hass
         self.data = data
+        self.dock_name = dock_name
 
     async def async_learn_command(self, **kwargs: Any) -> None:
         """Learn a list of commands from a remote."""
@@ -344,7 +378,7 @@ class IR:
         device = self.data.get("device")
         codeset = self.data.get("codeset")
         repeat = self.data.get("num_repeats", 0)
-        dock_name = self.data.get("dock", None)
+        dock_name = self.dock_name or self.data.get("dock", None)
         port = self.data.get("port", None)
 
         if port:
