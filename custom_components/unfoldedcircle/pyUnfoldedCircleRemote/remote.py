@@ -259,6 +259,7 @@ class Remote:
         self._button_static_color = None
         self._standby_inhibitors = []
         self._localization_info: LocalizationInfo = LocalizationInfo()
+        self._configuration = {}
 
     @property
     def name(self):
@@ -535,6 +536,15 @@ class Remote:
     def ir_emitters(self):
         """Return list of IR Emitters"""
         return self._ir_emitters
+
+    @property
+    def internal_ir_enabled(self) -> bool:
+        """Return True if the remote's built-in IR emitter is enabled."""
+        features = self._configuration.get("features", [])
+        for feature in features:
+            if feature.get("id") == "internal_ir":
+                return feature.get("enabled", False)
+        return False
 
     @property
     def button_features(self):
@@ -1098,6 +1108,7 @@ class Remote:
             await self.raise_on_error(response)
             information = await response.json()
             self._name = information.get("device").get("name")  # No locale
+            self._configuration = information
             return information
 
     async def get_remote_drivers(self) -> list[dict[str, any]]:
@@ -1992,20 +2003,15 @@ class Remote:
 
     async def get_ir_emitters(self) -> list:
         """Get list of docks defined."""
-        dock_data = {}
         async with (
             self.client() as session,
             session.get(self.url("ir/emitters")) as response,
         ):
             await self.raise_on_error(response)
-            docks = await response.json()
-            for dock in docks:
-                if dock.get("active") is True:
-                    dock_data = {
-                        "name": dock.get("name"),  # No Locale
-                        "device_id": dock.get("device_id"),
-                    }
-                    self._ir_emitters.append(dock_data.copy())
+            emitters = await response.json()
+            for emitter in emitters:
+                if emitter.get("active") is True:
+                    self._ir_emitters.append(emitter)
             return self._ir_emitters
 
     async def send_button_command(self, command="", repeat=0, **kwargs) -> bool:
@@ -2165,6 +2171,42 @@ class Remote:
             await self.raise_on_error(response)
             response = await response.json()
             return response == 200
+
+    async def send_ir_command_by_emitter(
+        self,
+        emitter_id: str,
+        code: str,
+        format: str,
+        port_id: str | None = None,
+        repeat: int = 0,
+    ) -> bool:
+        """Send a raw IR command directly to a specific emitter device_id and optional port.
+
+        Args:
+            emitter_id: The device_id of the IR emitter.
+            code: The IR code (HEX or PRONTO string).
+            format: The code format ("HEX" or "PRONTO").
+            port_id: Optional port_id to target a specific output port.
+            repeat: Number of times to repeat the command.
+        """
+        if self._wake_if_asleep and self._wake_on_lan:
+            if not await self.wake():
+                raise RemoteIsSleeping
+
+        body: dict = {"code": code, "format": format}
+        if port_id is not None:
+            body["port_id"] = port_id
+        if repeat > 0:
+            body["repeat"] = repeat
+
+        async with (
+            self.client() as session,
+            session.put(
+                self.url("ir/emitters/" + emitter_id + "/send"), json=body
+            ) as response,
+        ):
+            await self.raise_on_error(response)
+            return response.status == 200
 
     async def get_ir_manufacturers(self, manufacturer: str) -> dict[str, str]:
         if self._wake_if_asleep and self._wake_on_lan:
