@@ -29,6 +29,7 @@ A rich integration providing activity control, remote settings and diagnostics, 
 - [External Entity Management](#external-entity-management)
 - [Mapped Button Remote Commands](#mapped-button-remote-commands)
 - [IR Remote Commands](#ir-remote-commands)
+- [Infrared Platform](#infrared-platform)
 - [Activity Update Actions](#activity-update-actions)
 - [IR Learning](#ir-learning)
 - [Options](#options)
@@ -71,6 +72,7 @@ A rich integration providing activity control, remote settings and diagnostics, 
 | Activity / Activity Group | Logical usage contexts exposed as switches/selects with optional media players. |
 | Firmware | Update entity supports version awareness & install execution. |
 | IR Dataset | Learned or manufacturer-based sets of IR commands. |
+| IR Emitter | Infrared platform entity exposing dock ports, built-in remote IR, and third-party emitters to other HA integrations. |
 | Button Backlight | Light entity allowing dynamic brightness and color adjustment of remote button illumination. |
 | Wireless Charging | Toggle wireless charging on and off to control battery setpoint. |
 
@@ -126,6 +128,7 @@ If not discovered:
 | Select | Activity groups (optional) |
 | Button | Restart remote |
 | Remote | Mapped button & IR dispatch |
+| Infrared | IR emitter entities for use by other integrations (e.g. LG, Samsung) |
 | Media Player | Global and/or per group / per activity |
 | Number | Numeric configuration, dock LEDs |
 | Light | Button backlight (brightness + color control) |
@@ -158,7 +161,7 @@ automation:
 ---
 
 ### Wireless Charging Switch
-A switch entity enables and disables the wireless charger on your Remote 3. 
+A switch entity enables and disables the wireless charger on your Remote 3.
 
 Example Automation:
 ```yaml
@@ -288,6 +291,67 @@ target:
 ```
 
 > TIP: Core `remote.send_command` only supports custom codes (platform limitation).
+
+---
+
+## Infrared Platform
+
+This integration exposes all active IR emitters as **`infrared`** platform entities, allowing other Home Assistant integrations (e.g. LG TV, Samsung, climate devices) to send device-specific IR commands through your Unfolded Circle hardware without needing to know which physical emitter to use.
+
+### How It Works
+
+HA's [infrared platform](https://developers.home-assistant.io/docs/core/entity/infrared) is an abstraction layer:
+- **Emitter integrations** (like this one) register hardware emitters as `infrared.*` entities.
+- **Consumer integrations** (like LG, Samsung) use the infrared helper to discover available emitters and send commands through them.
+
+### Emitter Types
+
+Three types of IR emitters are registered:
+
+#### 1. Dock Ports
+One `infrared` entity is created for **each active port** on each configured dock. This lets you target a specific physical output (e.g. Ext 1, Dock top, Default).
+
+| Entity Name | Description |
+|-------------|-------------|
+| `infrared.<dock_name>_dock_bottom` | Bottom IR port |
+| `infrared.<dock_name>_dock_top` | Top IR port |
+| `infrared.<dock_name>_ext_1` | External port 1 |
+| `infrared.<dock_name>_default_all_outputs` | All outputs simultaneously |
+
+Entities are registered under the dock's sub-device in the device registry.
+
+#### 2. Remote Built-in IR
+If the remote's internal IR emitter is **enabled** (Settings → Development → Preview Features on the remote), a single `infrared` entity is created and attached to the main remote device.
+
+| Entity Name | Description |
+|-------------|-------------|
+| `infrared.<remote_name>_internal_ir_emitter` | Remote's built-in IR blaster |
+
+#### 3. External / Third-party Emitters
+Third-party IR blasters added to the remote via a driver integration (e.g. Broadlink RM Pro) are also registered. One entity is created per port. These are attached to the main remote device.
+
+| Entity Name | Description |
+|-------------|-------------|
+| `infrared.<remote_name>_<emitter_name>_<port_name>` | Named port on external emitter |
+
+### Example: Using with a Consumer Integration
+
+Once an emitter entity exists, any integration using the infrared helper can send commands to it:
+
+```yaml
+# Example: sending an NEC IR command to a dock port via automation
+action: infrared.send_command
+target:
+  entity_id: infrared.remote_two_dock_dock_bottom
+data:
+  command:
+    type: nec
+    address: 0x04
+    command: 0x08
+    modulation: 38000
+```
+
+> **Note:** The `infrared` platform is a HA 2026.4+ feature. Ensure your Home Assistant installation is up to date.
 
 ---
 
