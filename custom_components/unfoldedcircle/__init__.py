@@ -33,6 +33,7 @@ from .helpers import (
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
+    Platform.INFRARED,
     Platform.LIGHT,
     Platform.MEDIA_PLAYER,
     Platform.NUMBER,
