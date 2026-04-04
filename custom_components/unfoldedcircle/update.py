@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import math
+from datetime import timedelta
 from typing import Any
 
 from pyUnfoldedCircleRemote.remote import HTTPError
@@ -52,6 +53,8 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
     """Update Entity."""
 
     _attr_icon = "mdi:update"
+    _attr_should_poll = True
+    SCAN_INTERVAL = timedelta(hours=1)
 
     def __init__(self, coordinator) -> None:
         """Initialize the sensor."""
@@ -185,7 +188,7 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
             self._attr_latest_version = self.coordinator.api.latest_sw_version
             self._attr_installed_version = self.coordinator.api.sw_version
         except Exception as ex:
-            _LOGGER.debug("Failure when checking for dock update: %s", ex)
+            _LOGGER.debug("Failure when checking for update: %s", ex)
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -219,6 +222,8 @@ class UpdateDock(UnfoldedCircleDockEntity, UpdateEntity):
     """Update Entity."""
 
     _attr_icon = "mdi:update"
+    _attr_should_poll = True
+    SCAN_INTERVAL = timedelta(hours=1)
 
     def __init__(
         self,
