@@ -171,9 +171,18 @@ async def async_prevent_sleep(
         for entity in entities:
             if service_call.service == UPDATE_ACTIVITY_SERVICE:
                 coordinator = config_entry.runtime_data.coordinator
-                await coordinator.api.get_activity_by_id(entity.unique_id).edit(
-                    service_call.data
+                # unique_id format is "{model}_{serial}_{activity_id}"; strip the prefix
+                prefix = (
+                    f"{coordinator.api.model_number}_{coordinator.api.serial_number}_"
                 )
+                activity_id = entity.unique_id.removeprefix(prefix)
+                activity = coordinator.api.get_activity_by_id(activity_id)
+                if activity is None:
+                    raise HomeAssistantError(
+                        translation_domain=DOMAIN,
+                        translation_key="activity_not_found",
+                    )
+                await activity.edit(service_call.data)
 
 
 async def async_service_handle(
