@@ -3,7 +3,7 @@
   "name": "Home Assistant integration development",
   "postCreateCommand": ".devcontainer/setup",
   "postAttachCommand": ".devcontainer/setup",
-  "forwardPorts": [8123],
+  "forwardPorts": [8124],
   "runArgs": ["-e", "GIT_EDITOR=code --wait", "--network=host"],
   "containerEnv": {
     "PYTHONASYNCIODEBUG": "1"
