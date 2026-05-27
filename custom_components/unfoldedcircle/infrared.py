@@ -270,22 +270,25 @@ class ExternalInfraredEntity(UnfoldedCircleEntity, InfraredEntity):
 # ── Utility ───────────────────────────────────────────────────────────────────
 
 
-def _timings_to_pronto(modulation: int, timings) -> str:
+def _timings_to_pronto(modulation: int, timings: list[int]) -> str:
     """Convert raw infrared_protocols timings to a Pronto hex string.
 
     The Pronto format is: ``0000 <freq_code> <burst_pairs> 0000 <on1> <off1> ...``
     where the frequency code = round(1_000_000 / (modulation * 0.241246)).
+
+    timings is a flat list of integers: positive values are "on" durations in
+    microseconds, negative values are "off" durations in microseconds.
+    They alternate: [on, off, on, off, ...].
     """
     freq_code = round(1_000_000 / (modulation * 0.241246)) if modulation else 0
-    # Each Timing has .on and .off in microseconds; convert to Pronto clock units
-    # (1 unit = 1 / (modulation Hz) seconds = 1e6/modulation µs)
     unit_us = 1_000_000 / modulation if modulation else 1
     pairs: list[str] = []
-    for t in timings:
-        on_units = max(1, round(t.high_us / unit_us))
-        off_units = max(1, round(t.low_us / unit_us))
+    it = iter(timings)
+    for on_us, off_us in zip(it, it):
+        on_units = max(1, round(abs(on_us) / unit_us))
+        off_units = max(1, round(abs(off_us) / unit_us))
         pairs.append(f"{on_units:04X}")
         pairs.append(f"{off_units:04X}")
-    burst_pairs = len(timings)
+    burst_pairs = len(timings) // 2
     header = f"0000 {freq_code:04X} {burst_pairs:04X} 0000"
     return header + " " + " ".join(pairs)
