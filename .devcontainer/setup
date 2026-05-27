@@ -3,5 +3,4 @@ sudo apt-get update && sudo apt-get install -y libturbojpeg0 autoconf automake l
 set -e
 cd "$(dirname "$0")/.."
 python3 -m pip install --requirement requirements_all.txt --upgrade
-pre-commit install
 mkdir -p config
