@@ -283,7 +283,6 @@ def _timings_to_pronto(modulation: int, timings: list[int]) -> str:
     corresponding space — in that case we pad with a 1-unit space so the Pronto
     word-pair count stays consistent with the emitted data.
     """
-    _LOGGER.error("Thank you for testing!")
     freq_code = round(1_000_000 / (modulation * 0.241246)) if modulation else 0
     unit_us = 1_000_000 / modulation if modulation else 1
     words: list[str] = []
