@@ -276,19 +276,28 @@ def _timings_to_pronto(modulation: int, timings: list[int]) -> str:
     The Pronto format is: ``0000 <freq_code> <burst_pairs> 0000 <on1> <off1> ...``
     where the frequency code = round(1_000_000 / (modulation * 0.241246)).
 
-    timings is a flat list of integers: positive values are "on" durations in
-    microseconds, negative values are "off" durations in microseconds.
-    They alternate: [on, off, on, off, ...].
+    timings is a flat list of integers: positive values are "on" (pulse)
+    durations in microseconds, negative values are "off" (space) durations.
+    They alternate: [on, off, on, off, ...].  The list may have an odd length
+    when a protocol ends with a trailing mark (e.g. NEC end pulse) that has no
+    corresponding space — in that case we pad with a 1-unit space so the Pronto
+    word-pair count stays consistent with the emitted data.
     """
     freq_code = round(1_000_000 / (modulation * 0.241246)) if modulation else 0
     unit_us = 1_000_000 / modulation if modulation else 1
-    pairs: list[str] = []
+    words: list[str] = []
     it = iter(timings)
-    for on_us, off_us in zip(it, it):
+    for on_us in it:
         on_units = max(1, round(abs(on_us) / unit_us))
-        off_units = max(1, round(abs(off_us) / unit_us))
-        pairs.append(f"{on_units:04X}")
-        pairs.append(f"{off_units:04X}")
-    burst_pairs = len(timings) // 2
+        try:
+            off_us = next(it)
+            off_units = max(1, round(abs(off_us) / unit_us))
+        except StopIteration:
+            # Trailing mark with no space (e.g. NEC end pulse) — pad with
+            # a 1-unit space so the Pronto pair count matches the data.
+            off_units = 1
+        words.append(f"{on_units:04X}")
+        words.append(f"{off_units:04X}")
+    burst_pairs = len(words) // 2
     header = f"0000 {freq_code:04X} {burst_pairs:04X} 0000"
-    return header + " " + " ".join(pairs)
+    return header + " " + " ".join(words)
