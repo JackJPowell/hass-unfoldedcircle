@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from infrared_protocols import Command as InfraredCommand
+from infrared_protocols.commands import Command as InfraredCommand
 
 from homeassistant.components.infrared import InfraredEntity
 from homeassistant.config_entries import ConfigSubentry
