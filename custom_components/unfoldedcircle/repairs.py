@@ -55,7 +55,7 @@ class WebSocketRepairFlow(RepairsFlow):
                     websocket_client = UCWebsocketClient(self.hass)
                     configure_entities_subscription = (
                         websocket_client.get_driver_subscription(
-                            self.coordinator.api.hostname
+                            self.coordinator.api.device.hostname
                         )
                     )
                     if not configure_entities_subscription:

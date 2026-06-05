@@ -55,7 +55,7 @@ async def async_setup_entry(
             (
                 e
                 for e in remote_api.ir_emitters
-                if e.get("device_id") == dock_id and e.get("type") == "DOCK"
+                if e.device_id == dock_id and e.type == "DOCK"
             ),
             None,
         )
@@ -65,7 +65,7 @@ async def async_setup_entry(
             )
             continue
 
-        ports: list[dict[str, Any]] = dock_emitter.get("ports", [])
+        ports: list[dict] = dock_emitter.ports
 
         for port in ports:
             port_id = port.get("port_id")
@@ -89,7 +89,7 @@ async def async_setup_entry(
 
     # ── 2. Remote built-in IR emitter ────────────────────────────────────────
     internal_emitter = next(
-        (e for e in remote_api.ir_emitters if e.get("type") == "INTERNAL"),
+        (e for e in remote_api.ir_emitters if e.type == "INTERNAL"),
         None,
     )
     if internal_emitter is not None:
@@ -101,9 +101,9 @@ async def async_setup_entry(
 
     # ── 3. External / third-party emitters ───────────────────────────────────
     for emitter in remote_api.ir_emitters:
-        if emitter.get("type") != "EXTERNAL":
+        if emitter.type != "EXTERNAL":
             continue
-        ports = emitter.get("ports", [])
+        ports = emitter.ports
         if ports:
             for port in ports:
                 entities.append(
@@ -165,10 +165,10 @@ class DockPortInfraredEntity(UnfoldedCircleDockEntity, InfraredEntity):
         hex_code = _timings_to_pronto(command.modulation, timings)
         try:
             remote_api = self.entry.runtime_data.coordinator.api
-            await remote_api.send_ir_command_by_emitter(
+            await remote_api.ir.send_by_emitter(
                 emitter_id=self._emitter_device_id,
                 code=hex_code,
-                format="PRONTO",
+                ir_format="PRONTO",
                 port_id=self._port_id,
                 repeat=getattr(command, "repeat_count", 0),
             )
@@ -194,22 +194,21 @@ class RemoteInternalInfraredEntity(UnfoldedCircleEntity, InfraredEntity):
     ) -> None:
         UnfoldedCircleEntity.__init__(self, coordinator)
         self._emitter = emitter
-        self._attr_unique_id = f"{coordinator.api.model_number}_{coordinator.api.serial_number}_internal_ir"
+        self._attr_unique_id = f"{coordinator.api.device.model_number}_{coordinator.api.device.serial_number}_internal_ir"
         self._attr_name = "Internal IR Emitter"
 
     async def async_send_command(self, command: InfraredCommand) -> None:
         """Transmit an IR command through the remote's built-in emitter."""
         timings = command.get_raw_timings()
         hex_code = _timings_to_pronto(command.modulation, timings)
-        emitter_id: str = self._emitter.get("device_id", "internal")
-        # Use the first port (typically the only one: port_id="1", name="Default")
-        ports: list[dict] = self._emitter.get("ports", [])
+        emitter_id: str = self._emitter.device_id
+        ports: list[dict] = self._emitter.ports
         port_id: str | None = ports[0].get("port_id") if ports else None
         try:
-            await self.coordinator.api.send_ir_command_by_emitter(
+            await self.coordinator.api.ir.send_by_emitter(
                 emitter_id=emitter_id,
                 code=hex_code,
-                format="PRONTO",
+                ir_format="PRONTO",
                 port_id=port_id,
                 repeat=getattr(command, "repeat_count", 0),
             )
@@ -239,11 +238,11 @@ class ExternalInfraredEntity(UnfoldedCircleEntity, InfraredEntity):
         super().__init__(coordinator)
         self._emitter = emitter
         self._port_id = port_id
-        device_id: str = emitter.get("device_id", "")
-        emitter_name: str = emitter.get("name", "External IR Emitter")
+        device_id: str = emitter.device_id
+        emitter_name: str = emitter.name
         uid_port = f"_port_{port_id}" if port_id is not None else ""
         self._attr_unique_id = (
-            f"{coordinator.api.model_number}_{coordinator.api.serial_number}"
+            f"{coordinator.api.device.model_number}_{coordinator.api.device.serial_number}"
             f"_ext_ir_{device_id}{uid_port}"
         )
         self._attr_name = f"{emitter_name} {port_name}" if port_name else emitter_name
@@ -252,12 +251,12 @@ class ExternalInfraredEntity(UnfoldedCircleEntity, InfraredEntity):
         """Transmit an IR command through this external emitter port."""
         timings = command.get_raw_timings()
         hex_code = _timings_to_pronto(command.modulation, timings)
-        emitter_id: str = self._emitter.get("device_id", "")
+        emitter_id: str = self._emitter.device_id
         try:
-            await self.coordinator.api.send_ir_command_by_emitter(
+            await self.coordinator.api.ir.send_by_emitter(
                 emitter_id=emitter_id,
                 code=hex_code,
-                format="PRONTO",
+                ir_format="PRONTO",
                 port_id=self._port_id,
                 repeat=getattr(command, "repeat_count", 0),
             )

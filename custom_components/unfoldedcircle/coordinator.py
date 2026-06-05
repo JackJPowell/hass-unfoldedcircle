@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from dataclasses import dataclass
 from typing import Any
-from urllib.error import HTTPError
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
@@ -17,9 +15,9 @@ from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
 )
-from pyUnfoldedCircleRemote.remote import Remote
-from pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
-from pyUnfoldedCircleRemote.dock import Dock
+from unfurled.remote import Remote
+from unfurled.dock import Dock
+from unfurled.helpers.exceptions import HTTPError
 
 from .const import DEVICE_SCAN_INTERVAL, DOMAIN
 from .websocket import UCWebsocketClient
@@ -42,7 +40,6 @@ type UnfoldedCircleConfigEntry = ConfigEntry[UnfoldedCircleRuntimeData]
 class UnfoldedCircleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Base Unfolded Circle Coordinator Class"""
 
-    subscribe_events: dict[str, bool]
     entities: list[CoordinatorEntity]
     websocket_client: UCWebsocketClient
 
@@ -62,81 +59,33 @@ class UnfoldedCircleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self.hass = hass
         self.api = UCDevice
-        self.websocket: RemoteWebsocket = None
-        self.websocket_task = None
-        self.subscribe_events = {}
         self.polling_data = False
         self.entities = []
         self.docks: list[Dock] = []
         self.websocket_client = UCWebsocketClient(hass)
 
-    async def init_websocket(self, initial_events: str):
-        """Initialize the Web Socket"""
-        self.websocket = RemoteWebsocket(self.api.endpoint, self.api.apikey)
-        self.websocket.events_to_subscribe = [
-            s.strip() for s in initial_events.split(",") if s.strip()
-        ] + list(self.subscribe_events.keys())
-        _LOGGER.debug(
-            "Unfolded Circle Remote events list to subscribe %s",
-            self.websocket.events_to_subscribe,
-        )
-        self.websocket_task = asyncio.create_task(
-            self.websocket.init_websocket(self.receive_data, self.reconnection_ws)
-        )
-
-    async def reconnection_ws(self):
-        """Reconnect WS Connection if dropped"""
-        _LOGGER.warning(
-            "Unfolded Circle Remote websocket reconnected - starting full data refresh to resync state"
-        )
-        try:
-            await self.api.update()
-            self.async_set_updated_data(vars(self.api))
-            _LOGGER.warning(
-                "Unfolded Circle Remote full data refresh completed successfully after websocket reconnection"
-            )
-        except Exception as ex:
-            _LOGGER.error(
-                "Unfolded Circle Remote FAILED to refresh data after websocket reconnection: %s. Data may be stale.",
-                ex,
-                exc_info=True,
-            )
-
-    async def receive_data(self, message: any):
-        """Update data received from WS"""
-        try:
-            self.api.update_from_message(message)
-            self.async_set_updated_data(vars(self.api))
-        except Exception as ex:
-            _LOGGER.error("Remote error while updating entities: %s", ex)
+    async def init_websocket(self):
+        """Initialize the WebSocket connection."""
 
     async def update_data(self) -> dict[str, Any]:
-        """Get the latest data from the Unfolded Circle Remote."""
+        """Get the latest data from the Unfolded Circle device."""
         try:
             if self.polling_data:
                 await self.api.update()
-
-            return vars(self.api)
+            return {"updated": True}
         except HTTPError as err:
             if err.status_code == 401:
                 raise ConfigEntryAuthFailed(err) from err
             raise UpdateFailed(
-                f"Error communicating with Unfolded Circle Remote API {err}"
+                f"Error communicating with Unfolded Circle API: {err}"
             ) from err
         except Exception as ex:
             raise UpdateFailed(
-                f"Error communicating with Unfolded Circle Remote API {ex}"
+                f"Error communicating with Unfolded Circle API: {ex}"
             ) from ex
 
     async def close_websocket(self):
-        """Close websocket"""
-        try:
-            if self.websocket_task:
-                self.websocket_task.cancel()
-            if self.websocket:
-                await self.websocket.close_websocket()
-        except Exception as ex:
-            _LOGGER.error("Unfolded Circle Remote while closing websocket: %s", ex)
+        """Close WebSocket connection."""
 
 
 class UnfoldedCircleRemoteCoordinator(
@@ -152,14 +101,31 @@ class UnfoldedCircleRemoteCoordinator(
     ) -> None:
         """Initialize the Coordinator."""
         super().__init__(hass, UCRemote, config_entry)
-        self.websocket = RemoteWebsocket(self.api.endpoint, self.api.apikey)
-        self.docks: list[Dock] = self.api._docks
+        self.docks: list[Dock] = self.api.docks
 
-    async def init_websocket(self, initial_events: str = ""):
-        """Initialize the Web Socket"""
-        if initial_events:
-            initial_events = f",{initial_events}"
-        await super().init_websocket(f"software_updates,docks,emitters{initial_events}")
+    async def init_websocket(self):
+        """Start the unfurled WebSocket and register a state-change callback."""
+        self.api.on_state_change(self._on_remote_state_change)
+        try:
+            await self.api.connect_websocket()
+            _LOGGER.debug("Unfolded Circle Remote WebSocket connected")
+        except Exception as ex:
+            _LOGGER.warning(
+                "Unfolded Circle Remote WebSocket failed to connect: %s. "
+                "Real-time updates will be unavailable until the next poll.",
+                ex,
+            )
+
+    async def _on_remote_state_change(self) -> None:
+        """Trigger a coordinator update whenever the remote's state changes via WS."""
+        self.async_set_updated_data({"updated": True})
+
+    async def close_websocket(self):
+        """Disconnect the WebSocket."""
+        try:
+            await self.api.disconnect_websocket()
+        except Exception as ex:
+            _LOGGER.error("Error closing Remote WebSocket: %s", ex)
 
 
 class UnfoldedCircleDockCoordinator(
@@ -178,6 +144,44 @@ class UnfoldedCircleDockCoordinator(
         super().__init__(hass, dock, config_entry=entry)
         self.subentry = subentry
 
-    async def init_websocket(self, initial_events: str = ""):
-        """Initialize the Web Socket"""
-        pass
+    async def update_data(self) -> dict[str, Any]:
+        """Refresh dock state."""
+        try:
+            await self.api.update()
+            return {"updated": True}
+        except Exception as ex:
+            raise UpdateFailed(
+                f"Error communicating with Unfolded Circle Dock: {ex}"
+            ) from ex
+
+    async def init_websocket(self):
+        """Connect to the dock's native WebSocket for real-time updates."""
+        password = self.subentry.data.get("password", "")
+        if not password or not self.api.ws_url:
+            return
+        try:
+            await self.api.connect_websocket(
+                password=password,
+                message_callback=self._on_dock_message,
+            )
+            _LOGGER.debug(
+                "Unfolded Circle Dock WebSocket connected for %s", self.api.device.name
+            )
+        except Exception as ex:
+            _LOGGER.warning(
+                "Dock WebSocket connection failed for %s: %s. "
+                "Falling back to polling only.",
+                self.api.device.name,
+                ex,
+            )
+
+    async def _on_dock_message(self, raw: str) -> None:
+        """Trigger a coordinator update after a dock WS message is processed."""
+        self.async_set_updated_data({"updated": True})
+
+    async def close_websocket(self):
+        """Disconnect the dock WebSocket."""
+        try:
+            await self.api.disconnect_websocket()
+        except Exception as ex:
+            _LOGGER.error("Error closing Dock WebSocket: %s", ex)

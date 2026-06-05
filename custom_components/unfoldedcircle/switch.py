@@ -12,7 +12,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from pyUnfoldedCircleRemote.const import RemoteUpdateType
+from unfurled.helpers.models import UpdateType
 
 from .const import CONF_ACTIVITIES_AS_SWITCHES
 from .coordinator import UnfoldedCircleRemoteCoordinator
@@ -32,42 +32,35 @@ async def update_remote_display_settings(
     coordinator: UnfoldedCircleRemoteCoordinator, enable: bool
 ) -> None:
     """Update remote display settings"""
-    await coordinator.api.patch_remote_display_settings(enable)
-
-
-async def update_remote_button_settings(
-    coordinator: UnfoldedCircleRemoteCoordinator, enable: bool
-) -> None:
-    """Update remote button settings"""
-    await coordinator.api.patch_remote_button_settings(enable)
+    await coordinator.api.settings.update_display(auto_brightness=enable)
 
 
 async def update_remote_sound_settings(
     coordinator: UnfoldedCircleRemoteCoordinator, enable: bool
 ) -> None:
     """Update remote sound settings"""
-    await coordinator.api.patch_remote_sound_settings(enable)
+    await coordinator.api.settings.update_sound(enabled=enable)
 
 
 async def update_remote_haptic_settings(
     coordinator: UnfoldedCircleRemoteCoordinator, enable: bool
 ) -> None:
     """Update remote haptic settings"""
-    await coordinator.api.patch_remote_haptic_settings(enable)
+    await coordinator.api.settings.update_haptic(enabled=enable)
 
 
 async def update_remote_network_settings(
     coordinator: UnfoldedCircleRemoteCoordinator, enable: bool
 ) -> None:
     """Update remote network settings"""
-    await coordinator.api.patch_remote_network_settings(wake_on_lan=enable)
+    await coordinator.api.settings.update_network(wake_on_wlan=enable)
 
 
 async def update_remote_wireless_charging_settings(
     coordinator: UnfoldedCircleRemoteCoordinator, enable: bool
 ) -> None:
     """Update remote wireless charging settings"""
-    await coordinator.api.set_remote_wireless_charging(enable)
+    await coordinator.api.system.set_wireless_charging(enabled=enable)
 
 
 UNFOLDED_CIRCLE_SWITCH: tuple[UnfoldedCircleSwitchEntityDescription, ...] = (
@@ -125,17 +118,13 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Switch platform."""
-    # Setup connection with devices
     coordinator = config_entry.runtime_data.coordinator
 
     activities = []
-    # Skip populating the array of activities in groups if the user requested that all
-    # activities are created as switches
     if config_entry.options.get(CONF_ACTIVITIES_AS_SWITCHES, False) is False:
         for activity_group in coordinator.api.activity_groups:
             activities.extend(activity_group.activities)
 
-    # Create switch for each activity only for activities not defined in any activity group
     async_add_entities(
         UCRemoteSwitch(coordinator, switch)
         for switch in filter(lambda a: a not in activities, coordinator.api.activities)
@@ -147,7 +136,7 @@ async def async_setup_entry(
         switches = tuple(
             filter(lambda s: s.key != "wake_on_lan", UNFOLDED_CIRCLE_SWITCH)
         )
-    if "WIRELESS_CHARGING" not in coordinator.api.charging_options:
+    if "WIRELESS_CHARGING" not in coordinator.api.system.flags.charging_options:
         switches = tuple(
             filter(lambda s: s.key != "is_wireless_charging_enabled", switches)
         )
@@ -165,16 +154,10 @@ class UCRemoteSwitch(UnfoldedCircleEntity, SwitchEntity):
         super().__init__(coordinator)
         self.switch = switch
         self._attr_name = switch.name
-        self._attr_unique_id = f"{coordinator.api.model_number}_{coordinator.api.serial_number}_{switch._id}"
+        self._attr_unique_id = f"{coordinator.api.device.model_number}_{coordinator.api.device.serial_number}_{switch._id}"
         self._state = switch.state
         self._attr_icon = "mdi:remote-tv"
         self._attr_native_value = "OFF"
-
-    async def async_added_to_hass(self):
-        """Run when this Entity has been added to HA."""
-        await super().async_added_to_hass()
-        self.coordinator.subscribe_events["entity_activity"] = True
-        self.coordinator.subscribe_events["activity_groups"] = True
 
     @property
     def is_on(self) -> bool | None:
@@ -196,12 +179,27 @@ class UCRemoteSwitch(UnfoldedCircleEntity, SwitchEntity):
         """Handle updated data from the coordinator."""
         try:
             last_update_type = self.coordinator.api.last_update_type
-            if last_update_type != RemoteUpdateType.ACTIVITY:
+            if last_update_type != UpdateType.ACTIVITY:
                 return
         except (KeyError, IndexError):
             return
         self._state = self.switch.state
         self.async_write_ha_state()
+
+
+def _get_config_switch_value(api, key: str) -> bool:
+    """Return the current boolean value for a config switch key."""
+    if key == "display_auto_brightness":
+        return bool(api.settings.display.auto_brightness)
+    if key == "sound_effects":
+        return bool(api.settings.sound.enabled)
+    if key == "haptic_feedback":
+        return bool(api.settings.haptic.enabled)
+    if key == "wake_on_lan":
+        return bool(api.settings.network.wifi.wake_on_wlan)
+    if key == "is_wireless_charging_enabled":
+        return bool(api.system.flags.wireless_charging_enabled)
+    return False
 
 
 class UCRemoteConfigSwitch(UnfoldedCircleEntity, SwitchEntity):
@@ -213,18 +211,13 @@ class UCRemoteConfigSwitch(UnfoldedCircleEntity, SwitchEntity):
         """Initialize a switch."""
         super().__init__(coordinator)
         self.entity_description = description
-        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_{description.unique_id}"
-        key = "_" + self.entity_description.key
-        self._attr_native_value = coordinator.data.get(key)
-        if coordinator.data.get(key) is True:
-            self._state = "ON"
-        else:
-            self._state = "OFF"
+        self._attr_unique_id = f"{coordinator.api.device.model_number}_{self.coordinator.api.device.serial_number}_{description.unique_id}"
+        self._state = _get_config_switch_value(coordinator.api, description.key)
 
     @property
     def is_on(self) -> bool | None:
         """Return true if switch is on."""
-        return self._state == "ON"
+        return self._state
 
     async def async_turn_on(self, **kwargs) -> None:
         """Instruct the switch to turn on."""
@@ -239,11 +232,7 @@ class UCRemoteConfigSwitch(UnfoldedCircleEntity, SwitchEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        key = "_" + self.entity_description.key
-        state = self.coordinator.data.get(key)
-        if state is True:
-            self._state = "ON"
-        else:
-            self._state = "OFF"
-        self._attr_native_value = state
+        self._state = _get_config_switch_value(
+            self.coordinator.api, self.entity_description.key
+        )
         self.async_write_ha_state()

@@ -54,7 +54,7 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_remote"
+        self._attr_unique_id = f"{coordinator.api.device.model_number}_{self.coordinator.api.device.serial_number}_remote"
         self._attr_name = "Remote"
         self._attr_activity_list = []
         self._extra_state_attributes = {}
@@ -81,11 +81,11 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
         if hasattr(self.coordinator.api, "activities"):
             for activity in self.coordinator.api.activities:
                 self._extra_state_attributes[activity.name] = activity.state
-                if activity.is_on():
+                if activity.is_on:
                     self._attr_current_activity = activity.name
                     self._attr_is_on = True
             for activity in self.coordinator.api.activities:
-                for entity in activity.mediaplayer_entities:
+                for entity in activity.media_player_entities:
                     self._extra_state_attributes[entity.name] = entity.state
 
         return self._attr_is_on
@@ -106,7 +106,7 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
         """Turn the entity off."""
         if hasattr(self.coordinator.api, "activities"):
             for activity in self.coordinator.api.activities:
-                if activity.is_on():
+                if activity.is_on:
                     await activity.turn_off()
         self._attr_is_on = False
 
@@ -123,10 +123,10 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
                 remote_command = Command(self.coordinator, self.hass, data=data)
                 await remote_command.async_send()
             else:
-                await self.coordinator.api.send_remote_command(
-                    device=kwargs.get("device"),
-                    command=indv_command,
-                    repeat=kwargs.get("num_repeats"),
+                await self.coordinator.api.ir.send_from_codeset(
+                    kwargs.get("device", ""),
+                    indv_command,
+                    repeat=kwargs.get("num_repeats", 0),
                 )
 
     @callback
@@ -152,7 +152,7 @@ class RemoteDockSensor(UnfoldedCircleDockEntity, RemoteEntity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, config_entry, subentry)
-        self._attr_unique_id = f"{subentry.unique_id}_{self.coordinator.api.model_number}_{self.coordinator.api.serial_number}_remote"
+        self._attr_unique_id = f"{subentry.unique_id}_{self.coordinator.api.device.model_number}_{self.coordinator.api.device.serial_number}_remote"
         self._attr_name = "Remote"
         self._attr_activity_list = []
         self._extra_state_attributes = None
@@ -184,10 +184,10 @@ class RemoteDockSensor(UnfoldedCircleDockEntity, RemoteEntity):
     async def async_send_command(self, command: Iterable[str], **kwargs):
         """Send a remote command."""
         for indv_command in command:
-            await self.coordinator.api.send_remote_command(
-                device=kwargs.get("device"),
-                command=indv_command,
-                repeat=kwargs.get("num_repeats"),
+            await self.coordinator.api.ir.send_from_codeset(
+                kwargs.get("device", ""),
+                indv_command,
+                repeat=kwargs.get("num_repeats", 0),
             )
 
     @callback
@@ -195,8 +195,3 @@ class RemoteDockSensor(UnfoldedCircleDockEntity, RemoteEntity):
         """Handle updated data from the coordinator."""
         self.update_state()
         self.async_write_ha_state()
-
-    async def async_added_to_hass(self):
-        """Run when this Entity has been added to HA."""
-        self.coordinator.subscribe_events["all"] = True
-        await super().async_added_to_hass()

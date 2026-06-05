@@ -6,7 +6,7 @@ from typing import Any, Mapping
 from homeassistant.components.select import SelectEntity
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from pyUnfoldedCircleRemote.const import RemoteUpdateType
+from unfurled.helpers.models import UpdateType
 
 from .const import (
     CONF_SUPPRESS_ACTIVITIY_GROUPS,
@@ -46,17 +46,11 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
         super().__init__(coordinator)
         self.activity_group = activity_group
         self._attr_name = activity_group.name
-        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_{activity_group._id}"
+        self._attr_unique_id = f"{coordinator.api.device.model_number}_{self.coordinator.api.device.serial_number}_{activity_group.id}"
         self._state = activity_group.state
         self._attr_icon = "mdi:remote-tv"
         self._attr_native_value = "OFF"
         self._extra_state_attributes = {}
-
-    async def async_added_to_hass(self):
-        """Run when this Entity has been added to HA."""
-        self.coordinator.subscribe_events["entity_activity"] = True
-        self.coordinator.subscribe_events["activity_groups"] = True
-        await super().async_added_to_hass()
 
     @property
     def extra_state_attributes(self) -> Mapping[str, Any] | None:
@@ -65,7 +59,7 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
     @property
     def current_option(self) -> str:
         for activity in self.activity_group.activities:
-            if activity.is_on():
+            if activity.is_on:
                 return activity.name
         return POWER_OFF_LABEL
 
@@ -73,7 +67,7 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
         """Change the selected option."""
         if option == POWER_OFF_LABEL:
             for activity in self.activity_group.activities:
-                if activity.is_on():
+                if activity.is_on:
                     await activity.turn_off()
             self._attr_current_option = option
             self.async_write_ha_state()
@@ -98,7 +92,7 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
         # Update only if activity changed
         try:
             last_update_type = self.coordinator.api.last_update_type
-            if last_update_type != RemoteUpdateType.ACTIVITY:
+            if last_update_type != UpdateType.ACTIVITY:
                 return
             self._extra_state_attributes = {}
         except (KeyError, IndexError):
@@ -108,7 +102,7 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
             return
         self._state = self.activity_group.state
         for activity in self.activity_group.activities:
-            if activity.is_on():
-                for entity in activity.mediaplayer_entities:
+            if activity.is_on:
+                for entity in activity.media_player_entities:
                     self._extra_state_attributes[entity.name] = entity.state
         self.async_write_ha_state()

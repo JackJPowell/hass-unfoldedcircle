@@ -36,7 +36,7 @@ class PollingBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
     def __init__(self, coordinator) -> None:
         """Initialize Binary Sensor."""
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_polling_status"
+        self._attr_unique_id = f"{coordinator.api.device.model_number}_{self.coordinator.api.device.serial_number}_polling_status"
         self._attr_name = "Polling Status"
         self._attr_native_value = self.coordinator.polling_data
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -62,11 +62,9 @@ class PollingBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
         self._attr_extra_state_attributes["Polling state"] = (
             self.coordinator.polling_data
         )
+        ws_client = getattr(self.coordinator.api, "_ws_client", None)
         self._attr_extra_state_attributes["Websocket state"] = (
-            self.coordinator.websocket_task is not None
-        )
-        self._attr_extra_state_attributes["Websocket events"] = ", ".join(
-            self.coordinator.websocket.events_to_subscribe
+            ws_client is not None and getattr(ws_client, "_running", False)
         )
         self.async_write_ha_state()
 
@@ -76,14 +74,10 @@ class BatteryBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
 
     device_class = ATTR_BATTERY_CHARGING
 
-    async def async_added_to_hass(self) -> None:
-        self.coordinator.subscribe_events["battery_status"] = True
-        await super().async_added_to_hass()
-
     def __init__(self, coordinator) -> None:
         """Initialize Binary Sensor."""
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_charging_status"
+        self._attr_unique_id = f"{coordinator.api.device.model_number}_{self.coordinator.api.device.serial_number}_charging_status"
         self._attr_translation_key = "charging_status"
         self._attr_name = "Charging Status"
         self._attr_native_value = False
@@ -91,11 +85,11 @@ class BatteryBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
     @property
     def is_on(self):
         """Return the state of the binary sensor."""
-        self._attr_native_value = self.coordinator.api.is_charging
+        self._attr_native_value = self.coordinator.api.state.is_charging
         return self._attr_native_value
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        self._attr_native_value = self.coordinator.api.is_charging
+        self._attr_native_value = self.coordinator.api.state.is_charging
         self.async_write_ha_state()

@@ -11,7 +11,8 @@ from homeassistant.helpers import issue_registry
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
+from unfurled.remote import Remote
+from unfurled.helpers.exceptions import AuthenticationError
 
 from .const import DOMAIN, UC_HA_SYSTEM, UC_HA_TOKEN_ID
 from .services import async_setup_services
@@ -57,9 +58,8 @@ async def async_setup_entry(
             if not await Remote.wake_by_mac(entry.data["mac"], entry.data["host"]):
                 raise ConnectionError("Could not wake up or connect to remote device")
 
-        remote_api = Remote(entry.data["host"], entry.data["pin"], entry.data["apiKey"])
+        remote_api = Remote(entry.data["host"], pin=entry.data["pin"], api_key=entry.data["apiKey"])
         await remote_api.validate_connection()
-        await remote_api.get_remote_information()
 
     except AuthenticationError as err:
         raise ConfigEntryAuthFailed(err) from err
@@ -75,14 +75,14 @@ async def async_setup_entry(
         dock_data = {}
         if "docks" in entry.data:
             for config_dock in entry.data["docks"]:
-                dock = remote_api.get_dock_by_id(config_dock["id"])
+                dock = remote_api.find_dock(config_dock["id"])
                 if dock:
                     if config_dock["password"] == "":
                         dock_data["password"] = "0000"
                     else:
                         dock_data["password"] = config_dock["password"]
-                    dock_data["id"] = dock.id
-                    dock_data["name"] = dock.name
+                    dock_data["id"] = dock.device.id
+                    dock_data["name"] = dock.device.name
                     create_subentry(hass, entry, dock_data)
 
                     await async_remove_device(hass, dock)
@@ -111,8 +111,8 @@ async def async_setup_entry(
         # Migrate activity switch unique IDs to include model_number and serial_number
         # to prevent collisions when restoring backups to different remotes
         entity_registry = er.async_get(hass)
-        model_number = remote_api.model_number
-        serial_number = remote_api.serial_number
+        model_number = remote_api.device.model_number
+        serial_number = remote_api.device.serial_number
         new_prefix = f"{model_number}_{serial_number}_"
 
         for entity in er.async_entries_for_config_entry(
@@ -161,7 +161,7 @@ async def async_setup_entry(
     docks = {}
     for subentry_id, subentry in entry.subentries.items():
         if subentry.data["password"] != "":
-            dock = remote_api.get_dock_by_id(subentry.data["id"])
+            dock = remote_api.find_dock(subentry.data["id"])
             if dock is None:
                 _LOGGER.warning(
                     "Dock with ID %s not found on remote, skipping",
@@ -176,19 +176,18 @@ async def async_setup_entry(
                 await dock_coordinator.async_config_entry_first_refresh()
                 docks[subentry_id] = dock_coordinator
                 # Clear any previous unreachable issue for this dock
-                async_delete_issue_dock_unreachable(hass, dock.id)
+                async_delete_issue_dock_unreachable(hass, dock.device.id)
             except Exception as ex:
                 _LOGGER.warning(
-                    "Could not initialize connection to dock %s (%s): %s. "
+                    "Could not initialize connection to dock %s: %s. "
                     "The main remote will continue to work, but dock features will be unavailable.",
-                    dock.name,
-                    dock.endpoint,
+                    dock.device.name,
                     ex,
                 )
                 # Create a repair issue for the unreachable dock
                 async_create_issue_dock_unreachable(hass, dock, entry, subentry, ex)
         else:
-            dock = remote_api.get_dock_by_id(subentry.data["id"])
+            dock = remote_api.find_dock(subentry.data["id"])
             if dock:
                 async_create_issue_dock_password(hass, dock, entry, subentry)
 
@@ -198,7 +197,7 @@ async def async_setup_entry(
 
     await coordinator.async_config_entry_first_refresh()
 
-    if coordinator.api.external_entity_configuration_available:
+    if coordinator.api.system.flags.external_entity_configuration_available:
         if not await get_registered_websocket_url(coordinator.api):
             # We haven't registered a new external system yet, raise issue
             async_create_issue_websocket_connection(hass, entry, coordinator)
@@ -225,7 +224,7 @@ async def async_unload_entry(
         await coordinator.close_websocket()
 
         for dock in coordinator.api.docks:
-            issue_registry.async_delete_issue(hass, DOMAIN, f"dock_password_{dock.id}")
+            issue_registry.async_delete_issue(hass, DOMAIN, f"dock_password_{dock.device.id}")
             issue_registry.async_delete_issue(hass, DOMAIN, "websocket_connection")
     except Exception as ex:
         _LOGGER.error("Unfolded Circle Remote async_unload_entry error: %s", ex)
@@ -240,9 +239,9 @@ async def async_remove_entry(
     """Handle removal of an entry."""
     try:
         _LOGGER.debug("Removing remote from Home assistant for entry %s", entry)
-        remote_api = Remote(entry.data["host"], entry.data["pin"], entry.data["apiKey"])
+        remote_api = Remote(entry.data["host"], pin=entry.data["pin"], api_key=entry.data["apiKey"])
         try:
-            results = await remote_api.delete_token_for_external_system(
+            results = await remote_api.auth.delete_external_token(
                 UC_HA_SYSTEM, UC_HA_TOKEN_ID
             )
             _LOGGER.debug("Results of token deletion : %s", results)
@@ -288,8 +287,8 @@ async def async_remove_device(hass: HomeAssistant, dock) -> None:
         identifiers={
             (
                 DOMAIN,
-                dock.model_number,
-                dock.serial_number,
+                dock.device.model_number,
+                dock.device.serial_number,
             )
         }
     )

@@ -15,16 +15,14 @@ from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from homeassistant.exceptions import HomeAssistantError
 
 from .const import COMMAND_LIST, DOMAIN, UC_HA_DRIVER_ID, UC_HA_SYSTEM, UC_HA_TOKEN_ID
-from pyUnfoldedCircleRemote.const import SIMULATOR_MAC_ADDRESS
-from pyUnfoldedCircleRemote.dock import Dock
-from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
-from pyUnfoldedCircleRemote.remote import (
+from unfurled.remote import Remote
+from unfurled.dock import Dock
+from unfurled.helpers.exceptions import (
     EntityCommandError,
     HTTPError,
     IntegrationNotFound,
     InvalidButtonCommand,
     NoActivityRunning,
-    Remote,
     RemoteIsSleeping,
     TokenRegistrationError,
 )
@@ -46,18 +44,23 @@ def get_ha_websocket_url(hass: HomeAssistant) -> str:
 
 
 async def validate_dock_password(remote_api: Remote, user_info) -> bool:
-    """Validate"""
-    dock = remote_api.get_dock_by_id(user_info.get("id"))
-
-    websocket = DockWebsocket(
-        dock.ws_endpoint,
-        api_key=dock.apikey,
-        dock_password=user_info.get("password"),
-    )
+    """Validate the dock password by attempting a short-lived WS connection."""
+    dock = remote_api.find_dock(user_info.get("id"))
+    if dock is None:
+        _LOGGER.error("Dock %s not found on remote", user_info.get("id"))
+        return False
     try:
-        return await asyncio.wait_for(websocket.is_password_valid(), timeout=3)
+        return await asyncio.wait_for(
+            dock.validate_password(user_info.get("password", "")),
+            timeout=10,
+        )
     except Exception as ex:
-        _LOGGER.error("Error occurred when validating dock: %s %s", dock.name, ex)
+        _LOGGER.error(
+            "Error occurred when validating dock password for %s: %s",
+            dock.device.name,
+            ex,
+        )
+        return False
 
 
 async def generate_token(hass: HomeAssistant, name):
@@ -121,26 +124,22 @@ async def register_system_and_driver(
 ) -> str:
     """Register remote system"""
 
-    # This commented block will prevent the creation of a new external token
-    # if the user configured the remote manually. There is code in the hass
-    # integration flow on the remote to switch to the ws-ha-api flow if present
     if not websocket_url:
         websocket_url = await get_registered_websocket_url(remote)
         if websocket_url is None:
             websocket_url = get_ha_websocket_url(hass)
 
-    token = await generate_token(hass, f"UCR:{remote.name}")
+    token = await generate_token(hass, f"UCR:{remote.device.name}")
 
     if token:
         try:
-            await remote.set_token_for_external_system(
+            await remote.auth.set_external_token(
                 system=UC_HA_SYSTEM,
                 token_id=UC_HA_TOKEN_ID,
                 token=token,
                 name="Home Assistant Access token",
                 description="URL and long lived access token for Home Assistant WebSocket API",
                 url=websocket_url,
-                data="",
             )
         except Exception as ex:
             _LOGGER.error("Error during token registration %s", ex)
@@ -171,16 +170,14 @@ async def connect_integration(remote: Remote, driver_id=UC_HA_DRIVER_ID) -> str:
         _LOGGER.debug(
             "Home assistant driver integration lookup for system %s", driver_id
         )
-        ha_driver_instance = await remote.get_integration_instance_by_driver_id(
-            driver_id
-        )
+        ha_driver_instance = await remote.integrations.get_by_driver(driver_id)
         _LOGGER.debug("Home assistant driver instance found %s", ha_driver_instance)
     except IntegrationNotFound:
         _LOGGER.debug(
             "No Home assistant driver instance (%s), create one",
             UC_HA_SYSTEM,
         )
-        await remote.create_driver_instance(
+        await remote.integrations.create_driver(
             UC_HA_SYSTEM,
             {
                 "name": {"en": "Home Assistant"},
@@ -188,30 +185,26 @@ async def connect_integration(remote: Remote, driver_id=UC_HA_DRIVER_ID) -> str:
                 "enabled": True,
             },
         )
-        ha_driver_instance = await remote.get_integration_instance_by_driver_id(
-            driver_id
-        )
+        ha_driver_instance = await remote.integrations.get_by_driver(driver_id)
     except Exception as ex:
         _LOGGER.error("Error during driver registration %s", ex)
 
     # If the HA driver is disconnected, request connection in order to retrieve and update entities
     integration_id = ha_driver_instance.get("integration_id")
     if ha_driver_instance.get("device_state", "") != "CONNECTED":
-        ha_driver = await remote.get_driver_instance(driver_id)
+        ha_driver = await remote.integrations.get_driver(driver_id)
         if ha_driver.get("driver_state", "") == "IDLE":
             _LOGGER.debug("Home assistant driver has not started. Starting...")
             try:
-                await remote.start_driver_by_id(driver_id)
+                await remote.integrations.start_driver(driver_id)
                 # Pull latest status
-                ha_driver_instance = await remote.get_integration_instance_by_driver_id(
-                    driver_id
-                )
+                ha_driver_instance = await remote.integrations.get_by_driver(driver_id)
             except HTTPError as ex:
                 _LOGGER.error("Error while trying to start remote and driver %s", ex)
 
         if ha_driver_instance.get("device_state", "") != "CONNECTED":
             try:
-                await remote.put_integration(integration_id, command="CONNECT")
+                await remote.integrations.send_command(integration_id, "CONNECT")
             except HTTPError as ex:
                 _LOGGER.error("Error while trying to connect remote and driver %s", ex)
     return integration_id
@@ -219,62 +212,27 @@ async def connect_integration(remote: Remote, driver_id=UC_HA_DRIVER_ID) -> str:
 
 async def get_registered_websocket_url(remote: Remote) -> str:
     """Returns websocket url registered on remote"""
-    external_systems = await remote.get_registered_external_system(UC_HA_SYSTEM)
-    for ext in external_systems:
-        if ext.get("token_id") == "ws-ha-api":
-            return ext.get("url", None)
+    try:
+        external_systems = await remote.api.get_external_system(UC_HA_SYSTEM)
+        if isinstance(external_systems, list):
+            for ext in external_systems:
+                if ext.get("token_id") == "ws-ha-api":
+                    return ext.get("url", None)
+        elif isinstance(external_systems, dict):
+            if external_systems.get("token_id") == "ws-ha-api":
+                return external_systems.get("url", None)
+    except Exception:
+        pass
     return None
 
 
 async def device_info_from_discovery_info(discovery_info: ZeroconfServiceInfo) -> tuple:
-    """Returns device information from discovery info"""
+    """Returns device information from zeroconf discovery info."""
     host = discovery_info.ip_address.compressed
     port = discovery_info.port
-    model = discovery_info.properties.get("model")
-    endpoint = f"http://{host}:{port}/api/"
-    configuration_url = ""
-    device_name = ""
-    mac_address = ""
-    match model:
-        case "UCR2":
-            device_name = "Remote Two"
-            configuration_url = (
-                f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
-            )
-            try:
-                response = await Remote.get_version_information(endpoint)
-                device_name = response.get("device_name", None)
-                if not device_name:
-                    device_name = "Remote Two"
-                mac_address = response.get("address", "").replace(":", "").lower()
-            except Exception:
-                pass
-        case "UCR2-simulator":
-            device_name = "Remote Two Simulator"
-            configuration_url = (
-                f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
-            )
-            mac_address = SIMULATOR_MAC_ADDRESS.replace(":", "").lower()
-        case "UCR3":
-            device_name = "Remote 3"
-            configuration_url = (
-                f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
-            )
-            try:
-                response = await Remote.get_version_information(endpoint)
-                device_name = response.get("device_name", None)
-                if not device_name:
-                    device_name = "Remote 3"
-                mac_address = response.get("address", "").replace(":", "").lower()
-            except Exception:
-                pass
-        case "UCR3-simulator":
-            device_name = "Remote 3 Simulator"
-            configuration_url = (
-                f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
-            )
-            mac_address = SIMULATOR_MAC_ADDRESS.replace(":", "").lower()
-    return device_name, configuration_url, mac_address
+    model = discovery_info.properties.get("model", "")
+    info = await Remote.resolve_discovery(host, port, model)
+    return info["name"], info["configuration_url"], info["mac_address"]
 
 
 async def validate_tokens(hass: HomeAssistant, remote: Remote) -> bool:
@@ -286,11 +244,11 @@ async def validate_tokens(hass: HomeAssistant, remote: Remote) -> bool:
     token: RefreshToken | None = None
     if user.refresh_tokens:
         for token in user.refresh_tokens.values():
-            if token.client_name == f"UCR:{remote.name}":
+            if token.client_name == f"UCR:{remote.device.name}":
                 refresh_token = token
                 break
 
-    remote_has_token = await remote.external_system_has_token(UC_HA_SYSTEM)
+    remote_has_token = await remote.auth.system_has_token(UC_HA_SYSTEM)
 
     if not remote_has_token or not refresh_token:
         return False
@@ -394,15 +352,15 @@ def async_create_issue_dock_password(
     hass: HomeAssistant, dock: Dock, entry, subentry
 ) -> None:
     """Create an issue in the issue registry for a dock with an empty password."""
-    _LOGGER.debug("Empty dock password: %s", dock.name)
+    _LOGGER.debug("Empty dock password: %s", dock.device.name)
     issue_registry.async_create_issue(
         hass,
         DOMAIN,
-        f"dock_password_{dock.id}",
+        f"dock_password_{dock.device.id}",
         breaks_in_ha_version=None,
         data={
-            "id": dock.id,
-            "name": dock.name,
+            "id": dock.device.id,
+            "name": dock.device.name,
             "config_entry": entry,
             "subentry": subentry,
         },
@@ -411,7 +369,7 @@ def async_create_issue_dock_password(
         learn_more_url="https://github.com/jackjpowell/hass-unfoldedcircle",
         severity=issue_registry.IssueSeverity.WARNING,
         translation_key="dock_password",
-        translation_placeholders={"name": dock.name},
+        translation_placeholders={"name": dock.device.name},
     )
 
 
@@ -420,15 +378,15 @@ def async_create_issue_dock_unreachable(
     hass: HomeAssistant, dock: Dock, entry, subentry, error: str
 ) -> None:
     """Create an issue in the issue registry for an unreachable dock."""
-    _LOGGER.warning("Dock unreachable: %s - %s", dock.name, error)
+    _LOGGER.warning("Dock unreachable: %s - %s", dock.device.name, error)
     issue_registry.async_create_issue(
         hass,
         DOMAIN,
-        f"dock_unreachable_{dock.id}",
+        f"dock_unreachable_{dock.device.id}",
         breaks_in_ha_version=None,
         data={
-            "id": dock.id,
-            "name": dock.name,
+            "id": dock.device.id,
+            "name": dock.device.name,
             "config_entry": entry,
             "subentry": subentry,
         },
@@ -437,7 +395,7 @@ def async_create_issue_dock_unreachable(
         learn_more_url="https://github.com/jackjpowell/hass-unfoldedcircle",
         severity=issue_registry.IssueSeverity.WARNING,
         translation_key="dock_unreachable",
-        translation_placeholders={"name": dock.name, "error": str(error)},
+        translation_placeholders={"name": dock.device.name, "error": str(error)},
     )
 
 
@@ -459,13 +417,13 @@ def async_create_issue_websocket_connection(
         DOMAIN,
         "websocket_connection",
         breaks_in_ha_version=None,
-        data={"config_entry": entry, "name": coordinator.api.name},
+        data={"config_entry": entry, "name": coordinator.api.device.name},
         is_fixable=True,
         is_persistent=False,
         learn_more_url="https://github.com/jackjpowell/hass-unfoldedcircle",
         severity=issue_registry.IssueSeverity.WARNING,
         translation_key="websocket_connection",
-        translation_placeholders={"name": coordinator.api.name},
+        translation_placeholders={"name": coordinator.api.device.name},
     )
 
 

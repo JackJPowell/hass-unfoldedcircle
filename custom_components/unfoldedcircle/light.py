@@ -61,11 +61,11 @@ class UnfoldedCircleLight(UnfoldedCircleEntity, LightEntity):
     ) -> None:
         """Initialize Unfolded Circle Light."""
         super().__init__(coordinator)
-        self._attr_unique_id = f"{self.coordinator.api.model_number}_{self.coordinator.api.serial_number}_{description.unique_id}"
+        self._attr_unique_id = f"{self.coordinator.api.device.model_number}_{self.coordinator.api.device.serial_number}_{description.unique_id}"
         self.entity_description = description
         self._state: StateType = None
 
-        if "RGB_COLOR" in self.coordinator.api.button_features:
+        if "RGB_COLOR" in self.coordinator.api.system.flags.button_features:
             self._attr_supported_color_modes = {ColorMode.RGB}
             self._attr_color_mode = ColorMode.RGB
         else:
@@ -75,25 +75,23 @@ class UnfoldedCircleLight(UnfoldedCircleEntity, LightEntity):
     @property
     def is_on(self) -> bool:
         """Return true if device is on."""
-        return self.coordinator.api.button_backlight_brightness > 10
+        return self.coordinator.api.settings.button.brightness > 10
 
     @property
     def brightness(self) -> int:
         """Return the brightness of the light."""
         return value_to_brightness(
-            BRIGHTNESS_SCALE, self.coordinator.api.button_backlight_brightness
+            BRIGHTNESS_SCALE, self.coordinator.api.settings.button.brightness
         )
 
     @property
     def rgb_color(self) -> tuple[int, int, int] | None:
         """Return the rgb color value [int, int, int]."""
-        if "RGB_COLOR" not in self.coordinator.api.button_features:
+        if "RGB_COLOR" not in self.coordinator.api.system.flags.button_features:
             return None
-        if (
-            self.coordinator.api.button_static_color is not None
-            and "rgb" in self.coordinator.api.button_static_color
-        ):
-            return tuple(self.coordinator.api.button_static_color["rgb"])
+        static_color = self.coordinator.api.settings.button.static_color
+        if static_color is not None and "rgb" in static_color:
+            return tuple(static_color["rgb"])
         return (255, 255, 255)
 
     async def async_turn_on(self, **kwargs):
@@ -104,7 +102,7 @@ class UnfoldedCircleLight(UnfoldedCircleEntity, LightEntity):
             self._attr_rgb_color = kwargs[ATTR_RGB_COLOR]
         if ATTR_BRIGHTNESS in kwargs:
             self._attr_brightness = int((kwargs.get(ATTR_BRIGHTNESS, 0) / 255) * 100)
-        await self.coordinator.api.patch_remote_button_settings(
+        await self.coordinator.api.settings.update_button(
             brightness=self._attr_brightness, static_color=rgb
         )
         self._attr_is_on = True
@@ -112,23 +110,20 @@ class UnfoldedCircleLight(UnfoldedCircleEntity, LightEntity):
 
     async def async_turn_off(self, **kwargs):
         """Turn the light off."""
-        await self.coordinator.api.patch_remote_button_settings(brightness=0)
+        await self.coordinator.api.settings.update_button(brightness=0)
         self._attr_is_on = False
         self.async_write_ha_state()
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updates from the coordinator."""
-        self._attr_is_on = self.coordinator.api.button_backlight_brightness > 10
-        self._attr_brightness = self.coordinator.api.button_backlight_brightness
-        if "RGB_COLOR" in self.coordinator.api.button_features:
-            if (
-                self.coordinator.api.button_static_color is not None
-                and "rgb" in self.coordinator.api.button_static_color
-            ):
-                self._attr_rgb_color = tuple(
-                    self.coordinator.api.button_static_color["rgb"]
-                )
+        brightness = self.coordinator.api.settings.button.brightness
+        self._attr_is_on = brightness > 10
+        self._attr_brightness = brightness
+        if "RGB_COLOR" in self.coordinator.api.system.flags.button_features:
+            static_color = self.coordinator.api.settings.button.static_color
+            if static_color is not None and "rgb" in static_color:
+                self._attr_rgb_color = tuple(static_color["rgb"])
             else:
                 self._attr_rgb_color = (255, 255, 255)
 

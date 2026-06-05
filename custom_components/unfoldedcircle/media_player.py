@@ -16,12 +16,9 @@ from homeassistant.components.media_player import (
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from pyUnfoldedCircleRemote.const import RemoteUpdateType
-from pyUnfoldedCircleRemote.remote import (
-    Activity,
-    ActivityGroup,
-    UCMediaPlayerEntity,
-)
+from unfurled.helpers.models import UpdateType
+from unfurled.entities.activity import Activity, ActivityGroup
+from unfurled.entities.media_player import MediaPlayerEntity as UCMediaPlayerEntity
 
 from .const import (
     CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
@@ -108,15 +105,15 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         self.activity = activity
         if activity_group is None and activity is None:
             self._attr_name = "Media Player"
-            self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_mediaplayer"
+            self._attr_unique_id = f"{coordinator.api.device.model_number}_{self.coordinator.api.device.serial_number}_mediaplayer"
             self.activities = self.coordinator.api.activities
         elif activity is not None:
             self._attr_name = f"{activity.name} Media Player"
-            self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_{activity.name}_mediaplayer"
+            self._attr_unique_id = f"{coordinator.api.device.model_number}_{self.coordinator.api.device.serial_number}_{activity.name}_mediaplayer"
             self.activities = [activity]
         elif activity_group is not None:
             self._attr_name = f"{activity_group.name} Media Player"
-            self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_{activity_group.id}_mediaplayer"
+            self._attr_unique_id = f"{coordinator.api.device.model_number}_{self.coordinator.api.device.serial_number}_{activity_group.id}_mediaplayer"
             self.activities = self.activity_group.activities
         self._extra_state_attributes = {}
         self._current_activity = None
@@ -126,11 +123,6 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         self._state = STATE_OFF
         self._volume_level = 0
         self.update_state()
-
-    async def async_added_to_hass(self):
-        """Run when this Entity has been added to HA."""
-        self.coordinator.subscribe_events["entity_media_player"] = True
-        await super().async_added_to_hass()
 
     @property
     def supported_features(self):
@@ -163,10 +155,10 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
             self._active_media_entity = None
 
         for activity in self.activities:
-            if activity.is_on():
+            if activity.is_on:
                 self._current_activity = activity
 
-                for entity in activity.mediaplayer_entities:
+                for entity in activity.media_player_entities:
                     # Pick a media player entity : last one found or if it contains image media
                     # we suppose that this is the right one to take
                     if not entity.is_on:
@@ -270,8 +262,8 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         # if self._active_media_entity:
         sources: dict[str, any] = {AUTOMATIC_ENTITY_SELECTION_LABEL: True}
         for activity in self.activities:
-            if activity.is_on():
-                for entity in activity.mediaplayer_entities:
+            if activity.is_on:
+                for entity in activity.media_player_entities:
                     # if entity.state in ["PLAYING", "BUFFERING", "PAUSED"]:
                     if entity.state not in [
                         "UNAVAILABLE",
@@ -296,7 +288,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
             return
         # if self._active_media_entity:
         for activity in self.activities:
-            for entity in activity.mediaplayer_entities:
+            for entity in activity.media_player_entities:
                 if entity.name == sound_mode:
                     self._selected_media_entity = entity
                     self.update_state()
@@ -539,7 +531,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         # Update only if activity changed
         try:
             last_update_type = self.coordinator.api.last_update_type
-            if last_update_type != RemoteUpdateType.ACTIVITY:
+            if last_update_type != UpdateType.ACTIVITY:
                 return
             self.update_state()
             if self._active_media_entity and not self._active_media_entity.initialized:

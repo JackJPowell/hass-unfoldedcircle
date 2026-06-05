@@ -23,15 +23,15 @@ class UnfoldedCircleEntity(CoordinatorEntity[UnfoldedCircleRemoteCoordinator]):
             identifiers={
                 (
                     DOMAIN,
-                    self.coordinator.api.model_number,
-                    self.coordinator.api.serial_number,
+                    self.coordinator.api.device.model_number,
+                    self.coordinator.api.device.serial_number,
                 )
             },
-            name=self.coordinator.api.name,
-            manufacturer=self.coordinator.api.manufacturer,
-            model=self.coordinator.api.model_name,
-            sw_version=self.coordinator.api.sw_version,
-            hw_version=self.coordinator.api.hw_revision,
+            name=self.coordinator.api.device.name,
+            manufacturer=self.coordinator.api.device.manufacturer,
+            model=self.coordinator.api.device.model_name,
+            sw_version=self.coordinator.api.device.sw_version,
+            hw_version=self.coordinator.api.device.hw_revision,
             configuration_url=self.coordinator.api.configuration_url,
         )
 
@@ -58,19 +58,19 @@ class UnfoldedCircleDockEntity(CoordinatorEntity[UnfoldedCircleDockCoordinator])
                 (
                     DOMAIN,
                     self.subentry.unique_id,
-                    self.coordinator.api.model_number,
-                    self.coordinator.api.serial_number,
+                    self.coordinator.api.device.model_number,
+                    self.coordinator.api.device.serial_number,
                 )
             },
-            name=self.coordinator.api.name,
-            manufacturer=self.coordinator.api.manufacturer,
-            model=self.coordinator.api.model_name,
-            sw_version=self.coordinator.api.software_version,
-            hw_version=self.coordinator.api.hardware_revision,
-            configuration_url=self.coordinator.api.remote_configuration_url,
+            name=self.coordinator.api.device.name,
+            manufacturer=self.coordinator.api.device.manufacturer,
+            model=self.coordinator.api.device.model_name,
+            sw_version=self.coordinator.api.device.software_version,
+            hw_version=self.coordinator.api.device.hardware_revision,
+            configuration_url=self.coordinator.api.configuration_url,
             via_device=(
                 DOMAIN,
-                remote_coordinator.api.model_number,
-                remote_coordinator.api.serial_number,
+                remote_coordinator.api.device.model_number,
+                remote_coordinator.api.device.serial_number,
             ),
         )

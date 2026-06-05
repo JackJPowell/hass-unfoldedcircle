@@ -22,7 +22,7 @@ from .coordinator import UnfoldedCircleConfigEntry
 from .const import DOMAIN
 from .coordinator import UnfoldedCircleCoordinator, UnfoldedCircleDockCoordinator
 from .helpers import Command
-from pyUnfoldedCircleRemote.remote import AuthenticationError
+from unfurled.helpers.exceptions import AuthenticationError
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
 
@@ -136,12 +136,12 @@ async def async_inhibit_standby(
         reason = "User Requested"
 
     inhibitors = (
-        await config_entry.runtime_data.coordinator.api.get_standby_inhibitors()
+        await config_entry.runtime_data.coordinator.api.system.refresh_standby_inhibitors()
     )
     length = len(inhibitors)
     inhibitor_id = f"HA{length}"
 
-    await config_entry.runtime_data.coordinator.api.set_standby_inhibitor(
+    await config_entry.runtime_data.coordinator.api.system.set_standby_inhibitor(
         inhibitor_id, "Home Assistant", why=reason, delay=duration
     )
 
@@ -173,7 +173,7 @@ async def async_prevent_sleep(
                 coordinator = config_entry.runtime_data.coordinator
                 # unique_id format is "{model}_{serial}_{activity_id}"; strip the prefix
                 prefix = (
-                    f"{coordinator.api.model_number}_{coordinator.api.serial_number}_"
+                    f"{coordinator.api.device.model_number}_{coordinator.api.device.serial_number}_"
                 )
                 activity_id = entity.unique_id.removeprefix(prefix)
                 activity = coordinator.api.get_activity_by_id(activity_id)
@@ -259,7 +259,7 @@ async def async_service_handle(
                 )
 
     for _, coor in config_entry.runtime_data.docks.items():
-        if coor.api.name == dock_name:
+        if coor.api.device.name == dock_name:
             dock_coordinator = coor
             break
 
@@ -402,7 +402,6 @@ class IR:
     async def async_send_command(self, **kwargs: Any) -> None:
         """Send a list of commands from a remote."""
 
-        await self.coordinator.api.get_remotes()
         ir_format = None
         code = None
 
@@ -434,16 +433,22 @@ class IR:
                 code = command
                 command = None
             try:
-                await self.coordinator.api.send_remote_command(
-                    device,
-                    command,
-                    repeat,
-                    codeset,
-                    dock=dock_name,
-                    port=port,
-                    format=ir_format,
-                    code=code,
-                )
+                if code and ir_format:
+                    await self.coordinator.api.ir.send(
+                        code,
+                        ir_format,
+                        emitter_name=dock_name,
+                        port_id=port,
+                        repeat=repeat,
+                    )
+                elif device and command:
+                    await self.coordinator.api.ir.send_from_codeset(
+                        device,
+                        command,
+                        emitter_name=dock_name,
+                        port_id=port,
+                        repeat=repeat,
+                    )
             except (AuthenticationError, OSError) as err:
                 raise HomeAssistantError(
                     translation_domain=DOMAIN,

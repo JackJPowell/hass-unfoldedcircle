@@ -6,7 +6,7 @@ import math
 from datetime import timedelta
 from typing import Any
 
-from pyUnfoldedCircleRemote.remote import HTTPError
+from unfurled.helpers.exceptions import HTTPError
 
 from homeassistant.components.update import (
     UpdateDeviceClass,
@@ -59,13 +59,13 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
     def __init__(self, coordinator) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_update_status"
+        self._attr_unique_id = f"{coordinator.api.device.model_number}_{self.coordinator.api.device.serial_number}_update_status"
         self._attr_name = "Firmware"
         self._attr_device_class = UpdateDeviceClass.FIRMWARE
-        self._attr_auto_update = self.coordinator.api.automatic_updates
-        self._attr_installed_version = self.coordinator.api.sw_version
-        self._attr_latest_version = self.coordinator.api.latest_sw_version
-        self._attr_release_notes = self.coordinator.api.release_notes
+        self._attr_auto_update = self.coordinator.api.settings.software_update.auto_update
+        self._attr_installed_version = self.coordinator.api.device.sw_version
+        self._attr_latest_version = self.coordinator.api.system.update_info.latest_version
+        self._attr_release_notes = self.coordinator.api.system.update_info.release_notes
         self._attr_entity_category = EntityCategory.CONFIG
         self._download_progress = 0
         self._is_downloading = False
@@ -76,23 +76,22 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
             | UpdateEntityFeature.PROGRESS
             | UpdateEntityFeature.RELEASE_NOTES
         )
-        self._attr_title = f"{self.coordinator.api.name} Firmware"
+        self._attr_title = f"{self.coordinator.api.device.name} Firmware"
 
     @property
     def update_percentage(self) -> int | float | None:
-        if self.coordinator.api.update_percent > 0:
-            if self._download_progress > self.coordinator.api.update_percent:
+        if self.coordinator.api.system.update_info.update_percent > 0:
+            if self._download_progress > self.coordinator.api.system.update_info.update_percent:
                 return self._download_progress
             else:
-                if self.coordinator.api.update_percent == 0:
-                    # 0 is interpreted as false. "0" display progress bar
+                if self.coordinator.api.system.update_info.update_percent == 0:
                     return "0"
                 else:
-                    return self.coordinator.api.update_percent
+                    return self.coordinator.api.system.update_info.update_percent
 
-        if self.coordinator.api.download_percent > 0:
+        if self.coordinator.api.system.update_info.download_percent > 0:
             self._download_progress = math.ceil(
-                self.coordinator.api.download_percent / 10
+                self.coordinator.api.system.update_info.download_percent / 10
             )
             return self._download_progress
 
@@ -100,7 +99,7 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
         self, version: str | None, backup: bool, **kwargs: Any
     ) -> None:
         """Install an update."""
-        if self.coordinator.api.update_in_progress is True:
+        if self.coordinator.api.system.update_info.in_progress is True:
             return
 
         self._updated_requested = True
@@ -109,7 +108,7 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
         previous_download_percentage = 0
         retry_count = 0
         try:
-            update_information = await self.coordinator.api.update_remote()
+            update_state = await self.coordinator.api.system.update_firmware()
 
             # If the firmware hasn't been downloaded yet, the above request will
             # download it rather than updating the firmware and return a DOWNLOAD
@@ -117,13 +116,13 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
             # the update routine again. If download has completed, the upgrade
             # will begin. In between check on download status. If it is progressing
             # keep trying. If not, give it 3 times (30 seconds) before timing out.
-            if update_information.get("state") == "NO_BATTERY":
+            if update_state == "NO_BATTERY":
                 _LOGGER.error(
                     "Unfolded Circle Update Failed -- Please charge the remote before upgrading."
                 )
                 return
 
-            while update_information.get("state") != "START" and retry_count < 10:
+            while update_state != "START" and retry_count < 10:
                 self._is_downloading = True
                 await asyncio.sleep(6)
                 download_percentage = await self.update_download_status()
@@ -131,17 +130,17 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
                     retry_count = retry_count + 1
 
                 _LOGGER.debug(
-                    "Firmware download retry count: %s, update info: %s download percentage: %s",
+                    "Firmware download retry count: %s, update state: %s download percentage: %s",
                     retry_count,
-                    update_information,
+                    update_state,
                     download_percentage,
                 )
 
                 previous_download_percentage = download_percentage
-                update_information = await self.coordinator.api.update_remote()
+                update_state = await self.coordinator.api.system.update_firmware()
 
-            if update_information.get("state") == "START":
-                # We have started the actual udpate, so set in_progress to String "0"
+            if update_state == "START":
+                # We have started the actual update, so set in_progress to String "0"
                 # If we previously needed to download the firmware, preserve download
                 # percentage so we don't show negative progress.
                 self._is_downloading = False
@@ -166,10 +165,9 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
 
     async def update_download_status(self) -> int:
         """Calls system/update/latest to retrieve current download / update status"""
-        status_information = await self.coordinator.api.get_update_status()
-        download_percentage = self.coordinator.api.download_percent
+        status_information = await self.coordinator.api.system.get_update_status()
+        download_percentage = self.coordinator.api.system.update_info.download_percent
 
-        # Unsure if download percentage stays at 100 post download
         if status_information.get("state") == "DOWNLOADED":
             download_percentage = 100
 
@@ -179,42 +177,40 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
         return download_percentage
 
     async def async_release_notes(self) -> str:
-        return self.coordinator.api.release_notes
+        return self.coordinator.api.system.update_info.release_notes
 
     async def async_update(self) -> None:
         """Update update information."""
         try:
-            await self.coordinator.api.get_remote_update_information()
-            self._attr_latest_version = self.coordinator.api.latest_sw_version
-            self._attr_installed_version = self.coordinator.api.sw_version
+            await self.coordinator.api.system.force_update_check()
+            self._attr_latest_version = self.coordinator.api.system.update_info.latest_version
+            self._attr_installed_version = self.coordinator.api.device.sw_version
         except Exception as ex:
             _LOGGER.debug("Failure when checking for update: %s", ex)
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
+        update_info = self.coordinator.api.system.update_info
         if (
-            self.coordinator.api.update_in_progress is True
+            update_info.in_progress is True
             or self._is_downloading is True
-            or self.coordinator.api.download_percent > 0
+            or update_info.download_percent > 0
         ) and self._updated_requested is True:
-            # If a download was needed, continue to show that percent
-            # until the actual update percent exceeds it
-            if self._download_progress > self.coordinator.api.update_percent:
+            if self._download_progress > update_info.update_percent:
                 self._attr_in_progress = self._download_progress
             else:
-                if self.coordinator.api.update_percent == 0:
-                    # 0 is interpreted as false. "0" display progress bar
+                if update_info.update_percent == 0:
                     self._attr_in_progress = "0"
-                elif self.coordinator.api.update_percent == 100:
-                    self._attr_in_progress = self.coordinator.api.update_percent
+                elif update_info.update_percent == 100:
+                    self._attr_in_progress = update_info.update_percent
                     self._updated_requested = False
                 else:
-                    self._attr_in_progress = self.coordinator.api.update_percent
+                    self._attr_in_progress = update_info.update_percent
         else:
             self._attr_in_progress = False
-            self._attr_installed_version = self.coordinator.api.sw_version
-            self._attr_latest_version = self.coordinator.api.latest_sw_version
+            self._attr_installed_version = self.coordinator.api.device.sw_version
+            self._attr_latest_version = update_info.latest_version
         self.async_write_ha_state()
 
 
@@ -233,28 +229,28 @@ class UpdateDock(UnfoldedCircleDockEntity, UpdateEntity):
     ) -> None:
         """Initialize the Update sensor."""
         super().__init__(coordinator, config_entry, subentry)
-        self._attr_unique_id = f"{subentry.unique_id}_{coordinator.api.model_number}_{self.coordinator.api.serial_number}_update_status"
+        self._attr_unique_id = f"{subentry.unique_id}_{coordinator.api.device.model_number}_{self.coordinator.api.device.serial_number}_update_status"
         self._attr_name = "Firmware"
         self._attr_device_class = UpdateDeviceClass.FIRMWARE
-        self._attr_installed_version = self.coordinator.api.software_version
-        self._attr_latest_version = self.coordinator.api.latest_software_version
+        self._attr_installed_version = self.coordinator.api.device.software_version
+        self._attr_latest_version = self.coordinator.api.system.update_info.latest_version
         self._attr_entity_category = EntityCategory.CONFIG
         self._updated_requested = False
 
         self._attr_supported_features = UpdateEntityFeature(UpdateEntityFeature.INSTALL)
-        self._attr_title = f"{self.coordinator.api.name} Firmware"
+        self._attr_title = f"{self.coordinator.api.device.name} Firmware"
 
     async def async_install(
         self, version: str | None, backup: bool, **kwargs: Any
     ) -> None:
         """Install an update."""
-        if self.coordinator.api.update_in_progress is True:
+        if self.coordinator.api.system.update_info.in_progress is True:
             return
 
         self._updated_requested = True
         self._attr_in_progress = False
         try:
-            update_information = await self.coordinator.api.update_firmware()
+            update_information = await self.coordinator.api.system.update_firmware()
             if update_information.get("state") == "NO_BATTERY":
                 _LOGGER.error(
                     "Unfolded Circle Update Failed -- Please charge the dock before upgrading."
@@ -278,30 +274,28 @@ class UpdateDock(UnfoldedCircleDockEntity, UpdateEntity):
     async def async_update(self) -> None:
         """Update update information."""
         try:
-            await self.coordinator.api.get_update_status()
-            self._attr_latest_version = self.coordinator.api.latest_software_version
-            self._attr_installed_version = self.coordinator.api.software_version
+            await self.coordinator.api.system.get_update_status()
+            self._attr_latest_version = self.coordinator.api.system.update_info.latest_version
+            self._attr_installed_version = self.coordinator.api.device.software_version
         except Exception as ex:
             _LOGGER.debug("Failure when checking for dock update: %s", ex)
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
+        update_info = self.coordinator.api.system.update_info
         if (
-            self.coordinator.api.update_in_progress is True
+            update_info.in_progress is True
         ) and self._updated_requested is True:
-            # If a download was needed, continue to show that percent
-            # until the actual update percent exceeds it
-            if self.coordinator.api.update_percent == 0:
-                # 0 is interpreted as false. "0" display progress bar
+            if update_info.update_percent == 0:
                 self._attr_in_progress = "0"
-            elif self.coordinator.api.update_percent == 100:
-                self._attr_in_progress = self.coordinator.api.update_percent
+            elif update_info.update_percent == 100:
+                self._attr_in_progress = update_info.update_percent
                 self._updated_requested = False
             else:
-                self._attr_in_progress = self.coordinator.api.update_percent
+                self._attr_in_progress = update_info.update_percent
         else:
             self._attr_in_progress = False
-            self._attr_installed_version = self.coordinator.api.software_version
-            self._attr_latest_version = self.coordinator.api.latest_software_version
+            self._attr_installed_version = self.coordinator.api.device.software_version
+            self._attr_latest_version = self.coordinator.api.system.update_info.latest_version
         self.async_write_ha_state()

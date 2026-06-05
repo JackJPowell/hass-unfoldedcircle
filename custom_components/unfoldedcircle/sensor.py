@@ -126,20 +126,13 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
     ) -> None:
         """Initialize Unfolded Circle Sensor."""
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.api.model_number}_{self.coordinator.api.serial_number}_{description.unique_id}"
+        self._attr_unique_id = f"{coordinator.api.device.model_number}_{self.coordinator.api.device.serial_number}_{description.unique_id}"
         self.entity_description = description
         self._state: StateType = None
         self._attr_extra_state_attributes = {}
 
     async def async_added_to_hass(self) -> None:
         """Run when this Entity has been added to HA."""
-        # Add websocket events according to corresponding entities
-        if self.entity_description.key == "ambient_light_intensity":
-            self.coordinator.subscribe_events["ambient_light"] = True
-        if self.entity_description.key == "battery_level":
-            self.coordinator.subscribe_events["battery_status"] = True
-        if self.entity_description.key == "power_mode":
-            self.coordinator.subscribe_events["configuration"] = True
         # Enable polling if one of those entities is enabled
         if self.entity_description.key in [
             "memory_available",
@@ -162,17 +155,28 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
 
     def get_value(self) -> StateType:
         """return native value of entity"""
-        if self.entity_description.key == "remote_entities":
+        api = self.coordinator.api
+        key = self.entity_description.key
+        if key == "remote_entities":
             return self._attr_extra_state_attributes.get("Synchronized entities", 0)
-        if self.coordinator.data:
-            self._state = getattr(self.coordinator.api, self.entity_description.key)
-            self._attr_native_value = self._state
-        return self._state
+        if key == "battery_level":
+            return api.state.battery_level
+        if key == "ambient_light_intensity":
+            return api.state.ambient_light_level
+        if key == "power_mode":
+            return api.state.power_mode
+        if key == "memory_available":
+            return api.system.stats.memory_available
+        if key == "storage_available":
+            return api.system.stats.storage_available
+        if key == "cpu_load_one":
+            return api.system.stats.cpu_load_one
+        return None
 
     @property
     def available(self) -> bool:
         """Return if available."""
-        return self.coordinator.api.online
+        return self.coordinator.api.state.online
 
     @callback
     def _handle_coordinator_update(self) -> None:
