@@ -22,7 +22,7 @@ from typing import Any
 
 from infrared_protocols.commands import Command as InfraredCommand
 
-from homeassistant.components.infrared import InfraredEntity
+from homeassistant.components.infrared import InfraredEmitterEntity
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
@@ -43,7 +43,7 @@ async def async_setup_entry(
     """Set up Unfolded Circle IR emitter entities."""
     coordinator = config_entry.runtime_data.coordinator
     remote_api = coordinator.api
-    entities: list[InfraredEntity] = []
+    entities: list[InfraredEmitterEntity] = []
 
     # ── 1. DOCK emitters ──────────────────────────────────────────────────────
     for subentry_id, dock_coordinator in config_entry.runtime_data.docks.items():
@@ -132,7 +132,7 @@ async def async_setup_entry(
 # ── Entity implementations ────────────────────────────────────────────────────
 
 
-class DockPortInfraredEntity(UnfoldedCircleDockEntity, InfraredEntity):
+class DockPortInfraredEntity(UnfoldedCircleDockEntity, InfraredEmitterEntity):
     """IR emitter entity for a specific port on an Unfolded Circle Dock.
 
     One entity is created per port (including the "Default (all outputs)" port).
@@ -178,7 +178,7 @@ class DockPortInfraredEntity(UnfoldedCircleDockEntity, InfraredEntity):
             ) from err
 
 
-class RemoteInternalInfraredEntity(UnfoldedCircleEntity, InfraredEntity):
+class RemoteInternalInfraredEntity(UnfoldedCircleEntity, InfraredEmitterEntity):
     """IR emitter entity for the Unfolded Circle Remote's built-in emitter.
 
     The emitter entry has type=="INTERNAL" and device_id=="internal".
@@ -219,7 +219,7 @@ class RemoteInternalInfraredEntity(UnfoldedCircleEntity, InfraredEntity):
             ) from err
 
 
-class ExternalInfraredEntity(UnfoldedCircleEntity, InfraredEntity):
+class ExternalInfraredEntity(UnfoldedCircleEntity, InfraredEmitterEntity):
     """IR emitter entity for a specific port on a third-party emitter connected to the remote.
 
     External emitters (e.g. Broadlink RM Pro) are added via driver integrations
