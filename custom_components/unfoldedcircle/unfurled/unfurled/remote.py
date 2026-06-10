@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+from collections.abc import Callable, Coroutine
+from typing import Any
 from urllib.parse import urljoin, urlparse
 
 import aiohttp
@@ -126,6 +128,7 @@ class Remote:
         # WebSocket
         self._ws_client: RemoteWebSocketClient | None = None
         self._last_update_type: UpdateType = UpdateType.NONE
+        self._state_change_callbacks: list[Callable[[], Coroutine[Any, Any, None]]] = []
 
         # Entities cache (media players referenced by activities)
         self._entities: dict[str, MediaPlayerEntity] = {}
@@ -291,6 +294,10 @@ class Remote:
     # WebSocket
     # ------------------------------------------------------------------
 
+    def on_state_change(self, callback: Callable[[], Coroutine[Any, Any, None]]) -> None:
+        """Register a coroutine callback to be called after any WebSocket state update."""
+        self._state_change_callbacks.append(callback)
+
     async def connect_websocket(self, *, reconnect_delay: float = 10.0) -> None:
         """Start a WebSocket connection and keep it alive automatically.
 
@@ -342,6 +349,9 @@ class Remote:
                 self._on_power_mode(event)
             case IRLearningEvent():
                 self._on_ir_learning(event)
+
+        for cb in self._state_change_callbacks:
+            await cb()
 
     # WS event handlers (private, synchronous)
 
