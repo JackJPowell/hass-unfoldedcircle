@@ -66,6 +66,8 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
 
     reauth_entry: ConfigEntry | None = None
 
+    VERSION = 6
+
     def __init__(self) -> None:
         """Unfolded Circle Config Flow."""
         self.api_keyname: str | None = None
