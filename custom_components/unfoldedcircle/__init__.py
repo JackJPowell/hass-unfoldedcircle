@@ -219,16 +219,20 @@ async def async_unload_entry(
     hass: HomeAssistant, entry: UnfoldedCircleConfigEntry
 ) -> bool:
     """Unload a config entry."""
+    coordinator = entry.runtime_data.coordinator
     try:
-        coordinator = entry.runtime_data.coordinator
-        await coordinator.close_websocket()
-
         for dock in coordinator.api.docks:
             issue_registry.async_delete_issue(hass, DOMAIN, f"dock_password_{dock.device.id}")
-            issue_registry.async_delete_issue(hass, DOMAIN, "websocket_connection")
+        issue_registry.async_delete_issue(hass, DOMAIN, "websocket_connection")
     except Exception as ex:
         _LOGGER.error("Unfolded Circle Remote async_unload_entry error: %s", ex)
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+    if unload_ok:
+        try:
+            await coordinator.api.close()
+        except Exception as ex:
+            _LOGGER.error("Error closing Unfolded Circle resources: %s", ex)
 
     return unload_ok
 

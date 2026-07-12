@@ -309,7 +309,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.exception("Unexpected exception")
             errors["base"] = "unknown"
         else:
-            if self._remote.external_entity_configuration_available:
+            if self._remote.system.flags.external_entity_configuration_available:
                 return await self.async_step_select_entities(None)
             return await self.async_step_finish(None)
 

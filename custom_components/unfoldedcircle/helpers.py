@@ -452,7 +452,7 @@ class Command:
                     indv_command = "PLAY"
                 try:
                     await self.coordinator.api.send_button_command(
-                        command=indv_command,
+                        button=indv_command,
                         repeat=self.data.get("num_repeats"),
                         activity=self.data.get("activity"),
                         hold=self.data.get("hold"),

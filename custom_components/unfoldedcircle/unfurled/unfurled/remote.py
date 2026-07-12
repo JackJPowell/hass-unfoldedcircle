@@ -683,7 +683,8 @@ class Remote:
         *,
         activity: str | None = None,
         hold: bool = False,
-        repeat: int = 1,
+        repeat: int | str | None = 1,
+        delay_secs: float | str | None = 0,
     ) -> None:
         """Send a predefined physical button command.
 
@@ -691,6 +692,7 @@ class Remote:
             button: Button identifier (e.g. ``"VOLUME_UP"``).
             activity: Optional activity name to scope the command to.
             hold: Use the long-press mapping instead of short-press.
+            delay_secs: Delay in seconds before each repeated command.
             repeat: Number of times to send the command.
         """
         await self._ensure_awake()
@@ -718,7 +720,11 @@ class Remote:
         cmd_id = action.get("cmd_id", "")
         params = action.get("params")
 
-        for _ in range(repeat):
+        repeat_count = int(repeat) if repeat is not None else 1
+        delay = float(delay_secs) if delay_secs is not None else 0
+        for _ in range(repeat_count):
+            if delay > 0:
+                await asyncio.sleep(delay)
             await self.api.put_entity_command(entity_id, cmd_id, params)
 
     # ------------------------------------------------------------------

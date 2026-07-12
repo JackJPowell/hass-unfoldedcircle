@@ -64,7 +64,7 @@ class PollingBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
         )
         ws_client = getattr(self.coordinator.api, "_ws_client", None)
         self._attr_extra_state_attributes["Websocket state"] = (
-            ws_client is not None and getattr(ws_client, "_running", False)
+            ws_client is not None and ws_client.is_connected
         )
         self.async_write_ha_state()
 

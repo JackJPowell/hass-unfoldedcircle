@@ -163,8 +163,18 @@ class System(RemoteModule):
     # ------------------------------------------------------------------
 
     async def get_update_status(self) -> dict:
-        """Return the latest software update status from the remote."""
-        return await self._api.get_system_update_latest()
+        """Return the latest software update status and update local progress."""
+        status = await self._api.get_system_update_latest()
+        progress = status.get("progress", {})
+        self.update_info.download_percent = int(
+            progress.get("download_percent", status.get("download_percent", 0)) or 0
+        )
+        self.update_info.update_percent = int(
+            progress.get("update_percent", status.get("update_percent", 0)) or 0
+        )
+        state = status.get("state", "")
+        self.update_info.in_progress = state in {"START", "INSTALLING", "UPDATING"}
+        return status
 
     async def update_firmware(self, *, download_only: bool = False) -> str:
         """Trigger a firmware update.

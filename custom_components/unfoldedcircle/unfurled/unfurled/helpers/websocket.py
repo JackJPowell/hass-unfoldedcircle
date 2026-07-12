@@ -105,7 +105,7 @@ class WebSocketClient:
     @property
     def is_connected(self) -> bool:
         """``True`` if currently connected."""
-        return self._ws is not None and not self._ws.closed
+        return self._ws is not None
 
     # ------------------------------------------------------------------
     # Internal loop
