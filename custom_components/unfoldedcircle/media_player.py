@@ -545,5 +545,4 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
             )
             return
         # self._state = self.activity_group.state
-        self.async_write_ha_state()
-        return super()._handle_coordinator_update()
+        super()._handle_coordinator_update()

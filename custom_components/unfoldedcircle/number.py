@@ -1,24 +1,18 @@
 """Platform for Number integration."""
 
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+import logging
 
-from homeassistant.components.number import (
-    NumberEntity,
-    NumberEntityDescription,
-)
-
-from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.components.number import NumberEntity, NumberEntityDescription
 from homeassistant.config_entries import ConfigSubentry
-from .coordinator import (
-    UnfoldedCircleRemoteCoordinator,
-    UnfoldedCircleDockCoordinator,
-)
-from .entity import UnfoldedCircleEntity, UnfoldedCircleDockEntity
+from homeassistant.const import EntityCategory
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
 from . import UnfoldedCircleConfigEntry
+from .coordinator import UnfoldedCircleDockCoordinator, UnfoldedCircleRemoteCoordinator
+from .entity import UnfoldedCircleDockEntity, UnfoldedCircleEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -162,7 +156,6 @@ class UCRemoteNumber(UnfoldedCircleEntity, NumberEntity):
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_unique_id = f"{coordinator.api.device.model_number}_{self.coordinator.api.device.serial_number}_{description.unique_id}"
-        self._attr_native_value = self._get_value()
 
     def _get_value(self):
         """Return the current value from the coordinator API."""
@@ -179,17 +172,16 @@ class UCRemoteNumber(UnfoldedCircleEntity, NumberEntity):
             return self.coordinator.api.settings.power_saving.standby_sec
         return None
 
+    @property
+    def native_value(self) -> int | None:
+        """Return the current value from the coordinator API."""
+        return self._get_value()
+
     async def async_set_native_value(self, value: float) -> None:
         """Update the current value."""
         value_int = int(value)
         await self.entity_description.control_fn(self.coordinator, value_int)
         await self.coordinator.async_request_refresh()
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
-        self._attr_native_value = self._get_value()
-        self.async_write_ha_state()
 
 
 async def update_dock_led_brightness(
@@ -229,16 +221,14 @@ class UCDockNumber(UnfoldedCircleDockEntity, NumberEntity):
         super().__init__(coordinator, config_entry, subentry)
         self.entity_description = description
         self._attr_unique_id = f"{subentry.unique_id}_{self.coordinator.api.device.model_number}_{self.coordinator.api.device.serial_number}_{description.unique_id}"
-        self._attr_native_value = self.coordinator.api.state.led_brightness
+
+    @property
+    def native_value(self) -> int | None:
+        """Return the current dock LED brightness."""
+        return self.coordinator.api.state.led_brightness
 
     async def async_set_native_value(self, value: float) -> None:
         """Update the current value."""
         value_int = int(value)
         await self.entity_description.control_fn(self.coordinator, value_int)
         await self.coordinator.async_request_refresh()
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
-        self._attr_native_value = self.coordinator.api.state.led_brightness
-        self.async_write_ha_state()

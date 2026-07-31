@@ -7,17 +7,12 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorEntityDescription,
 )
-from homeassistant.const import (
-    LIGHT_LUX,
-    PERCENTAGE,
-    EntityCategory,
-    UnitOfInformation,
-)
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.const import LIGHT_LUX, PERCENTAGE, EntityCategory, UnitOfInformation
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import StateType
 
-from .entity import UnfoldedCircleEntity
 from . import UnfoldedCircleConfigEntry
+from .entity import UnfoldedCircleEntity
 
 
 @dataclass(frozen=True)
@@ -177,12 +172,6 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
     def available(self) -> bool:
         """Return if available."""
         return self.coordinator.api.state.online
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
-        self._attr_native_value = self.get_value()
-        self.async_write_ha_state()
 
     @property
     def native_value(self) -> StateType:

@@ -1,7 +1,7 @@
 """Platform for Switch integration."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from homeassistant.components.switch import (
     SwitchDeviceClass,
@@ -10,14 +10,12 @@ from homeassistant.components.switch import (
 )
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
-
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from unfurled.helpers.models import UpdateType
 
+from . import UnfoldedCircleConfigEntry
 from .const import CONF_ACTIVITIES_AS_SWITCHES
 from .coordinator import UnfoldedCircleRemoteCoordinator
 from .entity import UnfoldedCircleEntity
-from . import UnfoldedCircleConfigEntry
 
 
 @dataclass(frozen=True)
@@ -172,18 +170,6 @@ class UCRemoteSwitch(UnfoldedCircleEntity, SwitchEntity):
     async def async_turn_off(self, **kwargs) -> None:
         """Instruct the switch to turn off."""
         await self.switch.turn_off()
-        self.async_write_ha_state()
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
-        try:
-            last_update_type = self.coordinator.api.last_update_type
-            if last_update_type != UpdateType.ACTIVITY:
-                return
-        except (KeyError, IndexError):
-            return
-        self._state = self.switch.state
         self.async_write_ha_state()
 
 
