@@ -1,13 +1,11 @@
 """Helper functions for Unfolded Circle Devices"""
 
-import asyncio
 from datetime import timedelta
 import logging
 import re
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
-from unfurled.dock import Dock
 from unfurled.helpers.exceptions import (
     EntityCommandError,
     HTTPError,
@@ -20,11 +18,9 @@ from unfurled.helpers.exceptions import (
 from unfurled.remote import Remote
 
 from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN, RefreshToken
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import issue_registry
 from homeassistant.helpers.network import NoURLAvailableError, get_url
-from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .const import COMMAND_LIST, DOMAIN, UC_HA_DRIVER_ID, UC_HA_SYSTEM, UC_HA_TOKEN_ID
 
@@ -42,26 +38,6 @@ def get_ha_websocket_url(hass: HomeAssistant) -> str:
         hass_url = DEFAULT_HASS_URL
     url = urlparse(hass_url)
     return urljoin(f"ws://{url.netloc}", "/api/websocket")
-
-
-async def validate_dock_password(remote_api: Remote, user_info) -> bool:
-    """Validate the dock password by attempting a short-lived WS connection."""
-    dock = remote_api.find_dock(user_info.get("id"))
-    if dock is None:
-        _LOGGER.error("Dock %s not found on remote", user_info.get("id"))
-        return False
-    try:
-        return await asyncio.wait_for(
-            dock.validate_password(user_info.get("password", "")),
-            timeout=10,
-        )
-    except Exception as ex:
-        _LOGGER.error(
-            "Error occurred when validating dock password for %s: %s",
-            dock.device.name,
-            ex,
-        )
-        return False
 
 
 async def generate_token(hass: HomeAssistant, name):
@@ -227,15 +203,6 @@ async def get_registered_websocket_url(remote: Remote) -> str:
     return None
 
 
-async def device_info_from_discovery_info(discovery_info: ZeroconfServiceInfo) -> tuple:
-    """Returns device information from zeroconf discovery info."""
-    host = discovery_info.ip_address.compressed
-    port = discovery_info.port
-    model = discovery_info.properties.get("model", "")
-    info = await Remote.resolve_discovery(host, port, model)
-    return info["name"], info["configuration_url"], info["mac_address"]
-
-
 async def validate_tokens(hass: HomeAssistant, remote: Remote) -> bool:
     """Validates the token in HA and the remote.
     This currently doesn't not validate the tokens are still valid,
@@ -348,86 +315,6 @@ def update_config_entities(
         return []
 
 
-@callback
-def async_create_issue_dock_password(
-    hass: HomeAssistant, dock: Dock, entry, subentry
-) -> None:
-    """Create an issue in the issue registry for a dock with an empty password."""
-    _LOGGER.debug("Empty dock password: %s", dock.device.name)
-    issue_registry.async_create_issue(
-        hass,
-        DOMAIN,
-        f"dock_password_{dock.device.id}",
-        breaks_in_ha_version=None,
-        data={
-            "id": dock.device.id,
-            "name": dock.device.name,
-            "config_entry": entry,
-            "subentry": subentry,
-        },
-        is_fixable=True,
-        is_persistent=False,
-        learn_more_url="https://github.com/jackjpowell/hass-unfoldedcircle",
-        severity=issue_registry.IssueSeverity.WARNING,
-        translation_key="dock_password",
-        translation_placeholders={"name": dock.device.name},
-    )
-
-
-@callback
-def async_create_issue_dock_unreachable(
-    hass: HomeAssistant, dock: Dock, entry, subentry, error: str
-) -> None:
-    """Create an issue in the issue registry for an unreachable dock."""
-    _LOGGER.warning("Dock unreachable: %s - %s", dock.device.name, error)
-    issue_registry.async_create_issue(
-        hass,
-        DOMAIN,
-        f"dock_unreachable_{dock.device.id}",
-        breaks_in_ha_version=None,
-        data={
-            "id": dock.device.id,
-            "name": dock.device.name,
-            "config_entry": entry,
-            "subentry": subentry,
-        },
-        is_fixable=False,
-        is_persistent=False,
-        learn_more_url="https://github.com/jackjpowell/hass-unfoldedcircle",
-        severity=issue_registry.IssueSeverity.WARNING,
-        translation_key="dock_unreachable",
-        translation_placeholders={"name": dock.device.name, "error": str(error)},
-    )
-
-
-@callback
-def async_delete_issue_dock_unreachable(hass: HomeAssistant, dock_id: str) -> None:
-    """Delete the unreachable dock issue when dock becomes available."""
-    issue_registry.async_delete_issue(hass, DOMAIN, f"dock_unreachable_{dock_id}")
-
-
-@callback
-def async_create_issue_websocket_connection(
-    hass: HomeAssistant,
-    entry,
-    coordinator,
-) -> None:
-    """Create an issue in the issue registry for a websocket connection."""
-    issue_registry.async_create_issue(
-        hass,
-        DOMAIN,
-        "websocket_connection",
-        breaks_in_ha_version=None,
-        data={"config_entry": entry, "name": coordinator.api.device.name},
-        is_fixable=True,
-        is_persistent=False,
-        learn_more_url="https://github.com/jackjpowell/hass-unfoldedcircle",
-        severity=issue_registry.IssueSeverity.WARNING,
-        translation_key="websocket_connection",
-        translation_placeholders={"name": coordinator.api.device.name},
-    )
-
-
 class Command:
     def __init__(
         self,
@@ -478,7 +365,7 @@ class Command:
                         translation_key="remote_is_sleeping",
                     ) from err
                 except EntityCommandError as err:
-                    _LOGGER.error("Failed to send command: %s", err.message)
+                    _LOGGER.error("Failed to send command: %s", err)
                     raise HomeAssistantError(
                         translation_domain=DOMAIN,
                         translation_key="entity_command_error",

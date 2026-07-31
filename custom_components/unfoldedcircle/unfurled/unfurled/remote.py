@@ -133,6 +133,11 @@ class Remote:
         # Entities cache (media players referenced by activities)
         self._entities: dict[str, MediaPlayerEntity] = {}
 
+    def set_api_key(self, api_key: str) -> None:
+        """Update the API key used by REST and WebSocket requests."""
+        self._api_key = api_key
+        self.api.set_api_key(api_key)
+
     # ------------------------------------------------------------------
     # URL helpers (static / class)
     # ------------------------------------------------------------------
@@ -228,22 +233,23 @@ class Remote:
             return {}
 
     @staticmethod
-    def name_from_model_id(model_id: str) -> str:
-        """Return the marketing name for a given mDNS model identifier.
+    def name_from_model_id(model_id: str | None) -> str:
+        """Return a fallback remote name for a given mDNS model identifier.
 
         Args:
             model_id: Model string from the ``model`` mDNS property
                 (e.g. ``"UCR2"``, ``"UCR3"``).
 
         Returns:
-            Human-readable device name, or *model_id* unchanged if unknown.
+            Human-readable device name, or ``"Unknown Remote"`` if unknown.
         """
+        normalized_model_id = model_id.lower() if model_id else ""
         return {
-            "UCR2": "Remote Two",
-            "UCR2-simulator": "Remote Two Simulator",
-            "UCR3": "Remote 3",
-            "UCR3-simulator": "Remote 3 Simulator",
-        }.get(model_id, model_id)
+            "ucr2": "Remote Two",
+            "ucr2-simulator": "Remote Two Simulator",
+            "ucr3": "Remote 3",
+            "ucr3-simulator": "Remote 3 Simulator",
+        }.get(normalized_model_id, "Unknown Remote")
 
     @classmethod
     async def resolve_discovery(

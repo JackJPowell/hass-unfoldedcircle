@@ -13,11 +13,7 @@ from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from homeassistant.helpers import (
-    device_registry as dr,
-    entity_registry as er,
-    issue_registry,
-)
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from .const import DOMAIN, UC_HA_SYSTEM, UC_HA_TOKEN_ID
 from .coordinator import (
@@ -26,12 +22,13 @@ from .coordinator import (
     UnfoldedCircleRemoteCoordinator,
     UnfoldedCircleRuntimeData,
 )
-from .helpers import (
+from .helpers import get_registered_websocket_url
+from .issues import (
     async_create_issue_dock_password,
     async_create_issue_dock_unreachable,
     async_create_issue_websocket_connection,
+    async_delete_issue,
     async_delete_issue_dock_unreachable,
-    get_registered_websocket_url,
 )
 from .services import async_setup_services
 
@@ -58,9 +55,13 @@ async def async_setup_entry(
     """Set up Unfolded Circle Remote from a config entry."""
 
     try:
-        if "host" in entry.data and "mac" in entry.data and entry.data.get("mac"):
-            if not await Remote.wake_by_mac(entry.data["mac"], entry.data["host"]):
-                raise ConnectionError("Could not wake up or connect to remote device")
+        if (
+            "host" in entry.data
+            and "mac" in entry.data
+            and entry.data.get("mac")
+            and not await Remote.wake_by_mac(entry.data["mac"], entry.data["host"])
+        ):
+            raise ConnectionError("Could not wake up or connect to remote device")
 
         remote_api = Remote(
             entry.data["host"], pin=entry.data["pin"], api_key=entry.data["apiKey"]
@@ -228,10 +229,8 @@ async def async_unload_entry(
     coordinator = entry.runtime_data.coordinator
     try:
         for dock in coordinator.api.docks:
-            issue_registry.async_delete_issue(
-                hass, DOMAIN, f"dock_password_{dock.device.id}"
-            )
-        issue_registry.async_delete_issue(hass, DOMAIN, "websocket_connection")
+            async_delete_issue(hass, f"dock_password_{dock.device.id}")
+        async_delete_issue(hass, "websocket_connection")
     except Exception as ex:
         _LOGGER.error("Unfolded Circle Remote async_unload_entry error: %s", ex)
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

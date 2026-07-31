@@ -96,6 +96,24 @@ class TestRemoteUrlNormalization:
         assert r.configuration_url == "http://192.168.1.10/configurator/"
 
 
+class TestRemoteModelName:
+    @pytest.mark.parametrize(
+        ("model_id", "expected_name"),
+        [
+            ("UCR2", "Remote Two"),
+            ("ucr2", "Remote Two"),
+            ("UCR3", "Remote 3"),
+            ("ucr3", "Remote 3"),
+            ("UCR2-simulator", "Remote Two Simulator"),
+            ("UCR3-simulator", "Remote 3 Simulator"),
+            ("unknown", "Unknown Remote"),
+            (None, "Unknown Remote"),
+        ],
+    )
+    def test_name_from_model_id(self, model_id: str | None, expected_name: str):
+        assert Remote.name_from_model_id(model_id) == expected_name
+
+
 class TestRemoteInit:
     async def test_init_populates_basic_info(self, remote: Remote):
         with aioresponses() as m:
@@ -318,6 +336,30 @@ class TestGetActiveActivities:
 
         assert len(result) == 1
         assert result[0].id == "a1"
+
+
+class TestIntegrationEntities:
+    async def test_get_and_configure_entities_delegate_to_core_api(
+        self, remote: Remote
+    ):
+        remote.api.get_integration_entities = AsyncMock(
+            return_value=[{"entity_id": "light.kitchen"}]
+        )
+        remote.api.post_integration_entities = AsyncMock(
+            return_value=["light.kitchen", "media_player.tv"]
+        )
+
+        entities = await remote.integrations.get_entities("hass", reload=True)
+        configured = await remote.integrations.configure_entities(
+            "hass", ["light.kitchen", "media_player.tv"]
+        )
+
+        assert entities == [{"entity_id": "light.kitchen"}]
+        assert configured == ["light.kitchen", "media_player.tv"]
+        remote.api.get_integration_entities.assert_awaited_once_with("hass", reload=True)
+        remote.api.post_integration_entities.assert_awaited_once_with(
+            "hass", ["light.kitchen", "media_player.tv"]
+        )
 
 
 class TestContextManager:

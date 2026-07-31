@@ -64,6 +64,10 @@ class CoreAPI:
         self._session_is_external = session is not None
         self._session: aiohttp.ClientSession | None = session
 
+    def set_api_key(self, api_key: str) -> None:
+        """Update the bearer token used for subsequent requests."""
+        self._api_key = api_key
+
     # ------------------------------------------------------------------
     # Session management
     # ------------------------------------------------------------------

@@ -1,23 +1,24 @@
 """Unfolded Circle Repairs"""
 
 from __future__ import annotations
+
 import logging
+
 import voluptuous as vol
 
 from homeassistant import data_entry_flow
 from homeassistant.components.repairs import RepairsFlow
-from homeassistant.helpers import issue_registry
 from homeassistant.core import HomeAssistant
+
+from . import UnfoldedCircleConfigEntry
+from .config_flow import CannotConnect
 from .helpers import (
-    register_system_and_driver,
     get_ha_websocket_url,
+    register_system_and_driver,
     validate_websocket_address,
 )
-from .config_flow import CannotConnect
-from .const import DOMAIN
-from . import UnfoldedCircleConfigEntry
+from .issues import async_delete_issue
 from .websocket import UCWebsocketClient
-
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -65,9 +66,7 @@ class WebSocketRepairFlow(RepairsFlow):
                             self.coordinator.config_entry.entry_id
                         )
 
-                        issue_registry.async_delete_issue(
-                            self.hass, DOMAIN, self.issue_id
-                        )
+                        async_delete_issue(self.hass, self.issue_id)
 
                         return self.async_abort(reason="ws_connection_successful")
                     except Exception:

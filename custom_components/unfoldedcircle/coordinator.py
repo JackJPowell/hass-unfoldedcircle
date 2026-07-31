@@ -2,22 +2,22 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
+import logging
 from typing import Any
 
+from unfurled.dock import Dock
+from unfurled.helpers.exceptions import HTTPError
+from unfurled.remote import Remote
+
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.config_entries import ConfigEntry, ConfigSubentry
-
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
     UpdateFailed,
 )
-from unfurled.remote import Remote
-from unfurled.dock import Dock
-from unfurled.helpers.exceptions import HTTPError
 
 from .const import DEVICE_SCAN_INTERVAL, DOMAIN
 from .websocket import UCWebsocketClient

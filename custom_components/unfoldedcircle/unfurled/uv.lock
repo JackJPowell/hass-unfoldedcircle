@@ -1038,7 +1038,7 @@ wheels = [
 
 [[package]]
 name = "unfurled"
-version = "0.2.0"
+version = "0.2.2"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -1068,6 +1068,7 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "pytest-mock" },
+    { name = "ruff" },
 ]
 
 [package.metadata]
@@ -1096,6 +1097,7 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=0.23" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-mock", specifier = ">=3.12" },
+    { name = "ruff", specifier = ">=0.3" },
 ]
 
 [[package]]

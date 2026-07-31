@@ -1,14 +1,15 @@
 """Binary sensor platform for Unfolded Circle."""
 
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.const import ATTR_BATTERY_CHARGING, EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .entity import UnfoldedCircleEntity
 from . import UnfoldedCircleConfigEntry
+from .entity import UnfoldedCircleEntity
 
 
 async def async_setup_entry(
