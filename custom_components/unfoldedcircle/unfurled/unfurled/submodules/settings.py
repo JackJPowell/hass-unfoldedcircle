@@ -155,6 +155,9 @@ class Settings(RemoteModule):
                 self.network.wifi.wake_on_wlan = bool(
                     wol.get("enabled", self.network.wifi.wake_on_wlan)
                 )
+                self.network.wifi.wake_on_wlan_available = bool(
+                    wol.get("available", self.network.wifi.wake_on_wlan_available)
+                )
 
         if loc := state.get("localization"):
             self.localization.language_code = loc.get(
@@ -255,6 +258,7 @@ class Settings(RemoteModule):
         # wake_on_wlan can appear at wifi level or network level
         wol = wifi.get("wake_on_wlan") or net.get("wake_on_wlan") or {}
         self.network.wifi.wake_on_wlan = bool(wol.get("enabled", False))
+        self.network.wifi.wake_on_wlan_available = bool(wol.get("available", False))
         bt_net = net.get("bt", {})
         self.network.bt_address = bt_net.get("address", "")
 

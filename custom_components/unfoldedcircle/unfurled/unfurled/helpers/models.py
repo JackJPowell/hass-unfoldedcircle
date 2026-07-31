@@ -128,6 +128,7 @@ class WiFiSettings:
     """Settings from ``/cfg`` → ``network`` → ``wifi``."""
 
     wake_on_wlan: bool = False
+    wake_on_wlan_available: bool = False
     band: str = "auto"
     scan_interval_sec: int = 15
     ipv4_type: str = "DHCP"

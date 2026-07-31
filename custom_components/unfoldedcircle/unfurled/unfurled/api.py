@@ -13,17 +13,20 @@ import asyncio
 import contextlib
 import logging
 from enum import StrEnum
-from typing import Any
-from urllib.parse import urljoin
+from typing import Any, Literal
+from urllib.parse import quote, urljoin, urlsplit
 
 import aiohttp
 
-from .helpers.exceptions import AuthenticationError, HTTPError
+from .helpers.exceptions import AuthenticationError, ConnectionError, HTTPError
 
 _LOGGER = logging.getLogger(__name__)
 
 _AUTH_USERNAME = "web-configurator"
 _DEFAULT_TIMEOUT = 5.0
+_INSTALL_TIMEOUT = 120.0
+ResponseType = Literal["json", "text", "bytes"]
+RequestTimeout = float | aiohttp.ClientTimeout | None
 
 
 class IntegrationInstanceCommand(StrEnum):
@@ -51,14 +54,14 @@ class CoreAPI:
         *,
         api_key: str | None = None,
         pin: str | None = None,
-        timeout: float = _DEFAULT_TIMEOUT,
+        timeout: float | aiohttp.ClientTimeout = _DEFAULT_TIMEOUT,
         session: aiohttp.ClientSession | None = None,
     ) -> None:
         self._base_url = base_url if base_url.endswith("/") else base_url + "/"
         self._api_key = api_key
         self._pin = pin
         self._timeout = timeout
-        self._external_session = session
+        self._session_is_external = session is not None
         self._session: aiohttp.ClientSession | None = session
 
     # ------------------------------------------------------------------
@@ -74,7 +77,7 @@ class CoreAPI:
 
     async def close(self) -> None:
         """Close the managed session (no-op if the session was supplied externally)."""
-        if self._session and not self._external_session:
+        if self._session and not self._session_is_external:
             await self._session.close()
             self._session = None
 
@@ -85,7 +88,7 @@ class CoreAPI:
         the close is scheduled as a task.  Otherwise a temporary loop is created
         just to drain the session.
         """
-        if self._external_session or not self._session or self._session.closed:
+        if self._session_is_external or not self._session or self._session.closed:
             return
         try:
             loop = asyncio.get_running_loop()
@@ -99,6 +102,7 @@ class CoreAPI:
     async def _ensure_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
             self._session = self._make_session()
+            self._session_is_external = False
         return self._session
 
     def _make_session(self) -> aiohttp.ClientSession:
@@ -113,7 +117,11 @@ class CoreAPI:
         return aiohttp.ClientSession(
             headers=headers,
             auth=auth,
-            timeout=aiohttp.ClientTimeout(total=self._timeout),
+            timeout=(
+                self._timeout
+                if isinstance(self._timeout, aiohttp.ClientTimeout)
+                else aiohttp.ClientTimeout(total=self._timeout)
+            ),
         )
 
     # ------------------------------------------------------------------
@@ -122,7 +130,69 @@ class CoreAPI:
 
     def _url(self, path: str) -> str:
         """Build an absolute URL from a relative *path*."""
+        parsed = urlsplit(path)
+        if parsed.scheme or parsed.netloc or path.startswith(("/", "\\")):
+            raise ValueError("path must be relative to the configured Core API base URL")
         return urljoin(self._base_url, path)
+
+    @staticmethod
+    def _path_segment(value: str) -> str:
+        """Encode an untrusted value for use as one URL path segment."""
+        return quote(value, safe="")
+
+    @staticmethod
+    def _normalize_timeout(timeout: RequestTimeout) -> aiohttp.ClientTimeout | None:
+        """Convert a convenience timeout in seconds to aiohttp's timeout type."""
+        if timeout is None or isinstance(timeout, aiohttp.ClientTimeout):
+            return timeout
+        return aiohttp.ClientTimeout(total=timeout)
+
+    async def request(
+        self,
+        method: str,
+        path: str,
+        *,
+        json: Any = None,
+        data: Any = None,
+        params: dict | None = None,
+        headers: dict[str, str] | None = None,
+        timeout: RequestTimeout = None,
+        response_type: ResponseType = "json",
+    ) -> Any:
+        """Make a request to a Core API endpoint.
+
+        This is the public escape hatch for endpoints which do not yet have a
+        dedicated method.  ``timeout`` overrides the client's default for this
+        request only and accepts either seconds or ``aiohttp.ClientTimeout``.
+        Use ``response_type=\"text\"`` for endpoints such as log export.
+        """
+        if json is not None and data is not None:
+            raise ValueError("Only one of json or data may be supplied")
+        if response_type not in {"json", "text", "bytes"}:
+            raise ValueError(f"Unsupported response type: {response_type}")
+        session = await self._ensure_session()
+        url = self._url(path)
+        _LOGGER.debug("CoreAPI %s %s", method.upper(), url)
+        try:
+            async with session.request(
+                method,
+                url,
+                json=json,
+                data=data,
+                params=params,
+                headers=headers,
+                timeout=self._normalize_timeout(timeout),
+            ) as response:
+                await self._raise_on_error(response)
+                if response.content_length == 0 or response.status == 204:
+                    return None
+                if response_type == "text":
+                    return await response.text()
+                if response_type == "bytes":
+                    return await response.read()
+                return await response.json()
+        except aiohttp.ClientError as exc:
+            raise ConnectionError(f"Request to {url} failed: {exc}") from exc
 
     async def _request(
         self,
@@ -132,14 +202,8 @@ class CoreAPI:
         json: Any = None,
         params: dict | None = None,
     ) -> Any:
-        session = await self._ensure_session()
-        url = self._url(path)
-        _LOGGER.debug("CoreAPI %s %s", method.upper(), url)
-        async with session.request(method, url, json=json, params=params) as response:
-            await self._raise_on_error(response)
-            if response.content_length == 0 or response.status == 204:
-                return None
-            return await response.json()
+        """Compatibility wrapper for internal callers; use :meth:`request`."""
+        return await self.request(method, path, json=json, params=params)
 
     @staticmethod
     async def _raise_on_error(response: aiohttp.ClientResponse) -> None:
@@ -195,6 +259,10 @@ class CoreAPI:
         """GET /pub/version - firmware version without authentication."""
         return await self._get("pub/version")
 
+    async def get_version(self) -> dict:
+        """Return the public firmware and device-version payload."""
+        return await self.get_pub_version()
+
     async def get_pub_status(self) -> dict:
         """GET /pub/status - system resource usage."""
         return await self._get("pub/status")
@@ -215,9 +283,19 @@ class CoreAPI:
         """GET /cfg - full device configuration."""
         return await self._get("cfg")
 
+    async def get_device_settings(self) -> dict:
+        """GET /cfg/device - device-specific configuration."""
+        return await self._get("cfg/device")
+
+    async def get_device_name(self) -> str | None:
+        """Return the configured device name, when the Remote provides one."""
+        device = await self.get_device_settings()
+        name = device.get("name") if isinstance(device, dict) else None
+        return str(name) if name else None
+
     async def post_system_command(self, cmd: str) -> None:
         """POST /system?cmd=<cmd>"""
-        await self._post(f"system?cmd={cmd}")
+        await self.request("POST", "system", params={"cmd": cmd})
 
     # ------------------------------------------------------------------
     # Power / battery
@@ -257,7 +335,7 @@ class CoreAPI:
 
     async def delete_standby_inhibitor(self, inhibitor_id: str) -> None:
         """DELETE /system/power/standby_inhibitors/{id}"""
-        await self._delete(f"system/power/standby_inhibitors/{inhibitor_id}")
+        await self._delete(f"system/power/standby_inhibitors/{self._path_segment(inhibitor_id)}")
 
     async def delete_all_standby_inhibitors(self) -> None:
         """DELETE /system/power/standby_inhibitors"""
@@ -365,19 +443,21 @@ class CoreAPI:
 
     async def get_activity(self, activity_id: str) -> dict:
         """GET /activities/{id}"""
-        return await self._get(f"activities/{activity_id}")
+        return await self._get(f"activities/{self._path_segment(activity_id)}")
 
     async def patch_activity(self, activity_id: str, body: dict) -> dict:
         """PATCH /activities/{id}"""
-        return await self._patch(f"activities/{activity_id}", json=body)
+        return await self._patch(f"activities/{self._path_segment(activity_id)}", json=body)
 
     async def get_activity_buttons(self, activity_id: str) -> list[dict]:
         """GET /activities/{id}/buttons"""
-        return await self._get(f"activities/{activity_id}/buttons")
+        return await self._get(f"activities/{self._path_segment(activity_id)}/buttons")
 
     async def get_activity_button(self, activity_id: str, button_id: str) -> dict:
         """GET /activities/{id}/buttons/{button_id}"""
-        return await self._get(f"activities/{activity_id}/buttons/{button_id}")
+        return await self._get(
+            f"activities/{self._path_segment(activity_id)}/buttons/{self._path_segment(button_id)}"
+        )
 
     async def get_activity_groups(self, limit: int = 100) -> list[dict]:
         """GET /activity_groups?limit=<n>"""
@@ -385,7 +465,7 @@ class CoreAPI:
 
     async def get_activity_group(self, group_id: str) -> dict:
         """GET /activity_groups/{id}"""
-        return await self._get(f"activity_groups/{group_id}")
+        return await self._get(f"activity_groups/{self._path_segment(group_id)}")
 
     # ------------------------------------------------------------------
     # Entities
@@ -398,15 +478,15 @@ class CoreAPI:
         body: dict = {"entity_id": entity_id, "cmd_id": cmd_id}
         if params:
             body["params"] = params
-        return await self._put(f"entities/{entity_id}/command", json=body)
+        return await self._put(f"entities/{self._path_segment(entity_id)}/command", json=body)
 
     async def get_entity(self, entity_id: str) -> dict:
         """GET /entities/{id}"""
-        return await self._get(f"entities/{entity_id}")
+        return await self._get(f"entities/{self._path_segment(entity_id)}")
 
     async def delete_entity(self, entity_id: str) -> None:
         """DELETE /entities/{id}"""
-        await self._delete(f"entities/{entity_id}")
+        await self._delete(f"entities/{self._path_segment(entity_id)}")
 
     async def delete_entities(self, entity_ids: list[str]) -> None:
         """DELETE /entities  with a JSON body of entity IDs."""
@@ -422,31 +502,50 @@ class CoreAPI:
 
     async def put_ir_send(self, emitter_id: str, body: dict) -> dict:
         """PUT /ir/emitters/{id}/send"""
-        return await self._put(f"ir/emitters/{emitter_id}/send", json=body)
+        return await self._put(f"ir/emitters/{self._path_segment(emitter_id)}/send", json=body)
 
-    async def get_ir_custom_codes(self, limit: int = 100) -> list[dict]:
-        """GET /ir/codes/custom?limit=<n>"""
-        return await self._get(f"ir/codes/custom?limit={limit}")
+    async def get_ir_custom_codes(
+        self, limit: int = 100, *, page: int | None = None
+    ) -> list[dict]:
+        """GET /ir/codes/custom, optionally selecting a result page."""
+        params: dict[str, int] = {"limit": limit}
+        if page is not None:
+            params["page"] = page
+        return await self._get("ir/codes/custom", params=params)
 
     async def get_ir_manufacturers(self, query: str, page: int = 1, limit: int = 100) -> dict:
         """GET /ir/codes/manufacturers"""
-        return await self._get(f"ir/codes/manufacturers?page={page}&limit={limit}&q={query}")
+        return await self._get(
+            "ir/codes/manufacturers", params={"page": page, "limit": limit, "q": query}
+        )
 
     async def get_ir_manufacturer_codesets(
         self, manufacturer_id: str, page: int = 1, limit: int = 100
     ) -> dict:
         """GET /ir/codes/manufacturers/{id}"""
         return await self._get(
-            f"ir/codes/manufacturers/{manufacturer_id}?page={page}&limit={limit}"
+            f"ir/codes/manufacturers/{self._path_segment(manufacturer_id)}",
+            params={"page": page, "limit": limit},
         )
 
-    async def get_remotes(self, limit: int = 100) -> list[dict]:
-        """GET /remotes - IR remote devices (not the physical UC remote)."""
-        return await self._get(f"remotes?limit={limit}")
+    async def get_remotes(
+        self,
+        limit: int = 100,
+        *,
+        kind: str | None = None,
+        page: int | None = None,
+    ) -> list[dict]:
+        """GET /remotes, with optional kind filtering and pagination."""
+        params: dict[str, str | int] = {"limit": limit}
+        if kind is not None:
+            params["kind"] = kind
+        if page is not None:
+            params["page"] = page
+        return await self._get("remotes", params=params)
 
     async def get_remote_ir_codesets(self, remote_id: str) -> list[dict]:
         """GET /remotes/{id}/ir"""
-        return await self._get(f"remotes/{remote_id}/ir")
+        return await self._get(f"remotes/{self._path_segment(remote_id)}/ir")
 
     # ------------------------------------------------------------------
     # Docks
@@ -458,7 +557,7 @@ class CoreAPI:
 
     async def get_dock(self, dock_id: str) -> dict:
         """GET /docks/{id}"""
-        return await self._get(f"docks/{dock_id}")
+        return await self._get(f"docks/{self._path_segment(dock_id)}")
 
     # ------------------------------------------------------------------
     # API keys
@@ -474,65 +573,250 @@ class CoreAPI:
 
     async def delete_api_key(self, key_id: str) -> None:
         """DELETE /auth/api_keys/{id}"""
-        await self._delete(f"auth/api_keys/{key_id}")
+        await self._delete(f"auth/api_keys/{self._path_segment(key_id)}")
+
+    async def create_api_key(
+        self,
+        name: str,
+        scopes: list[str],
+        *,
+        replace_existing: bool = False,
+    ) -> dict:
+        """Create an API key, optionally replacing keys with the same name."""
+        if replace_existing:
+            for key in await self.get_api_keys():
+                if key.get("name") == name and (key_id := key.get("key_id")):
+                    await self.delete_api_key(str(key_id))
+        return await self.post_api_key(name, scopes)
 
     # ------------------------------------------------------------------
     # Integrations / drivers
     # ------------------------------------------------------------------
 
-    async def get_integrations(self, limit: int = 100) -> list[dict]:
-        """GET /intg/instances  (all pages)."""
-        return await self._get(f"intg/instances?limit={limit}")
+    async def get_integrations(
+        self,
+        limit: int = 100,
+        *,
+        enabled: bool | None = None,
+        driver_id: str | None = None,
+        page: int | None = None,
+    ) -> list[dict]:
+        """GET /intg/instances with optional filters.
+
+        ``driver_id`` is applied locally because the Core API does not support
+        it as a query parameter.
+        """
+        params: dict[str, str | int] = {"limit": limit}
+        if enabled is not None:
+            params["enabled"] = str(enabled).lower()
+        if page is not None:
+            params["page"] = page
+        integrations: list[dict] = await self._get("intg/instances", params=params)
+        if driver_id is not None:
+            return [item for item in integrations if item.get("driver_id") == driver_id]
+        return integrations
 
     async def get_integration(self, integration_id: str) -> dict:
         """GET /intg/instances/{id}"""
-        return await self._get(f"intg/instances/{integration_id}")
+        return await self._get(f"intg/instances/{self._path_segment(integration_id)}")
 
     async def put_integration(
         self, integration_id: str, cmd: IntegrationInstanceCommand | None = None
     ) -> dict:
         """PUT /intg/instances/{id}  (optionally with ?cmd=<cmd>)."""
-        path = f"intg/instances/{integration_id}"
+        path = f"intg/instances/{self._path_segment(integration_id)}"
         if cmd:
-            path += f"?cmd={cmd}"
+            return await self.request("PUT", path, params={"cmd": cmd})
         return await self._put(path)
 
+    async def delete_integration(self, integration_id: str) -> None:
+        """DELETE /intg/instances/{id}"""
+        await self._delete(f"intg/instances/{self._path_segment(integration_id)}")
+
     async def get_integration_entities(
-        self, integration_id: str, reload: bool = False, limit: int = 100
+        self,
+        integration_id: str,
+        reload: bool = False,
+        limit: int = 100,
+        *,
+        filter: str | None = None,
+        page: int | None = None,
     ) -> list[dict]:
         """GET /intg/instances/{id}/entities"""
+        params: dict[str, str | int] = {"reload": str(reload).lower(), "limit": limit}
+        if filter is not None:
+            params["filter"] = filter
+        if page is not None:
+            params["page"] = page
         return await self._get(
-            f"intg/instances/{integration_id}/entities?reload= \
-                {'true' if reload else 'false'}&limit={limit}"
+            f"intg/instances/{self._path_segment(integration_id)}/entities", params=params
         )
 
-    async def post_integration_entities(self, integration_id: str, entity_ids: list[str]) -> dict:
+    async def post_integration_entities(
+        self, integration_id: str, entity_ids: list[str] | None = None
+    ) -> list[str]:
         """POST /intg/instances/{id}/entities"""
-        return await self._post(f"intg/instances/{integration_id}/entities", json=entity_ids)
+        return await self._post(
+            f"intg/instances/{self._path_segment(integration_id)}/entities",
+            json=entity_ids if entity_ids is not None else [],
+        )
 
-    async def get_drivers(self, limit: int = 100) -> list[dict]:
+    async def post_integration_entity(
+        self, integration_id: str, entity_id: str, body: dict | None = None
+    ) -> dict:
+        """POST /intg/instances/{id}/entities/{entity_id}"""
+        return await self._post(
+            f"intg/instances/{self._path_segment(integration_id)}/entities/"
+            f"{self._path_segment(entity_id)}",
+            json=body if body is not None else {},
+        )
+
+    async def delete_integration_entities(self, integration_id: str) -> None:
+        """DELETE /entities for every entity registered by an integration."""
+        await self._delete("entities", json={"integration_id": integration_id})
+
+    async def get_drivers(
+        self,
+        limit: int = 100,
+        *,
+        driver_type: str | None = None,
+        has_instances: bool | None = None,
+        instantiable: bool | None = None,
+        enabled: bool | None = None,
+        page: int | None = None,
+    ) -> list[dict]:
         """GET /intg/drivers"""
-        return await self._get(f"intg/drivers?limit={limit}")
+        params: dict[str, str | int] = {"limit": limit}
+        if driver_type is not None:
+            params["driver_type"] = driver_type
+        if has_instances is not None:
+            params["has_instances"] = str(has_instances).lower()
+        if instantiable is not None:
+            params["instantiable"] = str(instantiable).lower()
+        if enabled is not None:
+            params["enabled"] = str(enabled).lower()
+        if page is not None:
+            params["page"] = page
+        return await self._get("intg/drivers", params=params)
 
     async def get_driver(self, driver_id: str) -> dict:
         """GET /intg/drivers/{id}"""
-        return await self._get(f"intg/drivers/{driver_id}")
+        return await self._get(f"intg/drivers/{self._path_segment(driver_id)}")
 
     async def post_driver(self, driver_id: str, body: dict) -> dict:
         """POST /intg/drivers/{id}"""
-        return await self._post(f"intg/drivers/{driver_id}", json=body)
+        return await self._post(f"intg/drivers/{self._path_segment(driver_id)}", json=body)
 
     async def start_driver(self, driver_id: str) -> dict:
         """PUT /intg/drivers/{id}?cmd=START"""
-        return await self._put(f"intg/drivers/{driver_id}?cmd=START")
+        return await self.request(
+            "PUT", f"intg/drivers/{self._path_segment(driver_id)}", params={"cmd": "START"}
+        )
+
+    async def delete_driver(self, driver_id: str) -> None:
+        """DELETE /intg/drivers/{id}"""
+        await self._delete(f"intg/drivers/{self._path_segment(driver_id)}")
+
+    async def post_integration_install(
+        self,
+        archive_data: bytes,
+        filename: str,
+        *,
+        update: bool = False,
+        timeout: RequestTimeout = _INSTALL_TIMEOUT,
+    ) -> dict:
+        """POST an integration archive to ``/intg/install``.
+
+        ``update=True`` performs the Remote's in-place update, preserving the
+        existing integration configuration.  Pass a longer per-request timeout
+        for large archives or slower Remotes without changing the client-wide
+        default.
+        """
+        form = aiohttp.FormData()
+        form.add_field(
+            "file",
+            archive_data,
+            filename=filename,
+            content_type="application/x-gzip",
+        )
+        return await self.request(
+            "POST",
+            "intg/install",
+            data=form,
+            params={"update": "true"} if update else None,
+            timeout=timeout,
+        )
 
     async def post_integration_setup(self, body: dict) -> dict:
         """POST /intg/setup"""
         return await self._post("intg/setup", json=body)
 
-    async def put_integration_setup(self, driver_id: str, input_values: dict) -> dict:
-        """PUT /intg/setup/{driver_id}"""
-        return await self._put(f"intg/setup/{driver_id}", json={"input_values": input_values})
+    async def get_integration_setup(self, driver_id: str) -> dict:
+        """GET /intg/setup/{driver_id}"""
+        return await self._get(f"intg/setup/{self._path_segment(driver_id)}")
+
+    async def put_integration_setup(
+        self,
+        driver_id: str,
+        input_values: dict | None = None,
+        *,
+        confirm: bool | None = None,
+    ) -> dict:
+        """PUT /intg/setup/{driver_id} with input values or a confirmation."""
+        if (input_values is None) == (confirm is None):
+            raise ValueError("Supply exactly one of input_values or confirm")
+        body: dict[str, Any] = (
+            {"input_values": input_values} if input_values is not None else {"confirm": confirm}
+        )
+        return await self._put(f"intg/setup/{self._path_segment(driver_id)}", json=body)
+
+    async def delete_integration_setup(self, driver_id: str) -> None:
+        """DELETE /intg/setup/{driver_id}"""
+        await self._delete(f"intg/setup/{self._path_segment(driver_id)}")
+
+    async def get_log_services(self) -> list[dict]:
+        """GET /system/logs/services"""
+        return await self._get("system/logs/services")
+
+    async def get_logs(
+        self,
+        *,
+        priority: int | None = None,
+        service: str | None = None,
+        limit: int = 1000,
+        from_time: str | None = None,
+        to_time: str | None = None,
+        query: str | None = None,
+        boot_ids: str | None = None,
+        as_text: bool = False,
+        timeout: RequestTimeout = None,
+    ) -> list[dict] | str:
+        """GET /system/logs, optionally returning the text export format."""
+        if not 0 <= limit <= 10_000:
+            raise ValueError("limit must be between 0 and 10,000")
+        if priority is not None and not 0 <= priority <= 8:
+            raise ValueError("priority must be between 0 and 8")
+        params: dict[str, str | int] = {"limit": limit}
+        if priority is not None:
+            params["p"] = priority
+        if service is not None:
+            params["s"] = service
+        if from_time is not None:
+            params["from"] = from_time
+        if to_time is not None:
+            params["to"] = to_time
+        if query is not None:
+            params["q"] = query
+        if boot_ids is not None:
+            params["boot_ids"] = boot_ids
+        return await self.request(
+            "GET",
+            "system/logs",
+            params=params,
+            headers={"Accept": "text/plain", "Content-Type": "text/plain"} if as_text else None,
+            timeout=timeout,
+            response_type="text" if as_text else "json",
+        )
 
     # ------------------------------------------------------------------
     # External systems / tokens
@@ -544,19 +828,23 @@ class CoreAPI:
 
     async def get_external_system(self, system: str) -> list[dict]:
         """GET /auth/external/{system}"""
-        return await self._get(f"auth/external/{system}")
+        return await self._get(f"auth/external/{self._path_segment(system)}")
 
     async def post_external_system_token(self, system: str, body: dict) -> dict:
         """POST /auth/external/{system}"""
-        return await self._post(f"auth/external/{system}", json=body)
+        return await self._post(f"auth/external/{self._path_segment(system)}", json=body)
 
     async def put_external_system_token(self, system: str, token_id: str, body: dict) -> dict:
         """PUT /auth/external/{system}/{token_id}"""
-        return await self._put(f"auth/external/{system}/{token_id}", json=body)
+        return await self._put(
+            f"auth/external/{self._path_segment(system)}/{self._path_segment(token_id)}", json=body
+        )
 
     async def delete_external_system_token(self, system: str, token_id: str) -> None:
         """DELETE /auth/external/{system}/{token_id}"""
-        await self._delete(f"auth/external/{system}/{token_id}")
+        await self._delete(
+            f"auth/external/{self._path_segment(system)}/{self._path_segment(token_id)}"
+        )
 
     # ------------------------------------------------------------------
     # Entities (filtered by integration)
@@ -564,7 +852,7 @@ class CoreAPI:
 
     async def get_subscribed_entities(self, integration_id: str) -> list[dict]:
         """GET /entities?intg_ids={integration_id} - entities subscribed to an integration."""
-        return await self._get(f"entities?intg_ids={integration_id}")
+        return await self._get("entities", params={"intg_ids": integration_id})
 
     # ------------------------------------------------------------------
     # IR - remotes / codesets (write operations)
@@ -576,31 +864,37 @@ class CoreAPI:
 
     async def get_remote(self, remote_id: str) -> dict:
         """GET /remotes/{id} - retrieve a single IR remote definition."""
-        return await self._get(f"remotes/{remote_id}")
+        return await self._get(f"remotes/{self._path_segment(remote_id)}")
 
     async def delete_ir_custom_code(self, codeset_device_id: str) -> None:
         """DELETE /ir/codes/custom/{id}"""
-        await self._delete(f"ir/codes/custom/{codeset_device_id}")
+        await self._delete(f"ir/codes/custom/{self._path_segment(codeset_device_id)}")
 
     async def post_remote_ir_command(
         self, remote_entity_id: str, command_id: str, body: dict
     ) -> dict:
         """POST /remotes/{id}/ir/{command_id} - add a command to an IR remote codeset."""
-        return await self._post(f"remotes/{remote_entity_id}/ir/{command_id}", json=body)
+        return await self._post(
+            f"remotes/{self._path_segment(remote_entity_id)}/ir/{self._path_segment(command_id)}",
+            json=body,
+        )
 
     async def patch_remote_ir_command(
         self, remote_entity_id: str, command_id: str, body: dict
     ) -> dict:
         """PATCH /remotes/{id}/ir/{command_id} - update a command in an IR remote codeset."""
-        return await self._patch(f"remotes/{remote_entity_id}/ir/{command_id}", json=body)
+        return await self._patch(
+            f"remotes/{self._path_segment(remote_entity_id)}/ir/{self._path_segment(command_id)}",
+            json=body,
+        )
 
     async def put_ir_emitter_learn(self, emitter_id: str) -> dict:
         """PUT /ir/emitters/{id}/learn - start an IR learning session."""
-        return await self._put(f"ir/emitters/{emitter_id}/learn")
+        return await self._put(f"ir/emitters/{self._path_segment(emitter_id)}/learn")
 
     async def delete_ir_emitter_learn(self, emitter_id: str) -> None:
         """DELETE /ir/emitters/{id}/learn - stop an IR learning session."""
-        await self._delete(f"ir/emitters/{emitter_id}/learn")
+        await self._delete(f"ir/emitters/{self._path_segment(emitter_id)}/learn")
 
     # ------------------------------------------------------------------
     # Dock proxy endpoints (routed through the remote's REST API)
@@ -608,16 +902,20 @@ class CoreAPI:
 
     async def get_dock_detail(self, dock_id: str) -> dict:
         """GET /docks/devices/{id} - detailed dock device info."""
-        return await self._get(f"docks/devices/{dock_id}")
+        return await self._get(f"docks/devices/{self._path_segment(dock_id)}")
 
     async def get_dock_update_status(self, dock_id: str) -> dict:
         """GET /docks/devices/{id}/update - dock firmware update status."""
-        return await self._get(f"docks/devices/{dock_id}/update")
+        return await self._get(f"docks/devices/{self._path_segment(dock_id)}/update")
+
+    async def get_dock_update(self, dock_id: str) -> dict:
+        """Return dock firmware update status (alias for convenience)."""
+        return await self.get_dock_update_status(dock_id)
 
     async def post_dock_update(self, dock_id: str) -> dict:
         """POST /docks/devices/{id}/update - trigger a dock firmware update."""
-        return await self._post(f"docks/devices/{dock_id}/update")
+        return await self._post(f"docks/devices/{self._path_segment(dock_id)}/update")
 
     async def post_dock_command(self, dock_id: str, body: dict) -> dict:
         """POST /docks/devices/{id}/command - send a control command to the dock."""
-        return await self._post(f"docks/devices/{dock_id}/command", json=body)
+        return await self._post(f"docks/devices/{self._path_segment(dock_id)}/command", json=body)

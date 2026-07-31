@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "unfurled"
-version = "0.1.3"
+version = "0.2.2"
 description = "Python async API for Unfolded Circle remotes and docks"
 readme = "README.md"
 license = { text = "MIT" }

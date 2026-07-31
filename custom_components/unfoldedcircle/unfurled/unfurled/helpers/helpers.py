@@ -225,3 +225,53 @@ class Helpers(RemoteModule):
         except Exception as err:  # pylint: disable=broad-except
             _LOG.error("Unexpected error while scanning for unused entities: %s", err)
             return unused
+
+    async def find_orphaned_ir_codesets(self) -> list[dict[str, Any]]:
+        """Return custom IR codesets that are not assigned to an IR remote.
+
+        Each result contains ``device_id`` and ``device_name``.  The helper
+        follows all pages exposed by the Remote, so callers do not need to
+        reproduce pagination or codeset-association rules.
+        """
+        try:
+            associated_codeset_ids: set[str] = set()
+            page = 1
+            while True:
+                remotes = await self._api.get_remotes(kind="IR", page=page)
+                if not remotes:
+                    break
+                for remote in remotes:
+                    remote_id = remote.get("entity_id")
+                    if not remote_id:
+                        continue
+                    detail = await self._api.get_remote(remote_id)
+                    codeset = detail.get("options", {}).get("ir", {}).get("codeset")
+                    if isinstance(codeset, dict) and codeset.get("id"):
+                        associated_codeset_ids.add(codeset["id"])
+                if len(remotes) < 100:
+                    break
+                page += 1
+
+            all_codesets: list[dict[str, Any]] = []
+            page = 1
+            while True:
+                codesets = await self._api.get_ir_custom_codes(page=page)
+                if not codesets:
+                    break
+                all_codesets.extend(codesets)
+                if len(codesets) < 100:
+                    break
+                page += 1
+
+            return [
+                {
+                    "device_id": codeset["device_id"],
+                    "device_name": codeset.get("device", codeset["device_id"]),
+                }
+                for codeset in all_codesets
+                if codeset.get("device_id") not in associated_codeset_ids
+                and codeset.get("device_id")
+            ]
+        except Exception as err:  # pylint: disable=broad-except
+            _LOG.error("Unexpected error while scanning for orphaned IR codesets: %s", err)
+            return []

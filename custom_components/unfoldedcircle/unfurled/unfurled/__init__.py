@@ -17,6 +17,7 @@ from .helpers.exceptions import (
     ApiKeyError,
     ApiKeyNotFound,
     AuthenticationError,
+    ConnectionError,
     DiscoveryError,
     EntityCommandError,
     HTTPError,
@@ -64,7 +65,7 @@ from .submodules.integrations import Integrations
 from .submodules.settings import Settings
 from .submodules.systems import System
 
-__version__ = "0.1.0"
+__version__ = "0.2.2"
 
 __all__ = [
     # Core
@@ -124,6 +125,7 @@ __all__ = [
     "UnfurledError",
     "HTTPError",
     "AuthenticationError",
+    "ConnectionError",
     "RemoteIsSleeping",
     "NoActivityRunning",
     "InvalidButtonCommand",
