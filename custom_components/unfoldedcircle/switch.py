@@ -132,7 +132,7 @@ async def async_setup_entry(
 
     # Remove switches that are not supported by the remote
     switches = UNFOLDED_CIRCLE_SWITCH
-    if not coordinator.api.wake_on_lan_available:
+    if not coordinator.api.settings.network.wifi.wake_on_wlan_available:
         switches = tuple(
             filter(lambda s: s.key != "wake_on_lan", UNFOLDED_CIRCLE_SWITCH)
         )

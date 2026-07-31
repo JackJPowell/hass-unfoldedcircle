@@ -7,15 +7,6 @@ import re
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
-from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN, RefreshToken
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import issue_registry
-from homeassistant.helpers.network import NoURLAvailableError, get_url
-from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
-from homeassistant.exceptions import HomeAssistantError
-
-from .const import COMMAND_LIST, DOMAIN, UC_HA_DRIVER_ID, UC_HA_SYSTEM, UC_HA_TOKEN_ID
-from unfurled.remote import Remote
 from unfurled.dock import Dock
 from unfurled.helpers.exceptions import (
     EntityCommandError,
@@ -26,6 +17,16 @@ from unfurled.helpers.exceptions import (
     RemoteIsSleeping,
     TokenRegistrationError,
 )
+from unfurled.remote import Remote
+
+from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN, RefreshToken
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import issue_registry
+from homeassistant.helpers.network import NoURLAvailableError, get_url
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
+
+from .const import COMMAND_LIST, DOMAIN, UC_HA_DRIVER_ID, UC_HA_SYSTEM, UC_HA_TOKEN_ID
 
 _LOGGER = logging.getLogger(__name__)
 DEFAULT_HASS_URL = "http://homeassistant.local:8123"

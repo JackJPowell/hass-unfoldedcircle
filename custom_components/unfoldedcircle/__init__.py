@@ -1,35 +1,39 @@
 """The Unfolded Circle Remote integration."""
 
 from __future__ import annotations
-import logging
+
 import copy
+import logging
+
+from unfurled.helpers.exceptions import AuthenticationError
+from unfurled.remote import Remote
+
 from homeassistant.components import zeroconf
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import issue_registry
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from unfurled.remote import Remote
-from unfurled.helpers.exceptions import AuthenticationError
+from homeassistant.helpers import (
+    device_registry as dr,
+    entity_registry as er,
+    issue_registry,
+)
 
 from .const import DOMAIN, UC_HA_SYSTEM, UC_HA_TOKEN_ID
-from .services import async_setup_services
 from .coordinator import (
-    UnfoldedCircleRemoteCoordinator,
-    UnfoldedCircleDockCoordinator,
     UnfoldedCircleConfigEntry,
+    UnfoldedCircleDockCoordinator,
+    UnfoldedCircleRemoteCoordinator,
     UnfoldedCircleRuntimeData,
 )
-
 from .helpers import (
-    get_registered_websocket_url,
     async_create_issue_dock_password,
     async_create_issue_dock_unreachable,
-    async_delete_issue_dock_unreachable,
     async_create_issue_websocket_connection,
+    async_delete_issue_dock_unreachable,
+    get_registered_websocket_url,
 )
+from .services import async_setup_services
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
@@ -58,7 +62,9 @@ async def async_setup_entry(
             if not await Remote.wake_by_mac(entry.data["mac"], entry.data["host"]):
                 raise ConnectionError("Could not wake up or connect to remote device")
 
-        remote_api = Remote(entry.data["host"], pin=entry.data["pin"], api_key=entry.data["apiKey"])
+        remote_api = Remote(
+            entry.data["host"], pin=entry.data["pin"], api_key=entry.data["apiKey"]
+        )
         await remote_api.validate_connection()
 
     except AuthenticationError as err:
@@ -222,7 +228,9 @@ async def async_unload_entry(
     coordinator = entry.runtime_data.coordinator
     try:
         for dock in coordinator.api.docks:
-            issue_registry.async_delete_issue(hass, DOMAIN, f"dock_password_{dock.device.id}")
+            issue_registry.async_delete_issue(
+                hass, DOMAIN, f"dock_password_{dock.device.id}"
+            )
         issue_registry.async_delete_issue(hass, DOMAIN, "websocket_connection")
     except Exception as ex:
         _LOGGER.error("Unfolded Circle Remote async_unload_entry error: %s", ex)
@@ -243,7 +251,9 @@ async def async_remove_entry(
     """Handle removal of an entry."""
     try:
         _LOGGER.debug("Removing remote from Home assistant for entry %s", entry)
-        remote_api = Remote(entry.data["host"], pin=entry.data["pin"], api_key=entry.data["apiKey"])
+        remote_api = Remote(
+            entry.data["host"], pin=entry.data["pin"], api_key=entry.data["apiKey"]
+        )
         try:
             results = await remote_api.auth.delete_external_token(
                 UC_HA_SYSTEM, UC_HA_TOKEN_ID
