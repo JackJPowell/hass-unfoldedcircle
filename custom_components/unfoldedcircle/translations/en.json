@@ -18,11 +18,13 @@
     },
     "step": {
       "user": {
+        "description": "By default, dock traffic is routed through your remote. Direct communication enables features such as IR learning, but requires a reachable dock and may require its password.",
         "data": {
           "host": "Host",
           "pin": "PIN Code",
           "ha_ws_url": "Home Assistant Websocket URL",
-          "activities_as_switches": "Create activities as Switch entities"
+          "activities_as_switches": "Create activities as Switch entities",
+          "direct_dock_communication": "Use direct dock communication"
         }
       },
       "select_entities": {
@@ -40,10 +42,12 @@
         }
       },
       "zeroconf_confirm": {
+        "description": "By default, dock traffic is routed through your remote. Direct communication enables features such as IR learning, but requires a reachable dock and may require its password.",
         "data": {
           "pin": "PIN Code",
           "ha_ws_url": "Home Assistant Websocket URL",
-          "activities_as_switches": "Create activities as Switch entities"
+          "activities_as_switches": "Create activities as Switch entities",
+          "direct_dock_communication": "Use direct dock communication"
         },
         "title": "Unfolded Circle Remote"
       },
@@ -159,7 +163,8 @@
         "title": "Unfolded Circle Options",
         "description": "Configure Host / IP Address of {name}",
         "data": {
-          "host": "Host / IP Address"
+          "host": "Host / IP Address",
+          "direct_dock_communication": "Use direct dock communication"
         }
       },
       "websocket": {

@@ -36,6 +36,7 @@ from .const import (
     CONF_ACTIVITIES_AS_SWITCHES,
     CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
     CONF_ACTIVITY_MEDIA_ENTITIES,
+    CONF_DIRECT_DOCK_COMMUNICATION,
     CONF_GLOBAL_MEDIA_ENTITY,
     CONF_SUPPRESS_ACTIVITIY_GROUPS,
     DOMAIN,
@@ -216,6 +217,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_HA_WEBSOCKET_URL, default=get_ha_websocket_url(self.hass)
                 ): str,
                 vol.Optional(CONF_ACTIVITIES_AS_SWITCHES, default=False): bool,
+                vol.Optional(CONF_DIRECT_DOCK_COMMUNICATION, default=False): bool,
             }
         )
         if user_input is None or user_input == {}:
@@ -236,6 +238,9 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 self.options[CONF_ACTIVITIES_AS_SWITCHES] = user_input[
                     CONF_ACTIVITIES_AS_SWITCHES
                 ]
+            self.options[CONF_DIRECT_DOCK_COMMUNICATION] = user_input.get(
+                CONF_DIRECT_DOCK_COMMUNICATION, False
+            )
             await self._async_set_unique_id_and_abort_if_already_configured(
                 self.info[CONF_MAC]
             )
@@ -281,6 +286,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_HA_WEBSOCKET_URL, default=get_ha_websocket_url(self.hass)
                     ): str,
                     vol.Optional(CONF_ACTIVITIES_AS_SWITCHES, default=False): bool,
+                    vol.Optional(CONF_DIRECT_DOCK_COMMUNICATION, default=False): bool,
                 }
             )
             return self.async_show_form(
@@ -296,6 +302,9 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 self.options[CONF_ACTIVITIES_AS_SWITCHES] = user_input[
                     CONF_ACTIVITIES_AS_SWITCHES
                 ]
+            self.options[CONF_DIRECT_DOCK_COMMUNICATION] = user_input.get(
+                CONF_DIRECT_DOCK_COMMUNICATION, False
+            )
             await self._async_set_unique_id_and_abort_if_already_configured(
                 self.info[CONF_MAC]
             )
@@ -325,6 +334,10 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Optional(
                     CONF_ACTIVITIES_AS_SWITCHES,
                     default=user_input.get(CONF_ACTIVITIES_AS_SWITCHES, False),
+                ): bool,
+                vol.Optional(
+                    CONF_DIRECT_DOCK_COMMUNICATION,
+                    default=user_input.get(CONF_DIRECT_DOCK_COMMUNICATION, False),
                 ): bool,
             }
         )
@@ -607,6 +620,23 @@ class DockSubentryFlowHandler(ConfigSubentryFlow):
                 dock_data["id"] = self.current_dock.device.id
                 dock_data["password"] = "0000"
                 dock_data["name"] = self.current_dock.device.name
+                if not self.config_entry.options.get(
+                    CONF_DIRECT_DOCK_COMMUNICATION, False
+                ):
+                    return self.async_create_entry(
+                        title=dock_data["name"],
+                        data=dock_data,
+                        unique_id=f"{self.config_entry.unique_id}_{dock_data['id']}",
+                    )
+
+                if not await self.current_dock.validate_password(dock_data["password"]):
+                    return self.async_show_form(
+                        step_id="dock",
+                        data_schema=vol.Schema(schema),
+                        description_placeholders=placeholder,
+                        errors=errors,
+                        last_step=True,
+                    )
                 return self.async_create_entry(
                     title=dock_data["name"],
                     data=dock_data,
@@ -623,7 +653,7 @@ class DockSubentryFlowHandler(ConfigSubentryFlow):
 
         password = user_input.get("password", "")
         if not await self.current_dock.validate_password(password):
-            errors["base"] = "invalid_auth"
+            errors["base"] = "invalid_dock_password"
 
         if errors:
             return self.async_show_form(
@@ -863,6 +893,16 @@ async def async_step_remote_host(
                 _LOGGER.debug("Updating host for remote")
                 data["host"] = remote_api.endpoint
                 hass.config_entries.async_update_entry(config_entry, data=data)
+                config_flow.options[CONF_DIRECT_DOCK_COMMUNICATION] = user_input.get(
+                    CONF_DIRECT_DOCK_COMMUNICATION,
+                    config_flow.options.get(CONF_DIRECT_DOCK_COMMUNICATION, False),
+                )
+                options = dict(config_entry.options)
+                options[CONF_DIRECT_DOCK_COMMUNICATION] = user_input.get(
+                    CONF_DIRECT_DOCK_COMMUNICATION,
+                    options.get(CONF_DIRECT_DOCK_COMMUNICATION, False),
+                )
+                hass.config_entries.async_update_entry(config_entry, options=options)
         except ClientConnectionError:
             errors["base"] = "cannot_connect"
         except Exception:  # pylint: disable=broad-except
@@ -883,6 +923,12 @@ async def async_step_remote_host(
                     "host",
                     default=config_entry.data["host"],
                 ): str,
+                vol.Optional(
+                    CONF_DIRECT_DOCK_COMMUNICATION,
+                    default=config_entry.options.get(
+                        CONF_DIRECT_DOCK_COMMUNICATION, False
+                    ),
+                ): bool,
             }
         ),
         description_placeholders={"name": remote.device.name if remote else "Remote"},

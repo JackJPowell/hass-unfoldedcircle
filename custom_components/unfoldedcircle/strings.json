@@ -4,7 +4,8 @@
       "user": {
         "data": {
           "pin": "[%key:common::config_flow::data::pin%]",
-          "host": "[%key:common::config_flow::data::host%]"
+          "host": "[%key:common::config_flow::data::host%]",
+          "direct_dock_communication": "Use direct dock communication"
         }
       },
       "dock": {
