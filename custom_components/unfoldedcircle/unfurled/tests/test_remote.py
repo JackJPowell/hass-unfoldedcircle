@@ -183,7 +183,7 @@ class TestWsMessageHandling:
         assert remote.state.battery_level == 55
         assert remote.state.battery_status == "CHARGING"
         assert remote.state.is_charging is True
-        assert remote._last_update_type == UpdateType.BATTERY
+        assert remote.last_update_type == UpdateType.BATTERY
 
     async def test_ambient_light_updates_state(self, remote: Remote):
         await remote._handle_ws_message(ws_ambient_light_message(intensity=300))
@@ -339,9 +339,7 @@ class TestGetActiveActivities:
 
 
 class TestIntegrationEntities:
-    async def test_get_and_configure_entities_delegate_to_core_api(
-        self, remote: Remote
-    ):
+    async def test_get_and_configure_entities_delegate_to_core_api(self, remote: Remote):
         remote.api.get_integration_entities = AsyncMock(
             return_value=[{"entity_id": "light.kitchen"}]
         )

@@ -3,4 +3,5 @@ sudo apt-get update && sudo apt-get install -y libturbojpeg0 autoconf automake l
 set -e
 cd "$(dirname "$0")/.."
 python3 -m pip install --requirement requirements_all.txt --requirement requirements_dev.txt --upgrade
+python3 -m pip install --editable custom_components/unfoldedcircle/unfurled
 mkdir -p config
