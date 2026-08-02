@@ -164,12 +164,10 @@ class DockPortInfraredEntity(UnfoldedCircleDockEntity, InfraredEmitterEntity):
         # The UC API accepts a raw Pronto-style hex string when format="PRONTO".
         hex_code = _timings_to_pronto(command.modulation, timings)
         try:
-            remote_api = self.entry.runtime_data.coordinator.api
-            await remote_api.ir.send_by_emitter(
-                emitter_id=self._emitter_device_id,
-                code=hex_code,
-                ir_format="PRONTO",
-                port_id=self._port_id,
+            await self.coordinator.api.send_ir(
+                hex_code,
+                "PRONTO",
+                port_mask=self._port_id,
                 repeat=getattr(command, "repeat_count", 0),
             )
         except Exception as err:

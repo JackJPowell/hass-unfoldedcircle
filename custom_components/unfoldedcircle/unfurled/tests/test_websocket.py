@@ -75,30 +75,27 @@ class TestDockWebSocketClient:
         client = DockWebSocketClient("ws://host/ws", "secret")
         mock_ws = AsyncMock()
 
-        # Simulate auth_required message then subscribe_events response
-        challenge_msg = json.dumps(
-            {
-                "msg": "auth_required",
-                "msg_data": {"token": "abc123"},
-            }
+        mock_ws.recv.side_effect = [
+            json.dumps({"type": "auth_required"}),
+            json.dumps({"type": "auth", "msg": "authentication", "code": 200}),
+        ]
+        client._ws = mock_ws
+        await client._on_connected(mock_ws)
+        sent = json.loads(mock_ws.send.call_args[0][0])
+        assert sent == {"type": "auth", "token": "secret"}
+
+    async def test_request_resolves_correlated_response(self):
+        client = DockWebSocketClient("ws://host/ws", "secret")
+        mock_ws = AsyncMock()
+        client._ws = mock_ws
+        task = asyncio.create_task(client.request("get_sysinfo"))
+        await asyncio.sleep(0)
+        await client._handle_response(
+            json.dumps({"type": "dock", "req_id": 1, "msg": "get_sysinfo", "code": 200})
         )
-
-        async def fake_iter(ws):
-            # Yield one auth_required message then stop
-            yield challenge_msg
-
-        with patch.object(mock_ws, "__aiter__", side_effect=lambda: fake_iter(mock_ws)):
-            # Call _on_connected - it should send the auth response
-            task = asyncio.create_task(client._on_connected(mock_ws))
-            await asyncio.sleep(0)  # allow co-routine to start
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await task
-
-        # Check that send was called with credentials
-        if mock_ws.send.called:
-            sent = json.loads(mock_ws.send.call_args[0][0])
-            assert sent.get("msg") == "auth" or "password" in str(sent)
+        assert (await task)["msg"] == "get_sysinfo"
+        sent = json.loads(mock_ws.send.call_args[0][0])
+        assert sent == {"type": "dock", "req_id": 1, "command": "get_sysinfo"}
 
 
 class TestWebSocketDisconnect:

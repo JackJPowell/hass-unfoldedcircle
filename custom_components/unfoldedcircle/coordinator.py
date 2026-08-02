@@ -157,6 +157,8 @@ class UnfoldedCircleDockCoordinator(
     async def init_websocket(self):
         """Connect to the dock's native WebSocket for real-time updates."""
         password = self.subentry.data.get("password", "")
+        if not self.api.direct_communication:
+            return
         if not password or not self.api.ws_url:
             return
         try:

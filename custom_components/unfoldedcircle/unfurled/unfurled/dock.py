@@ -9,8 +9,11 @@ from typing import TYPE_CHECKING
 
 from .api import CoreAPI
 from .helpers.exceptions import HTTPError
-from .helpers.models import DockCommand, UpdateInfo
-from .helpers.websocket import DockWebSocketClient
+from .helpers.models import DockCommand, DockCommunicationMode, UpdateInfo
+from .helpers.websocket import (
+    DockWebSocketClient,
+    DockWebSocketError,
+)
 
 if TYPE_CHECKING:
     from .helpers.websocket import MessageCallback
@@ -82,6 +85,7 @@ class Dock:
         # Native WebSocket (direct to dock)
         self._ws_client: DockWebSocketClient | None = None
         self._ws_password: str = ""
+        self._communication_mode = DockCommunicationMode.PROXY
 
         # IR data
         self._codesets: list[dict] = []
@@ -144,6 +148,23 @@ class Dock:
         """``True`` when an active WebSocket connection to the dock is open."""
         return self._ws_client is not None and self._ws_client.is_connected
 
+    @property
+    def communication_mode(self) -> DockCommunicationMode:
+        """Configured transport for dock operations."""
+        return self._communication_mode
+
+    @property
+    def direct_communication(self) -> bool:
+        """Whether direct Dock WebSocket transport is preferred."""
+        return self._communication_mode is DockCommunicationMode.DIRECT
+
+    def configure_communication(
+        self, mode: DockCommunicationMode | str, password: str = ""
+    ) -> None:
+        """Configure the preferred dock transport and direct password."""
+        self._communication_mode = DockCommunicationMode(mode)
+        self._ws_password = password
+
     # ------------------------------------------------------------------
     # WebSocket
     # ------------------------------------------------------------------
@@ -162,7 +183,7 @@ class Dock:
             message_callback: Optional async callable(raw_message: str).
             reconnect_delay: Seconds between reconnection attempts.
         """
-        if not self._ws_url:
+        if not self.direct_communication or not self._ws_url:
             _LOGGER.warning("Dock %s has no ws_url - cannot open WebSocket", self.device.id)
             return
 
@@ -206,6 +227,18 @@ class Dock:
 
         msg_type = data.get("type") or data.get("msg", "")
 
+        if data.get("msg") == "get_sysinfo":
+            self._apply_info(data, learning_key="ir_learning")
+        elif data.get("type") == "event" and data.get("msg") == "ir_receive":
+            self._learned_code = {
+                "format": data.get("format", "HEX").upper(),
+                "value": data.get("ir_code", ""),
+            }
+        elif data.get("type") == "event" and data.get("msg") == "ir_receive_on":
+            self.state.is_learning_active = True
+        elif data.get("type") == "event" and data.get("msg") == "ir_receive_off":
+            self.state.is_learning_active = False
+
         if msg_type == "dock_state":
             state = data.get("msg_data", {}).get("state", "")
             if state:
@@ -226,33 +259,104 @@ class Dock:
         if msg_type == "ir_learn":
             self._learned_code = data.get("msg_data", {})
 
+    async def _direct_request(self, command: str, **data: object) -> dict:
+        """Issue a direct Dock API request."""
+        if self._ws_client is None:
+            raise DockWebSocketError("Dock WebSocket is not configured")
+        return await self._ws_client.request(command, **data)
+
+    async def _proxy_command(self, command: DockCommand, **params: object) -> dict:
+        return await self.api.post_dock_command(self.device.id, {"cmd": command.value, **params})
+
+    async def _direct_command(self, command: DockCommand, **params: object) -> dict:
+        if command is DockCommand.SET_LED_BRIGHTNESS:
+            brightness = int(params["brightness"])
+            return await self._direct_request(
+                "set_brightness", status_led=brightness, eth_led=brightness
+            )
+        return await self._direct_request(
+            {DockCommand.IDENTIFY: "identify", DockCommand.REBOOT: "reboot"}[command]
+        )
+
+    async def send_command(self, command: DockCommand, **params: object) -> dict:
+        """Send a dock system command using the selected transport."""
+        if self.direct_communication:
+            try:
+                return await self._direct_command(command, **params)
+            except (DockWebSocketError, TimeoutError):
+                if command is DockCommand.SET_LED_BRIGHTNESS:
+                    return await self._proxy_command(command, **params)
+                raise
+        return await self._proxy_command(command, **params)
+
+    async def send_ir(
+        self, code: str, ir_format: str, *, port_mask: int | str | None = None, repeat: int = 0
+    ) -> bool:
+        """Send raw IR through this dock without exposing its transport."""
+        if self.direct_communication and self.is_connected:
+            mask = int(port_mask or 1)
+            outputs = {
+                "int_side": bool(mask & 1),
+                "int_top": bool(mask & 2),
+                "ext1": bool(mask & 4),
+                "ext2": bool(mask & 8),
+            }
+            await self._direct_request(
+                "ir_send", code=code, format=ir_format.lower(), repeat=repeat, **outputs
+            )
+            return True
+        body: dict[str, object] = {"code": code, "format": ir_format}
+        if port_mask is not None:
+            body["port_id"] = str(port_mask)
+        if repeat:
+            body["repeat"] = repeat
+        await self.api.put_ir_send(self.device.id, body)
+        return True
+
+    async def stop_ir(self) -> None:
+        """Stop a direct continuous IR transmission."""
+        if not self.direct_communication:
+            raise DockWebSocketError("The remote proxy does not expose IR stop")
+        await self._direct_request("ir_stop")
+
     # ------------------------------------------------------------------
     # REST operations
     # ------------------------------------------------------------------
 
     async def get_info(self) -> dict:
-        """Fetch detailed device information from the remote and update local state.
+        """Fetch dock information through the selected transport and update local state.
 
         Returns:
-            Raw device info dict from ``GET /docks/devices/{id}``.
+            Raw proxy-detail or direct ``get_sysinfo`` response.
         """
+        if self.direct_communication and self.is_connected:
+            try:
+                info = await self._direct_request("get_sysinfo")
+                self._apply_info(info, learning_key="ir_learning")
+                return info
+            except (DockWebSocketError, TimeoutError):
+                _LOGGER.debug("Direct sysinfo failed; using remote proxy")
         info = await self.api.get_dock_detail(self.device.id)
-        self.device.name = info.get("name", self.device.name)
+        self._apply_info(info, learning_key="learning_active")
         self._ws_url = info.get("resolved_ws_url", self._ws_url)
-        self.state.is_active = bool(info.get("active", self.state.is_active))
+        if "active" in info:
+            self.state.is_active = bool(info["active"])
+        if "state" in info:
+            self.state.state = info["state"]
+        return info
+
+    def _apply_info(self, info: dict, *, learning_key: str) -> None:
+        """Apply fields shared by proxy details and direct sysinfo responses."""
+        self.device.name = info.get("name", self.device.name)
         self.device.model_number = info.get("model", self.device.model_number)
         self.device.hardware_revision = info.get("revision", self.device.hardware_revision)
         self.device.serial_number = info.get("serial", self.device.serial_number)
+        self.device.software_version = info.get("version", self.device.software_version)
         self.state.led_brightness = int(info.get("led_brightness", self.state.led_brightness))
         self.state.ethernet_led_brightness = int(
             info.get("eth_led_brightness", self.state.ethernet_led_brightness)
         )
-        self.device.software_version = info.get("version", self.device.software_version)
-        self.state.state = info.get("state", self.state.state)
-        self.state.is_learning_active = bool(
-            info.get("learning_active", self.state.is_learning_active)
-        )
-        return info
+        self.state.is_learning_active = bool(info.get(learning_key, self.state.is_learning_active))
 
     async def validate_connection(self) -> bool:
         """Check that the dock is reachable via the remote proxy.
@@ -272,13 +376,19 @@ class Dock:
         Returns:
             Response dict from ``PUT /ir/emitters/{id}/learn``.
         """
-        result = await self.api.put_ir_emitter_learn(self.device.id)
+        if self.direct_communication:
+            result = await self._direct_request("ir_receive_on")
+        else:
+            result = await self.api.put_ir_emitter_learn(self.device.id)
         self.state.is_learning_active = True
         return result
 
     async def stop_ir_learning(self) -> None:
         """Stop an active IR learning session on this dock."""
-        await self.api.delete_ir_emitter_learn(self.device.id)
+        if self.direct_communication:
+            await self._direct_request("ir_receive_off")
+        else:
+            await self.api.delete_ir_emitter_learn(self.device.id)
         self.state.is_learning_active = False
 
     async def get_remotes(self) -> list[dict]:
@@ -521,8 +631,7 @@ class System:
             command: A :class:`~unfurled.models.DockCommand` value.
             **params: Additional parameters included in the request body.
         """
-        body: dict = {"cmd": command.value, **params}
-        return await self._api.post_dock_command(self._dock.device.id, body)
+        return await self._dock.send_command(command, **params)
 
     async def set_led_brightness(self, brightness: int) -> None:
         """Set the dock LED brightness.

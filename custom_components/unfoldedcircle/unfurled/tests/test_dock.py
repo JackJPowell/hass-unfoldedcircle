@@ -9,7 +9,7 @@ import pytest
 from aioresponses import aioresponses
 
 from unfurled.dock import Dock
-from unfurled.helpers.models import DockCommand
+from unfurled.helpers.models import DockCommand, DockCommunicationMode
 
 BASE_URL = "http://192.168.1.10/api/"
 API_KEY = "test-key"
@@ -141,6 +141,38 @@ class TestDockWsMessageHandling:
 
     async def test_invalid_json_ignored(self, dock: Dock):
         await dock._handle_ws_message("not json")  # should not raise
+
+
+class TestDockDirectTransport:
+    @pytest.fixture
+    def dock(self) -> Dock:
+        dock = Dock.from_dict(
+            DOCK_DATA, api_key=API_KEY, remote_endpoint=BASE_URL, remote_configuration_url=""
+        )
+        dock.configure_communication(DockCommunicationMode.DIRECT, "0000")
+        return dock
+
+    async def test_led_brightness_uses_direct_command(self, dock: Dock):
+        dock._direct_request = AsyncMock(return_value={"code": 200})
+        await dock.system.set_led_brightness(75)
+        dock._direct_request.assert_awaited_once_with("set_brightness", status_led=75, eth_led=75)
+        assert dock.state.led_brightness == 75
+
+    async def test_direct_ir_maps_port_mask(self, dock: Dock):
+        dock._ws_client = AsyncMock()
+        dock._ws_client.is_connected = True
+        dock._direct_request = AsyncMock(return_value={"code": 200})
+        assert await dock.send_ir("4;0x10;12;0", "HEX", port_mask=5, repeat=2)
+        dock._direct_request.assert_awaited_once_with(
+            "ir_send",
+            code="4;0x10;12;0",
+            format="hex",
+            repeat=2,
+            int_side=True,
+            int_top=False,
+            ext1=True,
+            ext2=False,
+        )
 
 
 class TestDockClose:

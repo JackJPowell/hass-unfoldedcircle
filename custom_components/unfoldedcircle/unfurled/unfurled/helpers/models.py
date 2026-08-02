@@ -69,6 +69,13 @@ class RemoteCommand(StrEnum):
     RESTART_CORE = "RESTART_CORE"
 
 
+class DockCommunicationMode(StrEnum):
+    """Transport selected for dock operations."""
+
+    PROXY = "proxy"
+    DIRECT = "direct"
+
+
 class DockCommand(StrEnum):
     """Commands that can be sent directly to a Dock."""
 

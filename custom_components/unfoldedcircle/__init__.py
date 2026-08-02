@@ -15,7 +15,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 
-from .const import DOMAIN, UC_HA_SYSTEM, UC_HA_TOKEN_ID
+from .const import (
+    CONF_DIRECT_DOCK_COMMUNICATION,
+    DOMAIN,
+    UC_HA_SYSTEM,
+    UC_HA_TOKEN_ID,
+)
 from .coordinator import (
     UnfoldedCircleConfigEntry,
     UnfoldedCircleDockCoordinator,
@@ -175,6 +180,12 @@ async def async_setup_entry(
                     subentry.data["id"],
                 )
                 continue
+            dock.configure_communication(
+                "direct"
+                if entry.options.get(CONF_DIRECT_DOCK_COMMUNICATION, False)
+                else "proxy",
+                subentry.data.get("password", ""),
+            )
             dock_coordinator = UnfoldedCircleDockCoordinator(
                 hass, dock, entry, subentry
             )
@@ -213,6 +224,8 @@ async def async_setup_entry(
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     await zeroconf.async_get_async_instance(hass)
     await coordinator.init_websocket()
+    for dock_coordinator in docks.values():
+        await dock_coordinator.init_websocket()
     async_setup_services(hass, entry)
     return True
 

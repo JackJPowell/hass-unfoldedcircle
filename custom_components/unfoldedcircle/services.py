@@ -135,9 +135,7 @@ async def async_inhibit_standby(
     if reason is None:
         reason = "User Requested"
 
-    inhibitors = (
-        await config_entry.runtime_data.coordinator.api.system.refresh_standby_inhibitors()
-    )
+    inhibitors = await config_entry.runtime_data.coordinator.api.system.refresh_standby_inhibitors()
     length = len(inhibitors)
     inhibitor_id = f"HA{length}"
 
@@ -172,9 +170,7 @@ async def async_prevent_sleep(
             if service_call.service == UPDATE_ACTIVITY_SERVICE:
                 coordinator = config_entry.runtime_data.coordinator
                 # unique_id format is "{model}_{serial}_{activity_id}"; strip the prefix
-                prefix = (
-                    f"{coordinator.api.device.model_number}_{coordinator.api.device.serial_number}_"
-                )
+                prefix = f"{coordinator.api.device.model_number}_{coordinator.api.device.serial_number}_"
                 activity_id = entity.unique_id.removeprefix(prefix)
                 activity = coordinator.api.get_activity_by_id(activity_id)
                 if activity is None:
@@ -270,7 +266,13 @@ async def async_service_handle(
     if service_call.service == SEND_IR_COMMAND_SERVICE:
         coordinator = config_entry.runtime_data.coordinator
 
-        ir = IR(coordinator, None, hass, data=service_call.data, dock_name=dock_name)
+        ir = IR(
+            coordinator,
+            dock_coordinator,
+            hass,
+            data=service_call.data,
+            dock_name=dock_name,
+        )
         await ir.async_send_command()
 
     if service_call.service == SEND_BUTTON_COMMAND_SERVICE:
@@ -434,13 +436,18 @@ class IR:
                 command = None
             try:
                 if code and ir_format:
-                    await self.coordinator.api.ir.send(
-                        code,
-                        ir_format,
-                        emitter_name=dock_name,
-                        port_id=port,
-                        repeat=repeat,
-                    )
+                    if self.dock_coordinator is not None:
+                        await self.dock_coordinator.api.send_ir(
+                            code, ir_format, port_mask=port, repeat=repeat
+                        )
+                    else:
+                        await self.coordinator.api.ir.send(
+                            code,
+                            ir_format,
+                            emitter_name=dock_name,
+                            port_id=port,
+                            repeat=repeat,
+                        )
                 elif device and command:
                     await self.coordinator.api.ir.send_from_codeset(
                         device,

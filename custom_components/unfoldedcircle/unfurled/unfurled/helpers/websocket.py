@@ -208,87 +208,84 @@ class RemoteWebSocketClient(WebSocketClient):
         await self.send(self._SUBSCRIBE_ALL)
 
 
-class DockWebSocketClient(WebSocketClient):
-    """WebSocket client for an Unfolded Circle dock.
+class DockWebSocketError(Exception):
+    """A direct dock WebSocket operation failed."""
 
-    The dock uses a token/password-based auth flow: the server sends an
-    ``auth_required`` message; we reply with the password.
-    """
+
+class DockWebSocketCommandError(DockWebSocketError):
+    """The dock rejected a WebSocket command."""
+
+    def __init__(self, code: int, result: dict[str, Any]) -> None:
+        super().__init__(f"Dock command failed with status {code}")
+        self.code = code
+        self.result = result
+
+
+class DockWebSocketClient(WebSocketClient):
+    """WebSocket client for an authenticated Unfolded Circle dock."""
 
     def __init__(
-        self,
-        ws_url: str,
-        password: str,
-        *,
-        reconnect_delay: float = _RECONNECT_DELAY,
+        self, ws_url: str, password: str, *, reconnect_delay: float = _RECONNECT_DELAY
     ) -> None:
         super().__init__(ws_url, reconnect_delay=reconnect_delay)
         self._password = password
-        # Subscribe to all dock events after auth
-        self._subscribe_payload = {
-            "id": 1,
-            "kind": "req",
-            "msg": "subscribe_events",
-            "msg_data": {"channels": ["all"]},
-        }
+        self._next_request_id = 1
+        self._pending_requests: dict[int, asyncio.Future[dict[str, Any]]] = {}
+        self.on_message(self._handle_response)
+
+    async def request(self, command: str, *, timeout: float = 10.0, **data: Any) -> dict[str, Any]:
+        """Send a Dock API command and await its correlated response."""
+        if not self.is_connected:
+            raise DockWebSocketError("Dock WebSocket is not connected")
+        request_id = self._next_request_id
+        self._next_request_id += 1
+        future: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
+        self._pending_requests[request_id] = future
+        try:
+            await self.send({"type": "dock", "req_id": request_id, "command": command, **data})
+            return await asyncio.wait_for(future, timeout)
+        finally:
+            self._pending_requests.pop(request_id, None)
+
+    async def _handle_response(self, raw: str) -> None:
+        """Resolve pending requests from result and sysinfo messages."""
+        try:
+            data = json.loads(raw)
+        except (TypeError, ValueError):
+            return
+        future = self._pending_requests.get(data.get("req_id"))
+        if future is None or future.done():
+            return
+        code = int(data.get("code", 200))
+        if code >= 400:
+            future.set_exception(DockWebSocketCommandError(code, data))
+        else:
+            future.set_result(data)
 
     async def _on_connected(self, ws: Any) -> None:
-        """Handle the dock auth handshake before forwarding messages."""
-        # The dock may send auth_required as its first message
+        """Authenticate using the Dock API handshake."""
         try:
-            first_msg = await asyncio.wait_for(ws.recv(), timeout=5.0)
-            data = json.loads(first_msg)
+            data = json.loads(await asyncio.wait_for(ws.recv(), timeout=5.0))
             if data.get("type") == "auth_required":
                 await self.send({"type": "auth", "token": self._password})
-        except TimeoutError:
-            pass  # no auth challenge - proceed
-        except Exception:
-            pass
-
-        # Now subscribe
-        await self.send(self._subscribe_payload)
+                response = json.loads(await asyncio.wait_for(ws.recv(), timeout=5.0))
+                if response.get("code") != 200:
+                    raise DockWebSocketError("Dock WebSocket authentication failed")
+        except TimeoutError as err:
+            raise DockWebSocketError("Timed out waiting for dock authentication") from err
+        except (TypeError, ValueError) as err:
+            raise DockWebSocketError("Invalid dock authentication response") from err
 
     @classmethod
-    async def validate(
-        cls,
-        ws_url: str,
-        password: str,
-        *,
-        timeout: float = 5.0,
-    ) -> bool:
-        """Test whether *password* is accepted by the dock.
-
-        Opens a short-lived WebSocket connection, performs the auth
-        handshake, and returns ``True`` if the dock accepts the password or
-        does not require one.  Returns ``False`` on auth failure or if the
-        connection cannot be established.
-
-        Args:
-            ws_url: The dock's WebSocket endpoint URL.
-            password: The password/token to test.
-            timeout: Maximum seconds to wait for each handshake step.
-        """
+    async def validate(cls, ws_url: str, password: str, *, timeout: float = 5.0) -> bool:
+        """Return whether *password* is accepted by the dock."""
         try:
-            async with websockets.connect(
-                ws_url,
-                ping_interval=None,
-                close_timeout=3,
-            ) as ws:
-                try:
-                    raw = await asyncio.wait_for(ws.recv(), timeout=timeout)
-                    data = json.loads(raw)
-                except (TimeoutError, Exception):
-                    data = {}
-
-                if data.get("type") == "auth_required":
-                    await ws.send(json.dumps({"type": "auth", "token": password}))
-                    try:
-                        raw2 = await asyncio.wait_for(ws.recv(), timeout=timeout)
-                        resp = json.loads(raw2)
-                        return resp.get("type") != "auth_invalid"
-                    except (TimeoutError, Exception):
-                        return False
-                # No auth challenge — connection accepted without password
-                return True
+            async with websockets.connect(ws_url, ping_interval=None, close_timeout=3) as ws:
+                data = json.loads(await asyncio.wait_for(ws.recv(), timeout=timeout))
+                if data.get("type") != "auth_required":
+                    return True
+                await ws.send(json.dumps({"type": "auth", "token": password}))
+                response = json.loads(await asyncio.wait_for(ws.recv(), timeout=timeout))
+                return response.get("code") == 200
         except Exception:
             return False
