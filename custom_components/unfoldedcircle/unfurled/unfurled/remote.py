@@ -300,6 +300,11 @@ class Remote:
     # WebSocket
     # ------------------------------------------------------------------
 
+    @property
+    def last_update_type(self) -> UpdateType:
+        """Type of the most recent state update."""
+        return self._last_update_type
+
     def on_state_change(self, callback: Callable[[], Coroutine[Any, Any, None]]) -> None:
         """Register a coroutine callback to be called after any WebSocket state update."""
         self._state_change_callbacks.append(callback)
