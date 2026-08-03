@@ -175,6 +175,85 @@ class TestRemoteInit:
         assert remote.device.name == "Living Room Remote"
 
 
+class TestUpdateAndCapabilities:
+    async def test_update_info_uses_available_update_version(self, remote: Remote):
+        remote.device.sw_version = "2.7.0"
+        remote.api.get_system_update = AsyncMock(
+            return_value={
+                "installed_version": "2.7.0",
+                "available": [{"channel": "STABLE", "version": "2.8.0", "description": "Notes"}],
+            }
+        )
+
+        await remote.system._fetch_update_info()
+
+        assert remote.device.sw_version == "2.7.0"
+        assert remote.system.update_info.latest_version == "2.8.0"
+        assert remote.system.update_info.release_notes == "Notes"
+
+    async def test_update_info_reports_installed_version_when_current(self, remote: Remote):
+        remote.device.sw_version = "2.7.0"
+        remote.api.get_system_update = AsyncMock(
+            return_value={"installed_version": "2.7.0", "available": []}
+        )
+
+        await remote.system._fetch_update_info()
+
+        assert remote.system.update_info.latest_version == "2.7.0"
+
+    async def test_force_update_check_uses_put_response(self, remote: Remote):
+        remote.device.sw_version = "2.7.0"
+        remote.api.put_system_update = AsyncMock(
+            return_value={
+                "update_in_progress": True,
+                "update_check_enabled": False,
+                "installed_version": "2.7.0",
+                "available": [{"channel": "STABLE", "version": "2.8.0"}],
+            }
+        )
+        remote.api.get_system_update = AsyncMock()
+
+        await remote.system.force_update_check()
+
+        assert remote.system.update_info.latest_version == "2.8.0"
+        assert remote.system.update_info.in_progress is True
+        assert remote.settings.software_update.check_for_updates is False
+        remote.api.get_system_update.assert_not_awaited()
+
+    async def test_force_update_check_clears_missing_available(self, remote: Remote):
+        remote.device.sw_version = "2.7.0"
+        remote.system.update_info.available = [{"version": "2.8.0"}]
+        remote.system.update_info.latest_version = "2.8.0"
+        remote.api.put_system_update = AsyncMock(
+            return_value={"installed_version": "2.7.0", "update_in_progress": False}
+        )
+
+        await remote.system.force_update_check()
+
+        assert remote.system.update_info.available == []
+        assert remote.system.update_info.latest_version == "2.7.0"
+
+    def test_remote_3_wol_is_gated_by_firmware(self, remote: Remote):
+        remote.device.model_number = "UCR3"
+        remote.device.sw_version = "2.6.9"
+        remote.settings.network.wifi.wake_on_wlan = True
+        remote.settings.network.wifi.wake_on_wlan_available = True
+
+        remote._apply_firmware_capabilities()
+
+        assert remote.settings.network.wifi.wake_on_wlan is False
+        assert remote.settings.network.wifi.wake_on_wlan_available is False
+
+    def test_remote_3_wol_is_available_from_2_7(self, remote: Remote):
+        remote.device.model_number = "UCR3"
+        remote.device.sw_version = "2.7.0"
+        remote.settings.network.wifi.wake_on_wlan_available = True
+
+        remote._apply_firmware_capabilities()
+
+        assert remote.settings.network.wifi.wake_on_wlan_available is True
+
+
 class TestWsMessageHandling:
     async def test_battery_message_updates_state(self, remote: Remote):
         await remote._handle_ws_message(

@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from packaging.version import InvalidVersion, Version
+
 from ..helpers.exceptions import HTTPError, SystemCommandNotFound
 from ..helpers.models import (
     RemoteCommand,
@@ -64,14 +66,51 @@ class System(RemoteModule):
         try:
             if self._remote.device.is_simulator:
                 return
-            data = await self._api.get_system_update()
-            self.update_info.latest_version = data.get("version", "")
-            self.update_info.release_notes_url = data.get("release_notes_url", "")
-            self.update_info.release_notes = data.get("release_notes", "")
-            self.update_info.next_check_date = data.get("next_check_date", "")
-            self.update_info.available = data.get("updates", [])
+            self._apply_update_info(await self._api.get_system_update())
         except HTTPError:
             pass
+
+    def _apply_update_info(self, data: dict) -> None:
+        """Map a GET or PUT system update response onto remote state."""
+        installed_version = data.get("installed_version", self._remote.device.sw_version)
+        if installed_version:
+            self._remote.device.sw_version = installed_version
+
+        self.update_info.in_progress = bool(data.get("update_in_progress", False))
+        self.update_info.next_check_date = data.get("next_check_date", "")
+        self._remote.settings.software_update.check_for_updates = bool(
+            data.get(
+                "update_check_enabled",
+                self._remote.settings.software_update.check_for_updates,
+            )
+        )
+
+        # available is omitted, rather than returned empty, when firmware is current.
+        available = data.get("available", data.get("updates", [])) or []
+        self.update_info.available = available
+        latest = data.get("version", "")
+        update: dict = {}
+        if not latest:
+            candidates = [item for item in available if item.get("version")]
+            if candidates:
+
+                def version_key(item: dict) -> Version:
+                    try:
+                        return Version(item["version"])
+                    except InvalidVersion:
+                        return Version("0")
+
+                update = max(candidates, key=version_key)
+                latest = update["version"]
+
+        self.update_info.latest_version = latest or self._remote.device.sw_version
+        self.update_info.release_notes_url = data.get(
+            "release_notes_url", update.get("release_notes_url", "")
+        )
+        release_notes = data.get("release_notes", update.get("description", ""))
+        self.update_info.release_notes = self._remote.settings.get_text_for_locale(
+            release_notes, default_text=""
+        )
 
     async def _fetch_charger(self) -> None:
         data = await self._api.get_charger()
@@ -138,7 +177,7 @@ class System(RemoteModule):
         try:
             cmd = RemoteCommand(cmd)
         except ValueError:
-            raise SystemCommandNotFound(cmd)
+            raise SystemCommandNotFound(cmd) from None
         await self._ensure_awake()
         await self._api.post_system_command(cmd)
 
@@ -196,7 +235,9 @@ class System(RemoteModule):
         Returns:
             Update information dict from the remote.
         """
-        return await self._api.put_system_update()
+        data = await self._api.put_system_update()
+        self._apply_update_info(data)
+        return data
 
     # ------------------------------------------------------------------
     # Wireless charging

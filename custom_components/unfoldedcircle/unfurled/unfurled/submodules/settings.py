@@ -255,10 +255,16 @@ class Settings(RemoteModule):
         self.network.wifi.band = wifi.get("band", "auto")
         self.network.wifi.scan_interval_sec = wifi.get("scan_interval_sec", 15)
         self.network.wifi.ipv4_type = wifi.get("ipv4_type", "DHCP")
-        # wake_on_wlan can appear at wifi level or network level
-        wol = wifi.get("wake_on_wlan") or net.get("wake_on_wlan") or {}
-        self.network.wifi.wake_on_wlan = bool(wol.get("enabled", False))
-        self.network.wifi.wake_on_wlan_available = bool(wol.get("available", False))
+        # wake_on_wlan can appear at wifi level or network level. Older
+        # firmware exposes only ``enabled``; its presence means the capability
+        # is available unless Remote has explicitly gated it by firmware.
+        wol = wifi.get("wake_on_wlan") or net.get("wake_on_wlan")
+        if isinstance(wol, dict):
+            self.network.wifi.wake_on_wlan = bool(wol.get("enabled", False))
+            self.network.wifi.wake_on_wlan_available = bool(wol.get("available", True))
+        else:
+            self.network.wifi.wake_on_wlan = False
+            self.network.wifi.wake_on_wlan_available = False
         bt_net = net.get("bt", {})
         self.network.bt_address = bt_net.get("address", "")
 

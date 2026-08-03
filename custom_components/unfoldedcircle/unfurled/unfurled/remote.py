@@ -10,7 +10,7 @@ from typing import Any
 from urllib.parse import urljoin, urlparse
 
 import aiohttp
-from packaging.version import Version
+from packaging.version import InvalidVersion, Version
 from wakeonlan import send_magic_packet
 
 from unfurled.api import CoreAPI
@@ -461,7 +461,21 @@ class Remote:
         except Exception as exc:
             _LOGGER.debug("Remote init: failed to fetch activity groups: %s", exc)
 
+        self._apply_firmware_capabilities()
+
         _LOGGER.debug("Remote init complete for %s", self.endpoint)
+
+    def _apply_firmware_capabilities(self) -> None:
+        """Apply model-and-firmware capability gates absent from older APIs."""
+        if self.device.model_number.upper() != "UCR3":
+            return
+        try:
+            supports_wol = Version(self.device.sw_version) >= Version("2.7.0")
+        except (InvalidVersion, TypeError):
+            supports_wol = False
+        if not supports_wol:
+            self.settings.network.wifi.wake_on_wlan = False
+            self.settings.network.wifi.wake_on_wlan_available = False
 
     async def update(self) -> None:
         """Refresh volatile state (battery, stats, settings, activity states)."""
