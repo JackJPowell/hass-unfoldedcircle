@@ -159,7 +159,7 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
         if key == "ambient_light_intensity":
             return api.state.ambient_light_level
         if key == "power_mode":
-            return api.state.power_mode
+            return str(api.state.power_mode).replace("_", " ").title()
         if key == "memory_available":
             return api.system.stats.memory_available
         if key == "storage_available":
