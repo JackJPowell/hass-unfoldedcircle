@@ -6,23 +6,27 @@ import logging
 import re
 from typing import Any
 
+from unfurled.helpers.exceptions import AuthenticationError
 import voluptuous as vol
 from voluptuous import Any as VolAny
 
 from homeassistant.components import persistent_notification
 from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import (
     config_validation as cv,
-    entity_registry as er,
     device_registry as dr,
+    entity_registry as er,
 )
 from homeassistant.util import dt as dt_util
-from homeassistant.exceptions import HomeAssistantError
-from .coordinator import UnfoldedCircleConfigEntry
+
 from .const import DOMAIN
-from .coordinator import UnfoldedCircleCoordinator, UnfoldedCircleDockCoordinator
+from .coordinator import (
+    UnfoldedCircleConfigEntry,
+    UnfoldedCircleCoordinator,
+    UnfoldedCircleDockCoordinator,
+)
 from .helpers import Command
-from unfurled.helpers.exceptions import AuthenticationError
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
 
@@ -206,7 +210,7 @@ async def async_service_handle(
             for selected_device_id in service_call.data.get("device_id", []):
                 ha_device = device_registry.async_get(selected_device_id)
                 if ha_device:
-                    for _, coor in config_entry.runtime_data.docks.items():
+                    for coor in config_entry.runtime_data.docks.values():
                         dock_identifiers = {
                             (
                                 DOMAIN,
@@ -226,7 +230,7 @@ async def async_service_handle(
                     if entity and entity.device_id:
                         ha_device = device_registry.async_get(entity.device_id)
                         if ha_device:
-                            for _, coor in config_entry.runtime_data.docks.items():
+                            for coor in config_entry.runtime_data.docks.values():
                                 dock_identifiers = {
                                     (
                                         DOMAIN,
@@ -254,7 +258,7 @@ async def async_service_handle(
                     translation_key="unknown_dock",
                 )
 
-    for _, coor in config_entry.runtime_data.docks.items():
+    for coor in config_entry.runtime_data.docks.values():
         if coor.api.device.name == dock_name:
             dock_coordinator = coor
             break
