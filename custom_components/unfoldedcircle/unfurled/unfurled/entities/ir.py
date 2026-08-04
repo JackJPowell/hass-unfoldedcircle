@@ -101,6 +101,7 @@ class IREmitter:
         self._name: str = data.get("name", "")
         self._type: str = data.get("type", "")
         self._state: str = data.get("state", "")
+        self._ports: list[dict] = data.get("ports", [])
 
     # ------------------------------------------------------------------
     # Properties
@@ -125,6 +126,11 @@ class IREmitter:
     def state(self) -> str:
         """Current emitter state (e.g. ``"CONNECTED"`` or ``"IDLE"``)."""
         return self._state
+
+    @property
+    def ports(self) -> list[dict]:
+        """Output ports exposed by this emitter."""
+        return self._ports
 
     # ------------------------------------------------------------------
     # Commands

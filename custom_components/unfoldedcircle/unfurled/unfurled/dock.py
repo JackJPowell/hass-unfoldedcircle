@@ -108,7 +108,7 @@ class Dock:
     ) -> Dock:
         """Create a Dock from the dict returned by ``GET /docks``."""
         return cls(
-            dock_id=data.get("entity_id", ""),
+            dock_id=data.get("dock_id", ""),
             api_key=api_key,
             remote_endpoint=remote_endpoint,
             remote_configuration_url=remote_configuration_url,
@@ -266,7 +266,10 @@ class Dock:
         return await self._ws_client.request(command, **data)
 
     async def _proxy_command(self, command: DockCommand, **params: object) -> dict:
-        return await self.api.post_dock_command(self.device.id, {"cmd": command.value, **params})
+        body: dict[str, str] = {"command": command.value}
+        if params:
+            body["value"] = str(next(iter(params.values())))
+        return await self.api.post_dock_command(self.device.id, body)
 
     async def _direct_command(self, command: DockCommand, **params: object) -> dict:
         if command is DockCommand.SET_LED_BRIGHTNESS:
