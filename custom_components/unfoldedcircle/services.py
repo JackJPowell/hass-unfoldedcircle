@@ -172,13 +172,13 @@ async def async_prevent_sleep(
                 # unique_id format is "{model}_{serial}_{activity_id}"; strip the prefix
                 prefix = f"{coordinator.api.device.model_number}_{coordinator.api.device.serial_number}_"
                 activity_id = entity.unique_id.removeprefix(prefix)
-                activity = coordinator.api.get_activity_by_id(activity_id)
+                activity = coordinator.api.find_activity(activity_id)
                 if activity is None:
                     raise HomeAssistantError(
                         translation_domain=DOMAIN,
                         translation_key="activity_not_found",
                     )
-                await activity.edit(service_call.data)
+                await activity.edit(**service_call.data)
 
 
 async def async_service_handle(
