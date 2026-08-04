@@ -180,7 +180,7 @@ def make_ir_emitters() -> list[dict]:
 def make_docks() -> list[dict]:
     return [
         {
-            "entity_id": "uc-dock-aa:bb:cc:dd:ee:01",
+            "dock_id": "uc-dock-aa:bb:cc:dd:ee:01",
             "name": "Living Room Dock",
             "ws_url": "ws://192.168.1.20:8080/ws",
             "active": True,
