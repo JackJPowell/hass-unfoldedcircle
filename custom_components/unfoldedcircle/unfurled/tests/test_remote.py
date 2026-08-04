@@ -9,6 +9,7 @@ import pytest
 from aioresponses import aioresponses
 
 from unfurled import Remote
+from unfurled.entities.ir import IREmitter
 from unfurled.helpers.exceptions import RemoteIsSleeping, SystemCommandNotFound
 from unfurled.helpers.models import UpdateType
 
@@ -252,6 +253,19 @@ class TestUpdateAndCapabilities:
         remote._apply_firmware_capabilities()
 
         assert remote.settings.network.wifi.wake_on_wlan_available is True
+
+
+class TestIREmitter:
+    def test_ports_are_preserved(self, remote: Remote):
+        ports = [{"port_id": "1", "name": "Front"}]
+        emitter = IREmitter({"device_id": "dock-1", "ports": ports}, remote)
+
+        assert emitter.ports == ports
+
+    def test_ports_default_to_empty_list(self, remote: Remote):
+        emitter = IREmitter({"device_id": "dock-1"}, remote)
+
+        assert emitter.ports == []
 
 
 class TestWsMessageHandling:

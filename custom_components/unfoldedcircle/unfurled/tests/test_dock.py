@@ -17,7 +17,7 @@ DOCK_WS = "ws://192.168.1.20:8080/ws"
 
 
 DOCK_DATA = {
-    "entity_id": "uc-dock-aa:bb:cc:dd:ee:01",
+    "dock_id": "uc-dock-aa:bb:cc:dd:ee:01",
     "name": "My Dock",
     "ws_url": DOCK_WS,
     "active": True,
@@ -85,16 +85,14 @@ class TestDockRestCommands:
             await dock.system._send_command(DockCommand.REBOOT)
 
     async def test_set_led_brightness(self, dock: Dock):
-        with aioresponses() as m:
-            m.post(
-                f"{BASE_URL}docks/devices/{dock.device.id}/command",
-                payload={"status": "ok"},
-            )
-            m.put(
-                f"{BASE_URL}docks/{dock.device.id}",
-                payload={"led_brightness": 75},
-            )
-            await dock.system.set_led_brightness(75)
+        dock.api.post_dock_command = AsyncMock(return_value={"status": "ok"})
+
+        await dock.system.set_led_brightness(75)
+
+        dock.api.post_dock_command.assert_awaited_once_with(
+            dock.device.id,
+            {"command": "SET_LED_BRIGHTNESS", "value": "75"},
+        )
         assert dock.state.led_brightness == 75
 
     async def test_identify_sends_command(self, dock: Dock):

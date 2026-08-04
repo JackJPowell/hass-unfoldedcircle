@@ -204,11 +204,11 @@ class TestEndpoints:
             await api.post_system_command("STANDBY")
 
     async def test_get_docks(self, api: CoreAPI):
-        payload = [{"entity_id": "uc-dock-001", "name": "My Dock"}]
+        payload = [{"dock_id": "uc-dock-001", "name": "My Dock"}]
         with aioresponses() as m:
             m.get(f"{BASE}docks?limit=100", payload=payload)
             result = await api.get_docks()
-        assert result[0]["entity_id"] == "uc-dock-001"
+        assert result[0]["dock_id"] == "uc-dock-001"
 
     async def test_put_ir_send(self, api: CoreAPI):
         with aioresponses() as m:
