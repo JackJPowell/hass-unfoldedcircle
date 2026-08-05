@@ -215,12 +215,12 @@ async def async_service_handle(
                             (
                                 DOMAIN,
                                 coor.subentry.unique_id,
-                                coor.api.model_number,
-                                coor.api.serial_number,
+                                coor.api.device.model_number,
+                                coor.api.device.serial_number,
                             )
                         }
                         if dock_identifiers & ha_device.identifiers:
-                            dock_name = coor.api.name
+                            dock_name = coor.api.device.name
                             break
 
             # Fall back to resolving from entity_id target
@@ -235,12 +235,12 @@ async def async_service_handle(
                                     (
                                         DOMAIN,
                                         coor.subentry.unique_id,
-                                        coor.api.model_number,
-                                        coor.api.serial_number,
+                                        coor.api.device.model_number,
+                                        coor.api.device.serial_number,
                                     )
                                 }
                                 if dock_identifiers & ha_device.identifiers:
-                                    dock_name = coor.api.name
+                                    dock_name = coor.api.device.name
                                     break
 
         # If still no dock name, fall back to single-dock auto-select
@@ -248,7 +248,7 @@ async def async_service_handle(
             if len(config_entry.runtime_data.docks.items()) == 1:
                 dock_name = next(
                     iter(config_entry.runtime_data.docks.values())
-                ).api.name
+                ).api.device.name
             elif service_call.service in (
                 LEARN_IR_COMMAND_SERVICE,
                 SEND_IR_COMMAND_SERVICE,
