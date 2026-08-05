@@ -265,7 +265,7 @@
     },
     "dock_unreachable": {
       "title": "Dock {name} is unreachable",
-      "description": "The dock could not be reached during initialization. Error: {error}. The main remote will continue to work normally, but dock-specific features will be unavailable until the dock is back online. Try reloading the integration once the dock is accessible."
+      "description": "The dock did not respond. Error: {error}. The main remote will continue to work normally, but dock-specific features are unavailable while the dock is offline. This notice clears by itself once the dock responds again."
     }
   }
 }

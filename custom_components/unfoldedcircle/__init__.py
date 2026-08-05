@@ -25,8 +25,6 @@ from .coordinator import (
 from .helpers import (
     get_registered_websocket_url,
     async_create_issue_dock_password,
-    async_create_issue_dock_unreachable,
-    async_delete_issue_dock_unreachable,
     async_create_issue_websocket_connection,
 )
 
@@ -171,22 +169,17 @@ async def async_setup_entry(
             dock_coordinator = UnfoldedCircleDockCoordinator(
                 hass, dock, entry, subentry
             )
-            try:
-                await dock_coordinator.api.update()
-                await dock_coordinator.async_config_entry_first_refresh()
-                docks[subentry_id] = dock_coordinator
-                # Clear any previous unreachable issue for this dock
-                async_delete_issue_dock_unreachable(hass, dock.id)
-            except Exception as ex:
-                _LOGGER.warning(
-                    "Could not initialize connection to dock %s (%s): %s. "
-                    "The main remote will continue to work, but dock features will be unavailable.",
-                    dock.name,
-                    dock.endpoint,
-                    ex,
-                )
-                # Create a repair issue for the unreachable dock
-                async_create_issue_dock_unreachable(hass, dock, entry, subentry, ex)
+            # Register the coordinator even when the dock does not answer.
+            # async_refresh() records a failure on the coordinator rather than
+            # raising, so the dock's entities are always created: they report
+            # unavailable while the dock is silent and recover on a later poll.
+            # async_config_entry_first_refresh() would raise instead. That left
+            # the entities uncreated, lingering as restored registry entries
+            # while the config entry still reported itself as loaded, until
+            # someone reloaded the integration by hand. The coordinator raises
+            # and clears the repair issue as reachability changes.
+            await dock_coordinator.async_refresh()
+            docks[subentry_id] = dock_coordinator
         else:
             dock = remote_api.get_dock_by_id(subentry.data["id"])
             if dock:

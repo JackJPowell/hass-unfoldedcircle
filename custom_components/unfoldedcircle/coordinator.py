@@ -19,9 +19,18 @@ from homeassistant.helpers.update_coordinator import (
 )
 from pyUnfoldedCircleRemote.remote import Remote
 from pyUnfoldedCircleRemote.remote_websocket import RemoteWebsocket
-from pyUnfoldedCircleRemote.dock import Dock
+from pyUnfoldedCircleRemote.dock import Dock, HTTPError as DockHTTPError
 
-from .const import DEVICE_SCAN_INTERVAL, DOMAIN
+from .const import (
+    DEVICE_SCAN_INTERVAL,
+    DOCK_FAILURE_THRESHOLD,
+    DOCK_SCAN_INTERVAL,
+    DOMAIN,
+)
+from .helpers import (
+    async_create_issue_dock_unreachable,
+    async_delete_issue_dock_unreachable,
+)
 from .websocket import UCWebsocketClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -177,7 +186,81 @@ class UnfoldedCircleDockCoordinator(
         """Initialize the Coordinator."""
         super().__init__(hass, dock, config_entry=entry)
         self.subentry = subentry
+        # Unlike the remote, a dock has no websocket feeding this coordinator
+        # (init_websocket below is a no-op). Without polling, the dock is only
+        # ever contacted once, during setup: a dock that goes offline afterwards
+        # stays invisible because its entities keep serving their last known
+        # values. Polling on a slower schedule than the remote makes the dock's
+        # reachability observable without adding much traffic.
+        self.update_interval = DOCK_SCAN_INTERVAL
+        self._consecutive_failures = 0
+        # Guards against re-reporting an outage on every poll: creating the
+        # repair issue also logs a warning.
+        self._unreachable_reported = False
 
     async def init_websocket(self, initial_events: str = ""):
         """Initialize the Web Socket"""
         pass
+
+    async def update_data(self) -> dict[str, Any]:
+        """Poll the dock, keeping its repair issue in sync with reachability."""
+        try:
+            # The full update() is used rather than only get_info(): it also
+            # refreshes the update status that UpdateDock seeds its versions
+            # from. Without it, latest_version stays empty and the entity
+            # reports a firmware update that does not exist.
+            await self.api.update()
+        except DockHTTPError as ex:
+            # The remote answered but reported that it cannot reach the dock
+            # ("503 Connection to dock not established"), so the dock really is
+            # the faulty part here and it is worth raising a repair issue for.
+            return self._async_handle_failed_poll(ex, dock_at_fault=True)
+        except Exception as ex:
+            # The remote itself did not answer. Dock requests travel through the
+            # remote, and the remote sleeps a few minutes after it stops
+            # charging, so this also happens during entirely normal use. The
+            # dock entities still become unavailable, since they really cannot
+            # be reached, but a "dock unreachable" repair would blame the wrong
+            # device for something that resolves itself once the remote wakes.
+            return self._async_handle_failed_poll(ex, dock_at_fault=False)
+
+        self._consecutive_failures = 0
+        # Deleting an unknown issue is a documented no-op, so this also clears an
+        # issue raised before a reload, when this instance never saw the failure.
+        self._unreachable_reported = False
+        async_delete_issue_dock_unreachable(self.hass, self.api.id)
+        return vars(self.api)
+
+    def _async_handle_failed_poll(
+        self, ex: Exception, dock_at_fault: bool
+    ) -> dict[str, Any]:
+        """Account for a failed poll, tolerating a single miss.
+
+        Returns the previous data while the failure is still within the
+        tolerance, and raises UpdateFailed once it is not.
+        """
+        self._consecutive_failures += 1
+        # A single miss is usually a slow answer rather than a real outage: the
+        # library allows five seconds per call. Keep serving the previous data
+        # until two polls in a row fail, so one slow response does not flip
+        # every entity to unavailable and raise a repair issue that clears
+        # moments later.
+        if (
+            self._consecutive_failures < DOCK_FAILURE_THRESHOLD
+            and self.data is not None
+        ):
+            _LOGGER.debug(
+                "Dock %s did not answer, waiting for the next poll: %s",
+                self.api.name,
+                ex,
+            )
+            return self.data
+
+        if dock_at_fault and not self._unreachable_reported:
+            self._unreachable_reported = True
+            async_create_issue_dock_unreachable(
+                self.hass, self.api, self.config_entry, self.subentry, ex
+            )
+        raise UpdateFailed(
+            f"Error communicating with Unfolded Circle dock {self.api.name}: {ex}"
+        ) from ex

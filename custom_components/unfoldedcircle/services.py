@@ -243,12 +243,18 @@ async def async_service_handle(
                                     dock_name = coor.api.name
                                     break
 
-        # If still no dock name, fall back to single-dock auto-select
+        # If still no dock name, fall back to single-dock auto-select.
+        # Only consider docks that are currently answering: unreachable docks
+        # are registered as well, so counting all of them would drop the
+        # auto-select for a working dock as soon as a second dock is offline.
         if dock_name is None:
-            if len(config_entry.runtime_data.docks.items()) == 1:
-                dock_name = next(
-                    iter(config_entry.runtime_data.docks.values())
-                ).api.name
+            reachable_docks = [
+                coor
+                for coor in config_entry.runtime_data.docks.values()
+                if coor.last_update_success
+            ]
+            if len(reachable_docks) == 1:
+                dock_name = reachable_docks[0].api.name
             elif service_call.service in (
                 LEARN_IR_COMMAND_SERVICE,
                 SEND_IR_COMMAND_SERVICE,

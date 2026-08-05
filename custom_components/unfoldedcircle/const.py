@@ -9,6 +9,11 @@ CONF_ACTIVITIES_AS_SWITCHES = "activities_as_switches"
 CONF_GLOBAL_MEDIA_ENTITY = "global_media_entity"
 CONF_SUPPRESS_ACTIVITIY_GROUPS = "suppress_activity_groups"
 DEVICE_SCAN_INTERVAL = timedelta(seconds=30)
+# Docks are polled on their own, slower schedule: the data barely changes and
+# every request travels through the remote. Two consecutive misses are required
+# before a dock counts as unreachable, so one slow response stays invisible.
+DOCK_SCAN_INTERVAL = timedelta(minutes=2)
+DOCK_FAILURE_THRESHOLD = 2
 REMOTE_ON_BEHAVIOR = "remote_on_behavior"
 UC_HA_TOKEN_ID = "ws-ha-api"
 UC_HA_SYSTEM = "hass"

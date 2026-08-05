@@ -233,7 +233,12 @@ class UCDockNumber(UnfoldedCircleDockEntity, NumberEntity):
         self.entity_description = description
         self._attr_unique_id = f"{subentry.unique_id}_{self.coordinator.api.model_number}_{self.coordinator.api.serial_number}_{description.unique_id}"
         key = "_" + description.key
-        self._attr_native_value = coordinator.data.get(key)
+        # coordinator.data is None until a refresh succeeds, which is the case
+        # when the dock did not answer during setup. Fall back to no value
+        # instead of failing the whole platform; the entity reports unavailable
+        # anyway while the coordinator is in a failed state, and picks up a real
+        # value on the first successful poll.
+        self._attr_native_value = (coordinator.data or {}).get(key)
 
     async def async_added_to_hass(self) -> None:
         """Run when this Entity has been added to HA."""
