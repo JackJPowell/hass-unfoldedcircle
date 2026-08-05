@@ -198,7 +198,7 @@ async def async_setup_entry(
 
     await coordinator.async_config_entry_first_refresh()
 
-    if coordinator.api.system.flags.external_entity_configuration_available and
+    if coordinator.api.system.flags.external_entity_configuration_available:
         if not await get_registered_websocket_url(coordinator.api):
             # We haven't registered a new external system yet, raise issue
             async_create_issue_websocket_connection(hass, entry, coordinator)
@@ -213,7 +213,7 @@ async def async_setup_entry(
     return True
 
 
-async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
+async def async_migrate_entry(_hass: HomeAssistant, _config_entry: ConfigEntry) -> bool:
     """Migrate old config entries."""
     return True
 
@@ -241,7 +241,7 @@ async def async_unload_entry(
 
 
 async def async_remove_entry(
-    hass: HomeAssistant, entry: UnfoldedCircleConfigEntry
+    _hass: HomeAssistant, entry: UnfoldedCircleConfigEntry
 ) -> None:
     """Handle removal of an entry."""
     try:
