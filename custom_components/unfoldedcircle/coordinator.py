@@ -19,7 +19,11 @@ from homeassistant.helpers.update_coordinator import (
     UpdateFailed,
 )
 
-from .const import DEVICE_SCAN_INTERVAL, DOMAIN
+from .const import DEVICE_SCAN_INTERVAL, DOCK_FAILURE_THRESHOLD, DOMAIN
+from .issues import (
+    async_create_issue_dock_unreachable,
+    async_delete_issue_dock_unreachable,
+)
 from .websocket import UCWebsocketClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -143,16 +147,47 @@ class UnfoldedCircleDockCoordinator(
         """Initialize the Coordinator."""
         super().__init__(hass, dock, config_entry=entry)
         self.subentry = subentry
+        self._consecutive_failures = 0
+        self._unreachable_reported = False
 
     async def update_data(self) -> dict[str, Any]:
         """Refresh dock state."""
         try:
             await self.api.update()
-            return {"updated": True}
+        except HTTPError as ex:
+            return self._handle_failed_poll(ex, dock_at_fault=True)
         except Exception as ex:
-            raise UpdateFailed(
-                f"Error communicating with Unfolded Circle Dock: {ex}"
-            ) from ex
+            return self._handle_failed_poll(ex, dock_at_fault=False)
+
+        self._consecutive_failures = 0
+        self._unreachable_reported = False
+        async_delete_issue_dock_unreachable(self.hass, self.api.device.id)
+        return {"updated": True}
+
+    def _handle_failed_poll(
+        self, error: Exception, *, dock_at_fault: bool
+    ) -> dict[str, Any]:
+        """Tolerate one failed poll before marking the dock unavailable."""
+        self._consecutive_failures += 1
+        if (
+            self._consecutive_failures < DOCK_FAILURE_THRESHOLD
+            and self.data is not None
+        ):
+            _LOGGER.debug(
+                "Dock %s did not answer, waiting for the next poll: %s",
+                self.api.device.name,
+                error,
+            )
+            return self.data
+
+        if dock_at_fault and not self._unreachable_reported:
+            self._unreachable_reported = True
+            async_create_issue_dock_unreachable(
+                self.hass, self.api, self.config_entry, self.subentry, error
+            )
+        raise UpdateFailed(
+            f"Error communicating with Unfolded Circle Dock {self.api.device.name}: {error}"
+        ) from error
 
     async def init_websocket(self):
         """Connect to the dock's native WebSocket for real-time updates."""

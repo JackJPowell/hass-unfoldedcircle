@@ -10,6 +10,7 @@ CONF_GLOBAL_MEDIA_ENTITY = "global_media_entity"
 CONF_SUPPRESS_ACTIVITIY_GROUPS = "suppress_activity_groups"
 CONF_DIRECT_DOCK_COMMUNICATION = "direct_dock_communication"
 DEVICE_SCAN_INTERVAL = timedelta(seconds=30)
+DOCK_FAILURE_THRESHOLD = 2
 REMOTE_ON_BEHAVIOR = "remote_on_behavior"
 UC_HA_TOKEN_ID = "ws-ha-api"
 UC_HA_SYSTEM = "hass"

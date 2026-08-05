@@ -30,10 +30,8 @@ from .coordinator import (
 from .helpers import get_registered_websocket_url
 from .issues import (
     async_create_issue_dock_password,
-    async_create_issue_dock_unreachable,
     async_create_issue_websocket_connection,
     async_delete_issue,
-    async_delete_issue_dock_unreachable,
 )
 from .services import async_setup_services
 
@@ -189,21 +187,10 @@ async def async_setup_entry(
             dock_coordinator = UnfoldedCircleDockCoordinator(
                 hass, dock, entry, subentry
             )
-            try:
-                await dock_coordinator.api.update()
-                await dock_coordinator.async_config_entry_first_refresh()
-                docks[subentry_id] = dock_coordinator
-                # Clear any previous unreachable issue for this dock
-                async_delete_issue_dock_unreachable(hass, dock.device.id)
-            except Exception as ex:
-                _LOGGER.warning(
-                    "Could not initialize connection to dock %s: %s. "
-                    "The main remote will continue to work, but dock features will be unavailable.",
-                    dock.device.name,
-                    ex,
-                )
-                # Create a repair issue for the unreachable dock
-                async_create_issue_dock_unreachable(hass, dock, entry, subentry, ex)
+            # Keep dock entities registered even if the first request times
+            # out. They will be unavailable until a later poll succeeds.
+            docks[subentry_id] = dock_coordinator
+            await dock_coordinator.async_refresh()
         else:
             dock = remote_api.find_dock(subentry.data["id"])
             if dock:

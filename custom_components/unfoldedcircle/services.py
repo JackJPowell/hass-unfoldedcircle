@@ -243,12 +243,16 @@ async def async_service_handle(
                                     dock_name = coor.api.device.name
                                     break
 
-        # If still no dock name, fall back to single-dock auto-select
+        # A coordinator is kept for unreachable docks too, so only consider
+        # docks currently able to answer when auto-selecting one.
         if dock_name is None:
-            if len(config_entry.runtime_data.docks.items()) == 1:
-                dock_name = next(
-                    iter(config_entry.runtime_data.docks.values())
-                ).api.device.name
+            reachable_docks = [
+                coor
+                for coor in config_entry.runtime_data.docks.values()
+                if coor.last_update_success
+            ]
+            if len(reachable_docks) == 1:
+                dock_name = reachable_docks[0].api.device.name
             elif service_call.service in (
                 LEARN_IR_COMMAND_SERVICE,
                 SEND_IR_COMMAND_SERVICE,
