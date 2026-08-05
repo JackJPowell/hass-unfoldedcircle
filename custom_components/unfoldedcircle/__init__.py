@@ -15,12 +15,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 
-from .const import (
-    CONF_DIRECT_DOCK_COMMUNICATION,
-    DOMAIN,
-    UC_HA_SYSTEM,
-    UC_HA_TOKEN_ID,
-)
+from .const import CONF_DIRECT_DOCK_COMMUNICATION, DOMAIN, UC_HA_SYSTEM, UC_HA_TOKEN_ID
 from .coordinator import (
     UnfoldedCircleConfigEntry,
     UnfoldedCircleDockCoordinator,
@@ -103,7 +98,8 @@ async def async_setup_entry(
         hass.config_entries.async_update_entry(entry, version=3)
 
     if entry.version < 4:
-        # get entity registry and remove deleted button_backlight and button_backlight_brightness entities
+        # get entity registry and remove deleted button_backlight
+        # and button_backlight_brightness entities
         entity_registry = er.async_get(hass)
         for entity in er.async_entries_for_config_entry(
             entity_registry, entry.entry_id
@@ -202,7 +198,7 @@ async def async_setup_entry(
 
     await coordinator.async_config_entry_first_refresh()
 
-    if coordinator.api.system.flags.external_entity_configuration_available:
+    if coordinator.api.system.flags.external_entity_configuration_available and
         if not await get_registered_websocket_url(coordinator.api):
             # We haven't registered a new external system yet, raise issue
             async_create_issue_websocket_connection(hass, entry, coordinator)
