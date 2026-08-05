@@ -309,27 +309,24 @@ class IR:
     async def async_learn_command(self, **kwargs: Any) -> None:
         """Learn a list of commands from a remote."""
 
-        await self.dock_coordinator.api.get_remotes_complete()
-
         name = self.data.get("remote").get("name")
         description = self.data.get("remote").get("description")
         icon = self.data.get("remote").get("icon")
         subdevice = self.data.get("ir_dataset").get("name")
-        for command in self.data.get("ir_dataset").get("command"):
-            try:
-                await self._async_learn_ir_command(
-                    command, subdevice, name, description, icon
-                )
-
-            except (AuthenticationError, OSError) as err:
-                _LOGGER.error("Failed to learn '%s': %s", command, err)
-                break
-
-            except Exception as err:
-                _LOGGER.error("Failed to learn '%s': %s", command, err)
-                continue
-
-        await self.dock_coordinator.api.stop_ir_learning()
+        try:
+            for command in self.data.get("ir_dataset").get("command"):
+                try:
+                    await self._async_learn_ir_command(
+                        command, subdevice, name, description, icon
+                    )
+                except (AuthenticationError, OSError) as err:
+                    _LOGGER.error("Failed to learn '%s': %s", command, err)
+                    break
+                except Exception as err:
+                    _LOGGER.error("Failed to learn '%s': %s", command, err)
+                    continue
+        finally:
+            await self.dock_coordinator.api.stop_ir_learning()
 
     async def _async_learn_ir_command(self, command, device, name, description, icon):
         """Learn an infrared command."""
@@ -352,7 +349,12 @@ class IR:
         remote_entity_id = ""
         await self.dock_coordinator.api.get_remotes_complete()
         for remote in self.dock_coordinator.api.remotes_complete:
-            if remote.get("options").get("ir").get("codeset").get("name") == device:
+            if not isinstance(remote, dict):
+                continue
+            options = remote.get("options") or {}
+            ir_options = options.get("ir") or {}
+            codeset = ir_options.get("codeset") or {}
+            if codeset.get("name") == device:
                 remote_entity_id = remote.get("entity_id")
                 is_existing_list = True
 
@@ -382,7 +384,7 @@ class IR:
 
         try:
             start_time = dt_util.utcnow()
-            self.dock_coordinator.api._learned_code = None
+            self.dock_coordinator.api.clear_learned_code()
             while (dt_util.utcnow() - start_time) < LEARNING_TIMEOUT:
                 await asyncio.sleep(1)
                 try:
@@ -396,7 +398,7 @@ class IR:
                             ir_code,
                             ir_format,
                         )
-                        self.dock_coordinator.api._learned_code = None
+                        self.dock_coordinator.api.clear_learned_code()
                         return
                 except AuthenticationError:
                     continue

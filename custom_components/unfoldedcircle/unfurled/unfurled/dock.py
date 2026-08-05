@@ -77,7 +77,7 @@ class Dock:
         self.system = System(self)
         self.settings = Settings()
 
-        self._learned_code: dict = {}
+        self._learned_code: dict | None = None
 
         # Auth / connection
         self._api_key = api_key
@@ -134,9 +134,13 @@ class Dock:
         return self._ws_url
 
     @property
-    def learned_code(self) -> dict:
+    def learned_code(self) -> dict | None:
         """Most recently learned IR code (populated during a learning session)."""
         return self._learned_code
+
+    def clear_learned_code(self) -> None:
+        """Discard the most recently learned IR code."""
+        self._learned_code = None
 
     @property
     def codesets(self) -> list[dict]:
