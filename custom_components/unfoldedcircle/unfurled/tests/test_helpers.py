@@ -337,9 +337,7 @@ class TestFindUnusedActivityEntities:
 class TestFindOrphanedIRCodesets:
     async def test_returns_only_unassociated_custom_codesets(self):
         helpers, mock_api = make_helpers()
-        mock_api.get_remotes = AsyncMock(
-            return_value=[{"entity_id": "remote.ir.lounge"}]
-        )
+        mock_api.get_remotes = AsyncMock(return_value=[{"entity_id": "remote.ir.lounge"}])
         mock_api.get_remote = AsyncMock(
             return_value={"options": {"ir": {"codeset": {"id": "assigned"}}}}
         )
@@ -352,9 +350,7 @@ class TestFindOrphanedIRCodesets:
 
         result = await helpers.find_orphaned_ir_codesets()
 
-        assert result == [
-            {"device_id": "orphaned", "device_name": "Old Receiver"}
-        ]
+        assert result == [{"device_id": "orphaned", "device_name": "Old Receiver"}]
         mock_api.get_remotes.assert_awaited_once_with(kind="IR", page=1)
         mock_api.get_ir_custom_codes.assert_awaited_once_with(page=1)
 

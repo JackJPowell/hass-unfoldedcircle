@@ -62,9 +62,13 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
         self._attr_unique_id = f"{coordinator.api.device.model_number}_{self.coordinator.api.device.serial_number}_update_status"
         self._attr_name = "Firmware"
         self._attr_device_class = UpdateDeviceClass.FIRMWARE
-        self._attr_auto_update = self.coordinator.api.settings.software_update.auto_update
+        self._attr_auto_update = (
+            self.coordinator.api.settings.software_update.auto_update
+        )
         self._attr_installed_version = self.coordinator.api.device.sw_version
-        self._attr_latest_version = self.coordinator.api.system.update_info.latest_version
+        self._attr_latest_version = (
+            self.coordinator.api.system.update_info.latest_version
+        )
         self._attr_release_notes = self.coordinator.api.system.update_info.release_notes
         self._attr_entity_category = EntityCategory.CONFIG
         self._download_progress = 0
@@ -81,7 +85,10 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
     @property
     def update_percentage(self) -> int | float | None:
         if self.coordinator.api.system.update_info.update_percent > 0:
-            if self._download_progress > self.coordinator.api.system.update_info.update_percent:
+            if (
+                self._download_progress
+                > self.coordinator.api.system.update_info.update_percent
+            ):
                 return self._download_progress
             else:
                 if self.coordinator.api.system.update_info.update_percent == 0:
@@ -183,7 +190,9 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
         """Update update information."""
         try:
             await self.coordinator.api.system.force_update_check()
-            self._attr_latest_version = self.coordinator.api.system.update_info.latest_version
+            self._attr_latest_version = (
+                self.coordinator.api.system.update_info.latest_version
+            )
             self._attr_installed_version = self.coordinator.api.device.sw_version
         except Exception as ex:
             _LOGGER.debug("Failure when checking for update: %s", ex)
@@ -233,7 +242,9 @@ class UpdateDock(UnfoldedCircleDockEntity, UpdateEntity):
         self._attr_name = "Firmware"
         self._attr_device_class = UpdateDeviceClass.FIRMWARE
         self._attr_installed_version = self.coordinator.api.device.software_version
-        self._attr_latest_version = self.coordinator.api.system.update_info.latest_version
+        self._attr_latest_version = (
+            self.coordinator.api.system.update_info.latest_version
+        )
         self._attr_entity_category = EntityCategory.CONFIG
         self._updated_requested = False
 
@@ -275,7 +286,9 @@ class UpdateDock(UnfoldedCircleDockEntity, UpdateEntity):
         """Update update information."""
         try:
             await self.coordinator.api.system.get_update_status()
-            self._attr_latest_version = self.coordinator.api.system.update_info.latest_version
+            self._attr_latest_version = (
+                self.coordinator.api.system.update_info.latest_version
+            )
             self._attr_installed_version = self.coordinator.api.device.software_version
         except Exception as ex:
             _LOGGER.debug("Failure when checking for dock update: %s", ex)
@@ -284,9 +297,7 @@ class UpdateDock(UnfoldedCircleDockEntity, UpdateEntity):
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         update_info = self.coordinator.api.system.update_info
-        if (
-            update_info.in_progress is True
-        ) and self._updated_requested is True:
+        if (update_info.in_progress is True) and self._updated_requested is True:
             if update_info.update_percent == 0:
                 self._attr_in_progress = "0"
             elif update_info.update_percent == 100:
@@ -297,5 +308,7 @@ class UpdateDock(UnfoldedCircleDockEntity, UpdateEntity):
         else:
             self._attr_in_progress = False
             self._attr_installed_version = self.coordinator.api.device.software_version
-            self._attr_latest_version = self.coordinator.api.system.update_info.latest_version
+            self._attr_latest_version = (
+                self.coordinator.api.system.update_info.latest_version
+            )
         self.async_write_ha_state()

@@ -98,7 +98,7 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, config_entry: UnfoldedCircleConfigEntry, async_add_entities
+    _hass: HomeAssistant, config_entry: UnfoldedCircleConfigEntry, async_add_entities
 ):
     """Add sensors for passed config_entry in HA."""
     coordinator = config_entry.runtime_data.coordinator

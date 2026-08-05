@@ -46,15 +46,11 @@ class Integrations(RemoteModule):
         """
         return await self._api.put_integration(integration_id, cmd)
 
-    async def get_entities(
-        self, integration_id: str, *, reload: bool = False
-    ) -> list[dict]:
+    async def get_entities(self, integration_id: str, *, reload: bool = False) -> list[dict]:
         """Return entities configured for an integration instance."""
         return await self._api.get_integration_entities(integration_id, reload=reload)
 
-    async def configure_entities(
-        self, integration_id: str, entity_ids: list[str]
-    ) -> list[str]:
+    async def configure_entities(self, integration_id: str, entity_ids: list[str]) -> list[str]:
         """Replace an integration instance's configured entity IDs."""
         return await self._api.post_integration_entities(integration_id, entity_ids)
 

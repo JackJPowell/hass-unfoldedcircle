@@ -508,9 +508,7 @@ class CoreAPI:
         """PUT /ir/emitters/{id}/send"""
         return await self._put(f"ir/emitters/{self._path_segment(emitter_id)}/send", json=body)
 
-    async def get_ir_custom_codes(
-        self, limit: int = 100, *, page: int | None = None
-    ) -> list[dict]:
+    async def get_ir_custom_codes(self, limit: int = 100, *, page: int | None = None) -> list[dict]:
         """GET /ir/codes/custom, optionally selecting a result page."""
         params: dict[str, int] = {"limit": limit}
         if page is not None:

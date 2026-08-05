@@ -44,14 +44,15 @@ uv pip install -e ".[dev]"
 import asyncio
 from unfurled.remote import Remote
 
+
 async def main():
     remote = Remote("http://192.168.1.100:80", api_key="your-api-key")
     await remote.init()
 
-    print(remote.name)                # "My Remote Two" (or auto-derived)
-    print(remote.info.model_name)     # "Remote Two"
-    print(remote.info.hw_revision)    # "Revision 2"
-    print(remote.sw_version)          # "2.1.0"
+    print(remote.name)  # "My Remote Two" (or auto-derived)
+    print(remote.info.model_name)  # "Remote Two"
+    print(remote.info.hw_revision)  # "Revision 2"
+    print(remote.sw_version)  # "2.1.0"
 
     # List activities
     for act in remote.activities:
@@ -59,6 +60,7 @@ async def main():
 
     # Turn on an activity
     await remote.find_activity("my-activity-id").turn_on()
+
 
 asyncio.run(main())
 ```
@@ -71,6 +73,7 @@ Find remotes on the local network via mDNS:
 
 ```python
 from unfurled.discovery import discover_remotes
+
 
 async def main():
     devices = await discover_remotes(timeout=5)
@@ -153,7 +156,7 @@ await remote.settings.update_sound(volume=60)
 await remote.ir.send(
     code="0000 006C ...",
     format="PRONTO",
-    emitter_name="Dock IR",   # or emitter_id="device-id"
+    emitter_name="Dock IR",  # or emitter_id="device-id"
     repeat=1,
 )
 
@@ -206,8 +209,10 @@ print(remote.update_info.in_progress, remote.update_info.update_percent)
 ```python
 from unfurled.websocket import RemoteWebSocketClient
 
+
 async def on_message(msg: str):
     print("WS event:", msg)
+
 
 ws = RemoteWebSocketClient(api_url, api_key)
 ws.on_message(on_message)
@@ -217,7 +222,7 @@ await ws.connect()
 Or use the built-in client on `Remote`:
 
 ```python
-remote.add_listener(my_callback)   # raw WS message handler
+remote.add_listener(my_callback)  # raw WS message handler
 await remote.connect_websocket()
 ```
 
