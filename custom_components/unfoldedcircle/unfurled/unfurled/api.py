@@ -515,6 +515,12 @@ class CoreAPI:
             params["page"] = page
         return await self._get("ir/codes/custom", params=params)
 
+    async def get_ir_custom_codeset(self, device_id: str) -> dict:
+        """GET /ir/codes/custom/{device_id}."""
+        return await self._get(
+            f"ir/codes/custom/{self._path_segment(device_id)}"
+        )
+
     async def get_ir_manufacturers(self, query: str, page: int = 1, limit: int = 100) -> dict:
         """GET /ir/codes/manufacturers"""
         return await self._get(

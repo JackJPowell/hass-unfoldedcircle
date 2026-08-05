@@ -123,9 +123,9 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
                 remote_command = Command(self.coordinator, self.hass, data=data)
                 await remote_command.async_send()
             else:
-                await self.coordinator.api.ir.send_from_codeset(
-                    kwargs.get("device", ""),
+                await self.coordinator.api.ir.send(
                     indv_command,
+                    device=kwargs.get("device", ""),
                     repeat=kwargs.get("num_repeats", 0),
                 )
 
@@ -184,9 +184,9 @@ class RemoteDockSensor(UnfoldedCircleDockEntity, RemoteEntity):
     async def async_send_command(self, command: Iterable[str], **kwargs):
         """Send a remote command."""
         for indv_command in command:
-            await self.coordinator.api.ir.send_from_codeset(
-                kwargs.get("device", ""),
+            await self.coordinator.api.ir.send(
                 indv_command,
+                device=kwargs.get("device", ""),
                 repeat=kwargs.get("num_repeats", 0),
             )
 

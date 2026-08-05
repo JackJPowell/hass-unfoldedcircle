@@ -188,13 +188,12 @@ async def _send_ir(remote: Remote) -> None:
     idx = _choose(options, "Emitter to use")
     emitter_id = emitters[idx].device_id
 
-    fmt = _prompt("Format (HEX/PRONTO)", "HEX")
     code = _prompt("IR code")
     if not code:
         print("No code entered, skipping.")
         return
 
-    ok = await remote.ir.send(code, fmt, emitter_id=emitter_id)
+    ok = await remote.ir.send_raw(code, emitter_id=emitter_id)
     print("Sent!" if ok else "Send failed.")
 
 

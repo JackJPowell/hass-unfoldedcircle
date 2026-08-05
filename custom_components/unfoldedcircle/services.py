@@ -3,7 +3,6 @@
 import asyncio
 from datetime import timedelta
 import logging
-import re
 from typing import Any
 
 from unfurled.helpers.exceptions import AuthenticationError
@@ -73,7 +72,9 @@ SEND_CODESET_SCHEMA = cv.make_entity_service_schema(
         vol.Required("command"): VolAny(str, list[str]),
         vol.Optional("device"): str,
         vol.Optional("codeset"): str,
-        vol.Optional("num_repeats"): str,
+        vol.Optional("num_repeats", default=0): vol.All(
+            vol.Coerce(int), vol.Range(min=0, max=20)
+        ),
         vol.Optional("dock"): str,
         vol.Optional("port"): str,
     },
@@ -412,9 +413,6 @@ class IR:
     async def async_send_command(self, **kwargs: Any) -> None:
         """Send a list of commands from a remote."""
 
-        ir_format = None
-        code = None
-
         device = self.data.get("device")
         codeset = self.data.get("codeset")
         repeat = self.data.get("num_repeats", 0)
@@ -431,46 +429,39 @@ class IR:
             commands.append(self.data.get("command"))
 
         for command in commands:
-            pattern = r"^\d+;0x[0-9A-Fa-f]+;\d+;\d+$"
-            compiled_pattern = re.compile(pattern)
-
-            if command.startswith("0000"):  # PRONTO
-                ir_format = "PRONTO"
-                code = command
-                command = None
-            elif compiled_pattern.search(command):  # HEX
-                ir_format = "HEX"
-                code = command
-                command = None
             try:
-                if code and ir_format:
-                    if self.dock_coordinator is not None:
-                        await self.dock_coordinator.api.send_ir(
-                            code, ir_format, port_mask=port, repeat=repeat
-                        )
-                    else:
-                        await self.coordinator.api.ir.send(
-                            code,
-                            ir_format,
-                            emitter_name=dock_name,
-                            port_id=port,
-                            repeat=repeat,
-                        )
-                elif device and command:
-                    await self.coordinator.api.ir.send_from_codeset(
-                        device,
-                        command,
-                        emitter_name=dock_name,
-                        port_id=port,
-                        repeat=repeat,
-                    )
+                await self.coordinator.api.ir.send(
+                    command,
+                    device=device,
+                    codeset=codeset,
+                    emitter_name=dock_name,
+                    port_id=port,
+                    repeat=repeat,
+                    dock=(
+                        self.dock_coordinator.api
+                        if self.dock_coordinator is not None
+                        else None
+                    ),
+                )
             except (AuthenticationError, OSError) as err:
+                _LOGGER.error(
+                    "Failed to send IR command via %s (port=%s): %s",
+                    dock_name or "the default emitter",
+                    port,
+                    err,
+                )
                 raise HomeAssistantError(
                     translation_domain=DOMAIN,
                     translation_key="failed_to_send_command",
                 ) from err
 
             except Exception as err:
+                _LOGGER.error(
+                    "Failed to send IR command via %s (port=%s): %s",
+                    dock_name or "the default emitter",
+                    port,
+                    err,
+                )
                 raise HomeAssistantError(
                     translation_domain=DOMAIN,
                     translation_key="failed_to_send_command",

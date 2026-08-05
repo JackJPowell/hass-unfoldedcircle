@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -10,6 +11,7 @@ from ..helpers.exceptions import InvalidIRFormat, NoEmitterFound
 from ..submodules.base import RemoteModule
 
 if TYPE_CHECKING:
+    from ..dock import Dock
     from ..remote import Remote
 
 _LOGGER = logging.getLogger(__name__)
@@ -31,9 +33,9 @@ class IRCode:
     @classmethod
     def from_dict(cls, data: dict) -> IRCode:
         """Construct an :class:`IRCode` from a raw API ``codes[]`` entry."""
-        code = data.get("code", {})
+        code = data.get("code", data)
         return cls(
-            cmd_id=data.get("cmd_id", ""),
+            cmd_id=data.get("cmd_id", data.get("key", "")),
             value=code.get("value", ""),
             format=code.get("format", "HEX"),
             custom=bool(data.get("custom", False)),
@@ -148,7 +150,6 @@ class IREmitter:
 
         Args:
             code: The IR code string.
-            format: ``"HEX"`` or ``"PRONTO"``.
             port_id: Optional output port ID.
             repeat: Number of additional repeats.
 
@@ -200,8 +201,8 @@ class IR(RemoteModule):
 
     Example::
 
-        await remote.ir.send("0000 006C ...", "PRONTO")
-        await remote.ir.send_from_codeset("Samsung TV", "VOLUME_UP")
+        await remote.ir.send("0000 006C ...")
+        await remote.ir.send("VOLUME_UP", device="Samsung TV")
     """
 
     @property
@@ -241,63 +242,164 @@ class IR(RemoteModule):
 
     async def send(
         self,
+        command: str,
+        *,
+        device: str | None = None,
+        codeset: str | None = None,
+        emitter_name: str | None = None,
+        emitter_id: str | None = None,
+        port_id: str | None = None,
+        repeat: int = 0,
+        dock: Dock | None = None,
+    ) -> bool:
+        """Resolve and send raw, custom, or loaded-codeset IR commands."""
+        raw_command = self._parse_raw_command(command)
+        if raw_command is not None:
+            return await self._send_raw(
+                *raw_command,
+                emitter_name=emitter_name,
+                emitter_id=emitter_id,
+                port_id=port_id,
+                repeat=repeat,
+                dock=dock,
+            )
+
+        if device:
+            custom_code = await self.get_custom_code(device, command)
+            if custom_code is not None:
+                return await self._send_raw(
+                    custom_code.value,
+                    custom_code.format,
+                    emitter_name=emitter_name,
+                    emitter_id=emitter_id,
+                    port_id=port_id,
+                    repeat=repeat,
+                    dock=dock,
+                )
+
+        codeset_name = codeset or device
+        if not codeset_name:
+            raise InvalidIRFormat(
+                "IR command must be raw or include a custom device or codeset"
+            )
+        return await self._send_from_codeset(
+            codeset_name,
+            command,
+            emitter_name=emitter_name,
+            emitter_id=emitter_id,
+            port_id=port_id,
+            repeat=repeat,
+        )
+
+    async def send_raw(
+        self,
         code: str,
-        ir_format: str,  # noqa: A002
         *,
         emitter_name: str | None = None,
         emitter_id: str | None = None,
         port_id: str | None = None,
         repeat: int = 0,
+        dock: Dock | None = None,
     ) -> bool:
-        """Send a raw IR code (HEX or PRONTO) via the specified or default emitter.
+        """Send a raw Pronto or HEX IR code, inferring its format."""
+        raw_command = self._parse_raw_command(code)
+        if raw_command is None:
+            raise InvalidIRFormat("Raw IR code must be Pronto or UC HEX format")
+        return await self._send_raw(
+            *raw_command,
+            emitter_name=emitter_name,
+            emitter_id=emitter_id,
+            port_id=port_id,
+            repeat=repeat,
+            dock=dock,
+        )
 
-        Args:
-            code: The IR code string.
-            format: ``"HEX"`` or ``"PRONTO"``.
-            emitter_name: Target emitter by name; defaults to first available.
-            emitter_id: Target emitter by device ID.
-            port_id: Optional output port ID.
-            repeat: Number of additional repeats (0 = send once).
-        """
+    @staticmethod
+    def _parse_raw_command(command: str) -> tuple[str, str] | None:
+        """Return a raw command and its format, if *command* is raw IR."""
+        if command.startswith("0000"):
+            return command, "PRONTO"
+        if re.fullmatch(r"\d+;0x[0-9A-Fa-f]+;\d+;\d+", command):
+            return command, "HEX"
+        return None
+
+    async def _send_raw(
+        self,
+        code: str,
+        ir_format: str,
+        *,
+        emitter_name: str | None,
+        emitter_id: str | None,
+        port_id: str | None,
+        repeat: int,
+        dock: Dock | None,
+    ) -> bool:
+        """Send resolved raw IR through a dock or remote emitter."""
+        if dock is not None:
+            return await dock.send_ir(code, ir_format, port_mask=port_id, repeat=repeat)
         await self._ensure_awake()
         emitter = self._resolve(emitter_name, emitter_id)
         return await emitter.send_code(code, ir_format, port_id=port_id, repeat=repeat)
 
-    async def send_from_codeset(
+    async def _send_from_codeset(
         self,
-        device: str,
+        codeset_name: str,
         command: str,
         *,
-        emitter_name: str | None = None,
-        emitter_id: str | None = None,
-        port_id: str | None = None,
-        repeat: int = 0,
+        emitter_name: str | None,
+        emitter_id: str | None,
+        port_id: str | None,
+        repeat: int,
     ) -> bool:
-        """Send a named IR command from a loaded codeset.
-
-        Args:
-            device: Codeset name (e.g. ``"Samsung TV"``).
-            command: Command ID within the codeset (e.g. ``"VOLUME_UP"``).
-            emitter_name: Target emitter by name; defaults to first available.
-            emitter_id: Target emitter by device ID.
-            port_id: Optional output port ID.
-            repeat: Number of additional repeats.
-        """
-
+        """Send a named command from a loaded codeset."""
         await self._ensure_awake()
-        ir_codeset = next((c for c in self.codesets if c.name == device), None)
+        ir_codeset = next((c for c in self.codesets if c.name == codeset_name), None)
         if not ir_codeset:
-            raise InvalidIRFormat(f"IR device '{device}' not found in loaded codesets")
+            raise InvalidIRFormat(
+                f"IR device '{codeset_name}' not found in loaded codesets"
+            )
         emitter = self._resolve(emitter_name, emitter_id)
         return await emitter.send_codeset_command(
             ir_codeset.id, command, port_id=port_id, repeat=repeat
         )
 
+    async def get_custom_code(
+        self, device: str, command: str
+    ) -> IRCode | None:
+        """Resolve a command from a user-defined custom IR device."""
+        custom_devices = await self._remote.api.get_ir_custom_codes()
+        custom_device = next(
+            (
+                item
+                for item in custom_devices
+                if item.get("device", "").casefold() == device.casefold()
+            ),
+            None,
+        )
+        if custom_device is None:
+            return None
+
+        detail = await self._remote.api.get_ir_custom_codeset(
+            custom_device.get("device_id", "")
+        )
+        code = next(
+            (
+                item
+                for item in detail.get("codes", [])
+                if item.get("key", "").casefold() == command.casefold()
+            ),
+            None,
+        )
+        if code is None:
+            raise InvalidIRFormat(
+                f"IR command '{command}' was not found for custom device '{device}'"
+            )
+        return IRCode.from_dict(code)
+
     async def send_by_emitter(
         self,
         emitter_id: str,
         code: str,
-        ir_format: str,  # noqa: A002
         *,
         port_id: str | None = None,
         repeat: int = 0,
@@ -310,10 +412,9 @@ class IR(RemoteModule):
         Args:
             emitter_id: The ``device_id`` of the target IR emitter.
             code: IR code string (HEX or PRONTO).
-            format: ``"HEX"`` or ``"PRONTO"``.
             port_id: Optional output port ID.
             repeat: Number of additional repeats.
         """
-        return await self.send(
-            code, ir_format, emitter_id=emitter_id, port_id=port_id, repeat=repeat
+        return await self.send_raw(
+            code, emitter_id=emitter_id, port_id=port_id, repeat=repeat
         )

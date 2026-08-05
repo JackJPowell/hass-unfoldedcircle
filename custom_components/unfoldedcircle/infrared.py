@@ -206,7 +206,6 @@ class RemoteInternalInfraredEntity(UnfoldedCircleEntity, InfraredEmitterEntity):
             await self.coordinator.api.ir.send_by_emitter(
                 emitter_id=emitter_id,
                 code=hex_code,
-                ir_format="PRONTO",
                 port_id=port_id,
                 repeat=getattr(command, "repeat_count", 0),
             )
@@ -254,7 +253,6 @@ class ExternalInfraredEntity(UnfoldedCircleEntity, InfraredEmitterEntity):
             await self.coordinator.api.ir.send_by_emitter(
                 emitter_id=emitter_id,
                 code=hex_code,
-                ir_format="PRONTO",
                 port_id=self._port_id,
                 repeat=getattr(command, "repeat_count", 0),
             )
