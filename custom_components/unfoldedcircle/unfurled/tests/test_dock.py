@@ -140,6 +140,11 @@ class TestDockWsMessageHandling:
     async def test_invalid_json_ignored(self, dock: Dock):
         await dock._handle_ws_message("not json")  # should not raise
 
+    async def test_sysinfo_message_updates_volume(self, dock: Dock):
+        dock.device.model_number = "UCD3"
+        await dock._handle_ws_message(json.dumps({"msg": "get_sysinfo", "volume": 42}))
+        assert dock.state.volume == 42
+
 
 class TestDockDirectTransport:
     @pytest.fixture
@@ -171,6 +176,35 @@ class TestDockDirectTransport:
             ext1=True,
             ext2=False,
         )
+
+    async def test_set_volume_uses_direct_dock_three_command(self, dock: Dock):
+        dock.device.model_number = "UCD3"
+        dock._ws_client = AsyncMock()
+        dock._ws_client.is_connected = True
+        dock._direct_request = AsyncMock(return_value={"code": 200})
+
+        await dock.system.set_volume(42)
+
+        dock._direct_request.assert_awaited_once_with("set_volume", volume=42)
+        assert dock.system.volume == 42
+
+    async def test_get_volume_refreshes_direct_sysinfo(self, dock: Dock):
+        dock.device.model_number = "UCD3"
+        dock._ws_client = AsyncMock()
+        dock._ws_client.is_connected = True
+        dock._direct_request = AsyncMock(return_value={"volume": 42})
+
+        assert await dock.system.get_volume() == 42
+        dock._direct_request.assert_awaited_once_with("get_sysinfo")
+
+    async def test_set_volume_rejects_unsupported_dock(self, dock: Dock):
+        with pytest.raises(NotImplementedError, match="Dock 3"):
+            await dock.system.set_volume(42)
+
+    async def test_set_volume_validates_range(self, dock: Dock):
+        dock.device.model_number = "UCD3"
+        with pytest.raises(ValueError, match="between 0 and 100"):
+            await dock.system.set_volume(101)
 
 
 class TestDockClose:

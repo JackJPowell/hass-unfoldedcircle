@@ -364,6 +364,8 @@ class Dock:
             info.get("eth_led_brightness", self.state.ethernet_led_brightness)
         )
         self.state.is_learning_active = bool(info.get(learning_key, self.state.is_learning_active))
+        if "volume" in info:
+            self.state.volume = int(info["volume"])
 
     async def validate_connection(self) -> bool:
         """Check that the dock is reachable via the remote proxy.
@@ -617,6 +619,7 @@ class DockState:
     led_brightness: int = 0
     ethernet_led_brightness: int = 0
     is_learning_active: bool = False
+    volume: int | None = None
 
 
 class System:
@@ -648,6 +651,44 @@ class System:
         """
         await self._send_command(DockCommand.SET_LED_BRIGHTNESS, brightness=brightness)
         self._dock.state.led_brightness = brightness
+
+    @property
+    def volume(self) -> int | None:
+        """Last volume reported by a directly connected Dock 3, if available."""
+        return self._dock.state.volume
+
+    async def get_volume(self) -> int:
+        """Refresh and return the Dock 3 speaker volume.
+
+        Volume is available only through a direct Dock 3 WebSocket connection;
+        the remote proxy API does not expose it.
+        """
+        await self._require_volume_support()
+        await self._dock.get_info()
+        if self._dock.state.volume is None:
+            raise DockWebSocketError("Dock did not report a speaker volume")
+        return self._dock.state.volume
+
+    async def set_volume(self, volume: int) -> None:
+        """Set the Dock 3 speaker volume (0-100) over its WebSocket.
+
+        The value is applied optimistically and is reconciled by subsequent
+        ``get_sysinfo`` responses received through the same connection.
+        """
+        if not 0 <= volume <= 100:
+            raise ValueError("Dock volume must be between 0 and 100")
+        await self._require_volume_support()
+        await self._dock._direct_request("set_volume", volume=volume)
+        self._dock.state.volume = volume
+
+    async def _require_volume_support(self) -> None:
+        """Raise when direct Dock 3 speaker controls are unavailable."""
+        if self._dock.device.model_number != "UCD3":
+            raise NotImplementedError("Speaker volume is supported only by Dock 3")
+        if not self._dock.direct_communication or not self._dock.is_connected:
+            raise DockWebSocketError(
+                "Speaker volume requires an active direct Dock WebSocket connection"
+            )
 
     async def identify(self) -> None:
         """Flash the dock LEDs to visually identify this unit."""
