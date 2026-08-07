@@ -131,7 +131,7 @@ async def async_inhibit_standby(
 ) -> None:
     """Inhibit standby on the Unfolded Circle Remote."""
 
-    config_entry = get_config_entry_by_entity_id(hass, service_call)
+    config_entry = get_config_entry_by_remote_target(hass, service_call)
     duration = service_call.data["duration"]
     if duration is None:
         return
@@ -505,6 +505,47 @@ class IR:
                 return "9"
             case _:
                 return port_name
+
+
+def get_config_entry_by_remote_target(
+    hass: HomeAssistant, service_call: ServiceCall
+) -> UnfoldedCircleConfigEntry:
+    """Return the config entry for a selected Unfolded Circle remote target.
+
+    A Dock can expose a ``remote`` entity for its IR functionality. That
+    entity belongs to the same config entry as its paired physical Remote, so
+    either kind of remote entity can invoke this Remote-level action.
+    """
+    config_entries = {
+        entry.entry_id: entry for entry in hass.config_entries.async_loaded_entries(DOMAIN)
+    }
+    entity_registry = er.async_get(hass)
+
+    entity_ids = service_call.data.get("entity_id", [])
+    if isinstance(entity_ids, str):
+        entity_ids = [entity_ids]
+    if len(entity_ids) == 1:
+        entity = entity_registry.async_get(entity_ids[0])
+        if entity is not None and entity.domain == "remote":
+            config_entry = config_entries.get(entity.config_entry_id)
+            if config_entry is not None:
+                return config_entry
+
+    device_ids = service_call.data.get("device_id", [])
+    if isinstance(device_ids, str):
+        device_ids = [device_ids]
+    if len(device_ids) == 1:
+        for entity in er.async_entries_for_device(entity_registry, device_ids[0]):
+            if entity.domain != "remote":
+                continue
+            config_entry = config_entries.get(entity.config_entry_id)
+            if config_entry is not None:
+                return config_entry
+
+    raise HomeAssistantError(
+        translation_domain=DOMAIN,
+        translation_key="unknown_config_entry",
+    )
 
 
 def get_config_entry_by_entity_id(

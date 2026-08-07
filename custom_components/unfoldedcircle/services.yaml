@@ -17,8 +17,9 @@ inhibit_standby:
   name: Prevent Device Standby
   description: Prevent the remote from going into standby mode for a custom duration
   target:
-      entity:
-        - integration: unfoldedcircle
+    entity:
+      - integration: unfoldedcircle
+        domain: remote
 
   fields:
     reason:
