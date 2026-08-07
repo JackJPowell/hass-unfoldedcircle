@@ -108,6 +108,8 @@ send_ir_command:
       selector:
         select:
           options:
+            - "All Outputs"
+            - "Dock"
             - "Dock Top"
             - "Dock Bottom"
             - "Ext 1"

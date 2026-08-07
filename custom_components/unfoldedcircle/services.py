@@ -471,6 +471,16 @@ class IR:
 
     def translate_port(self, port_name) -> str:
         match port_name:
+            case "All Outputs" | "Default (all outputs)":
+                return "0"
+            case "Dock":
+                if self.dock_coordinator is not None:
+                    model = self.dock_coordinator.api.device.model_number.upper()
+                    if model == "UCD2":
+                        return "2"
+                    if model == "UCD3":
+                        return "3"
+                return "3"
             case "Dock Top":
                 return "2"
             case "Dock Bottom":
