@@ -43,6 +43,8 @@ learn_ir_command:
     entity:
       - integration: unfoldedcircle
         domain: remote
+        supported_features:
+          - remote.RemoteEntityFeature.LEARN_COMMAND
   fields:
     remote:
       name: Remote Entity Information
@@ -52,12 +54,6 @@ learn_ir_command:
       name: IR Codeset Information
       description: IR Codeset Dictionary containing -> Name and a list of commands
       required: true
-    dock:
-      name: Dock Name
-      description: The name of the Dock to learn the command
-      required: false
-      selector:
-        text:
 
 send_ir_command:
   name: Send IR Commands

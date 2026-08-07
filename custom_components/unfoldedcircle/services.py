@@ -100,7 +100,7 @@ SERVICE_TO_SCHEMA = {
 
 @callback
 def async_setup_services(
-    hass: HomeAssistant, config_entry: UnfoldedCircleConfigEntry
+    hass: HomeAssistant, _config_entry: UnfoldedCircleConfigEntry
 ) -> None:
     """Set up services for Unfolded Circle integration."""
 
@@ -269,6 +269,11 @@ async def async_service_handle(
             break
 
     if service_call.service == LEARN_IR_COMMAND_SERVICE:
+        if dock_coordinator is None:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="unknown_dock",
+            )
         ir = IR(None, dock_coordinator, hass, data=service_call.data)
         await ir.async_learn_command()
 
@@ -292,6 +297,8 @@ async def async_service_handle(
 
 
 class IR:
+    """Class representing reusable IR related actions"""
+
     def __init__(
         self,
         coordinator: UnfoldedCircleCoordinator | None,
@@ -425,7 +432,7 @@ class IR:
             port = self.translate_port(port)
 
         commands: list[str] = []
-        if type(self.data.get("command")) is list:
+        if isinstance(self.data.get("command"), list):
             commands = self.data.get("command")
         else:
             commands.append(self.data.get("command"))
@@ -470,6 +477,7 @@ class IR:
                 ) from err
 
     def translate_port(self, port_name) -> str:
+        """Translate the service value to dock internal port id"""
         match port_name:
             case "All Outputs" | "Default (all outputs)":
                 return "0"
