@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from .api import CoreAPI
@@ -229,9 +229,10 @@ class Dock:
         except Exception:
             return
 
-        msg_type = data.get("type") or data.get("msg", "")
+        message = data.get("msg", "")
+        msg_type = data.get("type") or message
 
-        if data.get("msg") == "get_sysinfo":
+        if message == "get_sysinfo":
             self._apply_info(data, learning_key="ir_learning")
         elif data.get("type") == "event" and data.get("msg") == "ir_receive":
             self._learned_code = {
@@ -239,9 +240,16 @@ class Dock:
                 "value": data.get("ir_code", ""),
             }
         elif data.get("type") == "event" and data.get("msg") == "ir_receive_on":
-            self.state.is_learning_active = True
+            self._set_learning_active(True)
         elif data.get("type") == "event" and data.get("msg") == "ir_receive_off":
-            self.state.is_learning_active = False
+            self._set_learning_active(False)
+        elif data.get("type") == "event" and data.get("msg") == "port_mode":
+            self._apply_external_port(data)
+
+        if message == "get_port_mode":
+            self._apply_external_port(data)
+        elif message == "get_port_modes":
+            self._apply_external_ports(data.get("ports", []))
 
         if msg_type == "dock_state":
             state = data.get("msg_data", {}).get("state", "")
@@ -352,6 +360,34 @@ class Dock:
             self.state.state = info["state"]
         return info
 
+    def _set_learning_active(self, is_active: bool) -> None:
+        """Apply an IR learning state transition from a command or event."""
+        self.state.is_learning_active = is_active
+
+    def _apply_external_port(self, data: dict) -> None:
+        """Apply one Dock 3 external-port configuration or mode event."""
+        try:
+            port = int(data["port"])
+        except (KeyError, TypeError, ValueError):
+            return
+        mode = data.get("mode")
+        if not isinstance(mode, str):
+            return
+        active_mode = data.get("active_mode")
+        self.state.external_ports[port] = ExternalPort(
+            port=port,
+            mode=mode,
+            active_mode=active_mode if isinstance(active_mode, str) else None,
+        )
+
+    def _apply_external_ports(self, ports: object) -> None:
+        """Apply all external-port configurations reported by a Dock 3."""
+        if not isinstance(ports, list):
+            return
+        for port in ports:
+            if isinstance(port, dict):
+                self._apply_external_port(port)
+
     def _apply_info(self, info: dict, *, learning_key: str) -> None:
         """Apply fields shared by proxy details and direct sysinfo responses."""
         self.device.name = info.get("name", self.device.name)
@@ -363,7 +399,8 @@ class Dock:
         self.state.ethernet_led_brightness = int(
             info.get("eth_led_brightness", self.state.ethernet_led_brightness)
         )
-        self.state.is_learning_active = bool(info.get(learning_key, self.state.is_learning_active))
+        self._set_learning_active(bool(info.get(learning_key, self.state.is_learning_active)))
+        self._apply_external_ports(info.get("ports", []))
         if "volume" in info:
             self.state.volume = int(info["volume"])
 
@@ -389,7 +426,7 @@ class Dock:
             result = await self._direct_request("ir_receive_on")
         else:
             result = await self.api.put_ir_emitter_learn(self.device.id)
-        self.state.is_learning_active = True
+        self._set_learning_active(True)
         return result
 
     async def stop_ir_learning(self) -> None:
@@ -398,7 +435,7 @@ class Dock:
             await self._direct_request("ir_receive_off")
         else:
             await self.api.delete_ir_emitter_learn(self.device.id)
-        self.state.is_learning_active = False
+        self._set_learning_active(False)
 
     async def get_remotes(self) -> list[dict]:
         """Return IR remote definitions stored on the remote.
@@ -610,6 +647,15 @@ class DeviceInfo:
         return self.id.lower().removeprefix("uc-dock-")
 
 
+@dataclass(frozen=True)
+class ExternalPort:
+    """Dock 3 external-port configuration reported by the direct API."""
+
+    port: int
+    mode: str
+    active_mode: str | None = None
+
+
 @dataclass
 class DockState:
     """Current state of the dock."""
@@ -620,6 +666,7 @@ class DockState:
     ethernet_led_brightness: int = 0
     is_learning_active: bool = False
     volume: int | None = None
+    external_ports: dict[int, ExternalPort] = field(default_factory=dict)
 
 
 class System:

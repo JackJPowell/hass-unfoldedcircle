@@ -145,6 +145,62 @@ class TestDockWsMessageHandling:
         await dock._handle_ws_message(json.dumps({"msg": "get_sysinfo", "volume": 42}))
         assert dock.state.volume == 42
 
+    async def test_learning_events_update_state(self, dock: Dock):
+        await dock._handle_ws_message(json.dumps({"type": "event", "msg": "ir_receive_on"}))
+        assert dock.state.is_learning_active is True
+
+        await dock._handle_ws_message(json.dumps({"type": "event", "msg": "ir_receive_off"}))
+        assert dock.state.is_learning_active is False
+
+    async def test_port_mode_event_updates_external_port_state(self, dock: Dock):
+        await dock._handle_ws_message(
+            json.dumps(
+                {
+                    "type": "event",
+                    "msg": "port_mode",
+                    "port": 1,
+                    "mode": "AUTO",
+                    "active_mode": "IR_BLASTER",
+                }
+            )
+        )
+
+        port = dock.state.external_ports[1]
+        assert port.mode == "AUTO"
+        assert port.active_mode == "IR_BLASTER"
+
+    async def test_port_mode_response_updates_external_port_state(self, dock: Dock):
+        await dock._handle_ws_message(
+            json.dumps(
+                {
+                    "type": "dock",
+                    "msg": "get_port_mode",
+                    "port": 1,
+                    "mode": "IR_EMITTER_MONO_PLUG",
+                }
+            )
+        )
+
+        assert dock.state.external_ports[1].mode == "IR_EMITTER_MONO_PLUG"
+
+    async def test_sysinfo_message_updates_all_external_ports(self, dock: Dock):
+        await dock._handle_ws_message(
+            json.dumps(
+                {
+                    "msg": "get_sysinfo",
+                    "ports": [
+                        {"port": 1, "mode": "IR_BLASTER"},
+                        {"port": 2, "mode": "TRIGGER_5V"},
+                    ],
+                }
+            )
+        )
+
+        assert {port: value.mode for port, value in dock.state.external_ports.items()} == {
+            1: "IR_BLASTER",
+            2: "TRIGGER_5V",
+        }
+
 
 class TestDockDirectTransport:
     @pytest.fixture

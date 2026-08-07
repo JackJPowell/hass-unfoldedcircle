@@ -8,7 +8,7 @@ Public interface::
 """
 
 from .api import CoreAPI
-from .dock import Dock
+from .dock import Dock, ExternalPort
 from .entities.activity import Activity, ActivityGroup
 from .entities.ir import IR, IRCode, IRCodeset, IRCustomCode, IREmitter
 from .entities.media_player import MediaPlayerEntity
@@ -71,6 +71,7 @@ __all__ = [
     # Core
     "Remote",
     "Dock",
+    "ExternalPort",
     "CoreAPI",
     # Sub-objects
     "RemoteModule",
