@@ -415,6 +415,44 @@ class TestWakeOnLan:
         await remote._ensure_awake()
 
 
+class TestMacros:
+    async def test_macro_name_takes_precedence_over_button(self, remote: Remote):
+        remote._wake_if_asleep = False
+        remote.api.get_macros = AsyncMock(
+            return_value=[
+                {
+                    "entity_id": "uc.main.macro-1",
+                    "name": {"en_US": "PLAY"},
+                    "features": ["run"],
+                }
+            ]
+        )
+        remote.api.put_entity_command = AsyncMock()
+
+        await remote.send_button_command("PLAY")
+
+        remote.api.get_macros.assert_awaited_once_with(q="PLAY")
+        remote.api.put_entity_command.assert_awaited_once_with("uc.main.macro-1", "macro.run")
+
+    async def test_button_command_falls_back_when_macro_is_not_found(self, remote: Remote):
+        from unfurled.entities.activity import Activity
+
+        remote._wake_if_asleep = False
+        remote.activities = [
+            Activity({"entity_id": "act-001", "name": {}, "attributes": {"state": "ON"}}, remote)
+        ]
+        remote.api.get_macros = AsyncMock(return_value=[])
+        remote.api.get_activity_button = AsyncMock(
+            return_value={"short_press": {"entity_id": "entity-1", "cmd_id": "play"}}
+        )
+        remote.api.put_entity_command = AsyncMock()
+
+        await remote.send_button_command("PLAY")
+
+        remote.api.get_activity_button.assert_awaited_once_with("act-001", "PLAY")
+        remote.api.put_entity_command.assert_awaited_once_with("entity-1", "play", None)
+
+
 class TestGetActiveActivities:
     async def test_returns_on_activities(self, remote: Remote):
         from unfurled.entities.activity import Activity

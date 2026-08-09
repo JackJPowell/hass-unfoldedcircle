@@ -475,6 +475,25 @@ class CoreAPI:
     # Entities
     # ------------------------------------------------------------------
 
+    async def get_macros(
+        self,
+        limit: int = 100,
+        *,
+        page: int | None = None,
+        q: str | None = None,
+    ) -> list[dict]:
+        """GET /macros, optionally filtering by page and search query."""
+        params: dict[str, str | int] = {"limit": limit}
+        if page is not None:
+            params["page"] = page
+        if q is not None:
+            params["q"] = q
+        return await self._get("macros", params=params)
+
+    async def get_macro(self, entity_id: str) -> dict:
+        """GET /macros/{entity_id}."""
+        return await self._get(f"macros/{self._path_segment(entity_id)}")
+
     async def put_entity_command(
         self, entity_id: str, cmd_id: str, params: dict | None = None
     ) -> dict:

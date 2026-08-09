@@ -176,6 +176,21 @@ class TestEndpoints:
             m.put(f"{BASE}entities/media_player.tv/command", payload={"status": "ok"})
             await api.put_entity_command("media_player.tv", "media_player.volume", {"volume": 50})
 
+    async def test_get_macros_supports_search_and_pagination(self, api: CoreAPI):
+        payload = [{"entity_id": "uc.main.macro-1", "name": {"en_US": "Movie Time"}}]
+        url = f"{BASE}macros?limit=50&page=2&q=Movie+Time"
+        with aioresponses() as m:
+            m.get(url, payload=payload)
+            result = await api.get_macros(limit=50, page=2, q="Movie Time")
+        assert result == payload
+
+    async def test_get_macro_encodes_entity_id(self, api: CoreAPI):
+        payload = {"entity_id": "uc.main.macro/1"}
+        with aioresponses() as m:
+            m.get(f"{BASE}macros/uc.main.macro%2F1", payload=payload)
+            result = await api.get_macro("uc.main.macro/1")
+        assert result == payload
+
     async def test_get_pub_version(self, api: CoreAPI):
         payload = {"hostname": "remote", "address": "aa:bb:cc:dd:ee:ff", "os": "2.3.0"}
         with aioresponses() as m:

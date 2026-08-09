@@ -11,6 +11,7 @@ from .api import CoreAPI
 from .dock import Dock, ExternalPort
 from .entities.activity import Activity, ActivityGroup
 from .entities.ir import IR, IRCode, IRCodeset, IRCustomCode, IREmitter
+from .entities.macro import Macro
 from .entities.media_player import MediaPlayerEntity
 from .helpers.discovery import DiscoveredDevice, discover_remotes, discover_remotes_sync
 from .helpers.exceptions import (
@@ -88,6 +89,7 @@ __all__ = [
     "IRCode",
     "IRCodeset",
     "IRCustomCode",
+    "Macro",
     "MediaPlayerEntity",
     # WebSocket
     "WebSocketClient",

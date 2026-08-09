@@ -22,7 +22,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.network import NoURLAvailableError, get_url
 
-from .const import COMMAND_LIST, DOMAIN, UC_HA_DRIVER_ID, UC_HA_SYSTEM, UC_HA_TOKEN_ID
+from .const import DOMAIN, UC_HA_DRIVER_ID, UC_HA_SYSTEM, UC_HA_TOKEN_ID
 
 _LOGGER = logging.getLogger(__name__)
 DEFAULT_HASS_URL = "http://homeassistant.local:8123"
@@ -335,41 +335,40 @@ class Command:
             commands.append(self.data.get("command"))
 
         for indv_command in commands:
-            if indv_command in COMMAND_LIST:
-                if indv_command == "PAUSE":
-                    indv_command = "PLAY"
-                try:
-                    await self.coordinator.api.send_button_command(
-                        button=indv_command,
-                        repeat=self.data.get("num_repeats"),
-                        activity=self.data.get("activity"),
-                        hold=self.data.get("hold"),
-                        delay_secs=self.data.get("delay_secs"),
-                    )
-                except NoActivityRunning as err:
-                    _LOGGER.error("No activity is running")
-                    raise HomeAssistantError(
-                        translation_domain=DOMAIN,
-                        translation_key="no_activity_running",
-                    ) from err
-                except InvalidButtonCommand as err:
-                    _LOGGER.error("Invalid button command: %s", indv_command)
-                    raise HomeAssistantError(
-                        translation_domain=DOMAIN,
-                        translation_key="invalid_button_command",
-                    ) from err
-                except RemoteIsSleeping as err:
-                    _LOGGER.error("The remote did not respond to the wake command")
-                    raise HomeAssistantError(
-                        translation_domain=DOMAIN,
-                        translation_key="remote_is_sleeping",
-                    ) from err
-                except EntityCommandError as err:
-                    _LOGGER.error("Failed to send command: %s", err)
-                    raise HomeAssistantError(
-                        translation_domain=DOMAIN,
-                        translation_key="entity_command_error",
-                    ) from err
+            if indv_command == "PAUSE":
+                indv_command = "PLAY"
+            try:
+                await self.coordinator.api.send_button_command(
+                    button=indv_command,
+                    repeat=self.data.get("num_repeats"),
+                    activity=self.data.get("activity"),
+                    hold=self.data.get("hold"),
+                    delay_secs=self.data.get("delay_secs"),
+                )
+            except NoActivityRunning as err:
+                _LOGGER.error("No activity is running")
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="no_activity_running",
+                ) from err
+            except InvalidButtonCommand as err:
+                _LOGGER.error("Invalid button command: %s", indv_command)
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="invalid_button_command",
+                ) from err
+            except RemoteIsSleeping as err:
+                _LOGGER.error("The remote did not respond to the wake command")
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="remote_is_sleeping",
+                ) from err
+            except EntityCommandError as err:
+                _LOGGER.error("Failed to send command: %s", err)
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="entity_command_error",
+                ) from err
 
 
 class UnableToExtractMacAddress(Exception):

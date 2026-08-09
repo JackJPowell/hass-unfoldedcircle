@@ -17,6 +17,7 @@ from unfurled.api import CoreAPI
 from unfurled.dock import Dock
 from unfurled.entities.activity import Activity, ActivityGroup
 from unfurled.entities.ir import IR, IRCodeset, IREmitter
+from unfurled.entities.macro import Macro
 from unfurled.entities.media_player import MediaPlayerEntity
 from unfurled.helpers.exceptions import (
     AuthenticationError,
@@ -649,6 +650,19 @@ class Remote:
             self._entities[entity_id] = MediaPlayerEntity(entity_id, self)
         return self._entities[entity_id]
 
+    async def get_macro(self, entity_id: str) -> Macro:
+        """Fetch a macro by ID."""
+        return Macro(await self.api.get_macro(entity_id), self)
+
+    async def _find_macro_by_name(self, name: str) -> Macro | None:
+        """Look up a macro by name directly from the remote."""
+        macros = await self.api.get_macros(q=name)
+        if not macros:
+            return None
+
+        found = [Macro(data, self) for data in macros]
+        return next((macro for macro in found if macro.name == name), found[0])
+
     def _apply_included_entities(self, activity: Activity, included_entities: list[dict]) -> None:
         """Register media player entities from an activity's included entity list."""
         activity._included_entities = included_entities
@@ -721,6 +735,16 @@ class Remote:
             repeat: Number of times to send the command.
         """
         await self._ensure_awake()
+
+        macro = await self._find_macro_by_name(button)
+        if macro:
+            repeat_count = int(repeat) if repeat is not None else 1
+            delay = float(delay_secs) if delay_secs is not None else 0
+            for _ in range(repeat_count):
+                if delay > 0:
+                    await asyncio.sleep(delay)
+                await macro.run()
+            return
 
         activity_id: str | None = None
         if activity:
