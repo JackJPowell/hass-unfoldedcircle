@@ -47,6 +47,10 @@ class TestActivityProperties:
     def test_is_on_false_when_state_off(self, off_activity: Activity):
         assert off_activity.is_on is False
 
+    def test_is_on_true_when_state_running(self, off_activity: Activity):
+        off_activity._set_state(ActivityState.RUNNING)
+        assert off_activity.is_on is True
+
     def test_state_property(self, on_activity: Activity):
         assert on_activity.state == ActivityState.ON
 

@@ -224,7 +224,7 @@ class TestActivityStateMessages:
         assert event.activity_id == "act-001"
         assert event.entity_id == "media_player.tv"
 
-    def test_activity_running_non_mp_step_returns_none(self):
+    def test_activity_running_non_mp_step_returns_state_event(self):
         raw = json.dumps(
             {
                 "msg": "entity_change",
@@ -244,8 +244,8 @@ class TestActivityStateMessages:
             }
         )
         event = parse_ws_message(raw)
-        # RUNNING but not a media_player.on → None
-        assert event is None
+        assert isinstance(event, ActivityStateEvent)
+        assert event.state == "RUNNING"
 
 
 class TestMediaPlayerMessage:

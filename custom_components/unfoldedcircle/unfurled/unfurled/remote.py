@@ -29,6 +29,7 @@ from unfurled.helpers.exceptions import (
 from unfurled.helpers.helpers import Helpers
 from unfurled.helpers.models import (
     ActivityEntityLinkEvent,
+    ActivityState,
     ActivityStateEvent,
     AmbientLightEvent,
     BatteryEvent,
@@ -398,7 +399,11 @@ class Remote:
         )
         for activity in self.activities:
             if activity.id == event.activity_id:
+                activity._set_state(ActivityState.RUNNING)
                 self._apply_included_entities(activity, [event.entity_data])
+        for group in self.activity_groups:
+            if group.contains(event.activity_id):
+                group._recalculate_state()
         self._last_update_type = UpdateType.ACTIVITY
 
     def _on_media_player_attrs(self, event: MediaPlayerAttributesEvent) -> None:

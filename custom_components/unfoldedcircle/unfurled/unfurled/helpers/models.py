@@ -572,6 +572,7 @@ def _parse_entity_change(
                     )
             except (KeyError, TypeError):
                 pass
+            return ActivityStateEvent(entity_id=entity_id, state=state)
 
         if state in ("ON", "OFF"):
             included: list[dict] = []

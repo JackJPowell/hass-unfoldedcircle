@@ -64,8 +64,8 @@ class Activity:
 
     @property
     def is_on(self) -> bool:
-        """``True`` when the activity state is ``ON``."""
-        return self._state == ActivityState.ON
+        """``True`` when the activity is running or on."""
+        return self._state in (ActivityState.ON, ActivityState.RUNNING)
 
     @property
     def included_entities(self) -> list[dict]:

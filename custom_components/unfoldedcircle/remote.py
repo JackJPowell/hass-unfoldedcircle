@@ -1,25 +1,25 @@
 """Remote sensor platform for Unfolded Circle."""
 
-from typing import Any, Mapping, Iterable
+import asyncio
+from collections.abc import Iterable, Mapping
+from typing import Any
 
-from homeassistant.components.remote import (
-    RemoteEntity,
-    RemoteEntityFeature,
-)
+from unfurled.helpers.models import UpdateType
+
+from homeassistant.components.remote import RemoteEntity, RemoteEntityFeature
 from homeassistant.config_entries import ConfigSubentry
-
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import ToggleEntityDescription
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import REMOTE_ON_BEHAVIOR, COMMAND_LIST
-from .helpers import Command
-from .entity import UnfoldedCircleEntity, UnfoldedCircleDockEntity
 from . import UnfoldedCircleConfigEntry
+from .const import COMMAND_LIST, REMOTE_ON_BEHAVIOR
+from .entity import UnfoldedCircleDockEntity, UnfoldedCircleEntity
+from .helpers import Command
 
 
 async def async_setup_entry(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     config_entry: UnfoldedCircleConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
@@ -39,6 +39,9 @@ async def async_setup_entry(
             ],
             config_subentry_id=subentry_id,
         )
+
+
+_ACTIVITY_TRANSITION_GRACE_SECS = 0.35
 
 
 class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
@@ -61,6 +64,7 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
         self._attr_is_on = False
         self._attr_icon = "mdi:remote"
         self.config_entry = config_entry
+        self._pending_off_handle: asyncio.TimerHandle | None = None
 
         if hasattr(self.coordinator.api, "activities"):
             for activity in self.coordinator.api.activities:
@@ -100,7 +104,6 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
                     self._attr_current_activity = activity.name
                     break
         self._attr_is_on = True
-        return
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the entity off."""
@@ -109,6 +112,7 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
                 if activity.is_on:
                     await activity.turn_off()
         self._attr_is_on = False
+        self.coordinator.async_set_updated_data({"updated": True})
 
     async def async_send_command(self, command: Iterable[str], **kwargs):
         """Send a remote command."""
@@ -130,9 +134,42 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
                 )
 
     @callback
+    def _cancel_pending_off(self) -> None:
+        """Cancel a deferred off-state update during an activity handoff."""
+        if self._pending_off_handle is not None:
+            self._pending_off_handle.cancel()
+            self._pending_off_handle = None
+
+    @callback
+    def _confirm_activity_off(self) -> None:
+        """Publish off only if the activity handoff did not complete."""
+        self._pending_off_handle = None
+        if not self.update_state():
+            self.async_write_ha_state()
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Cancel any deferred state update when the entity is removed."""
+        self._cancel_pending_off()
+        await super().async_will_remove_from_hass()
+
+    @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        self.update_state()
+        if self.update_state():
+            self._cancel_pending_off()
+            self.async_write_ha_state()
+            return
+
+        if self.coordinator.api.last_update_type == UpdateType.ACTIVITY:
+            if self._pending_off_handle is None:
+                self._pending_off_handle = self.hass.loop.call_later(
+                    _ACTIVITY_TRANSITION_GRACE_SECS, self._confirm_activity_off
+                )
+            return
+
+        if self._pending_off_handle is not None:
+            return
+
         self.async_write_ha_state()
 
 
@@ -175,7 +212,6 @@ class RemoteDockSensor(UnfoldedCircleDockEntity, RemoteEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the entity on."""
         self._attr_is_on = True
-        return
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the entity off."""

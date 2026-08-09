@@ -308,6 +308,40 @@ class TestWsMessageHandling:
         await remote._handle_ws_message(ws_activity_off_message("act-001"))
         assert remote.activities[0].is_on is False
 
+    async def test_activity_running_link_marks_activity_as_active(self, remote: Remote):
+        from unfurled.entities.activity import Activity
+
+        activity = Activity(
+            {"entity_id": "act-001", "name": {}, "attributes": {"state": "OFF"}}, remote
+        )
+        remote.activities.append(activity)
+        raw = json.dumps(
+            {
+                "msg": "entity_change",
+                "msg_data": {
+                    "entity_type": "activity",
+                    "entity_id": "act-001",
+                    "new_state": {
+                        "attributes": {
+                            "state": "RUNNING",
+                            "step": {
+                                "entity": {"type": "media_player"},
+                                "command": {
+                                    "cmd_id": "media_player.on",
+                                    "entity_id": "media_player.tv",
+                                },
+                            },
+                        }
+                    },
+                },
+            }
+        )
+
+        await remote._handle_ws_message(raw)
+
+        assert activity.state == "RUNNING"
+        assert activity.is_on is True
+
     async def test_configuration_change_updates_display_brightness(self, remote: Remote):
         await remote._handle_ws_message(ws_configuration_change_message(display_brightness=75))
         assert remote.settings.display.brightness == 75
