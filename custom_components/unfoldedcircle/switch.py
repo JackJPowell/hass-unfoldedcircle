@@ -3,6 +3,8 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from unfurled.helpers.exceptions import HTTPError
+
 from homeassistant.components.switch import (
     SwitchDeviceClass,
     SwitchEntity,
@@ -10,6 +12,7 @@ from homeassistant.components.switch import (
 )
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import UnfoldedCircleConfigEntry
@@ -164,12 +167,22 @@ class UCRemoteSwitch(UnfoldedCircleEntity, SwitchEntity):
 
     async def async_turn_on(self, **kwargs) -> None:
         """Instruct the switch to turn on."""
-        await self.switch.turn_on()
+        try:
+            await self.switch.turn_on()
+        except HTTPError as err:
+            raise HomeAssistantError(
+                f"Failed to start activity {self.switch.name}: {err}"
+            ) from err
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs) -> None:
         """Instruct the switch to turn off."""
-        await self.switch.turn_off()
+        try:
+            await self.switch.turn_off()
+        except HTTPError as err:
+            raise HomeAssistantError(
+                f"Failed to stop activity {self.switch.name}: {err}"
+            ) from err
         self.async_write_ha_state()
 
 

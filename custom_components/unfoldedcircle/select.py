@@ -1,18 +1,20 @@
 """Select platform for Unfolded Circle"""
 
+from collections.abc import Mapping
 import logging
-from typing import Any, Mapping
+from typing import Any
+
+from unfurled.helpers.exceptions import HTTPError
+from unfurled.helpers.models import UpdateType
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from unfurled.helpers.models import UpdateType
 
-from .const import (
-    CONF_SUPPRESS_ACTIVITIY_GROUPS,
-)
-from .entity import UnfoldedCircleEntity
 from . import UnfoldedCircleConfigEntry
+from .const import CONF_SUPPRESS_ACTIVITIY_GROUPS
+from .entity import UnfoldedCircleEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,7 +22,7 @@ POWER_OFF_LABEL = "Power Off"
 
 
 async def async_setup_entry(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     config_entry: UnfoldedCircleConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
@@ -68,13 +70,23 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
         if option == POWER_OFF_LABEL:
             for activity in self.activity_group.activities:
                 if activity.is_on:
-                    await activity.turn_off()
+                    try:
+                        await activity.turn_off()
+                    except HTTPError as err:
+                        raise HomeAssistantError(
+                            f"Failed to stop activity {activity.name}: {err}"
+                        ) from err
             self._attr_current_option = option
             self.async_write_ha_state()
             return
         for activity in self.activity_group.activities:
             if activity.name == option:
-                await activity.turn_on()
+                try:
+                    await activity.turn_on()
+                except HTTPError as err:
+                    raise HomeAssistantError(
+                        f"Failed to start activity {activity.name}: {err}"
+                    ) from err
                 self._attr_current_option = option
                 self.async_write_ha_state()
 
