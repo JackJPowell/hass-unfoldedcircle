@@ -231,6 +231,37 @@ class TestEndpoints:
             result = await api.put_ir_send("emitter-001", {"code": "0x1234", "format": "HEX"})
         assert result is not None
 
+    async def test_get_ir_manufacturer_endpoints(self):
+        received: dict[str, dict[str, str]] = {}
+
+        async def manufacturers(request: web.Request) -> web.Response:
+            received["manufacturers"] = dict(request.query)
+            return web.json_response([{"id": "lg", "name": "LG"}])
+
+        async def codesets(request: web.Request) -> web.Response:
+            received["codesets"] = dict(request.query)
+            return web.json_response([{"id": "hfwgPmT", "name": "Generic TV 1", "custom": False}])
+
+        async def commands(_request: web.Request) -> web.Response:
+            return web.json_response(["POWER_ON", "POWER_OFF"])
+
+        app = web.Application()
+        app.router.add_get("/api/ir/codes/manufacturers", manufacturers)
+        app.router.add_get("/api/ir/codes/manufacturers/lg", codesets)
+        app.router.add_get("/api/ir/codes/manufacturers/lg/hfwgPmT", commands)
+        async with core_test_server(app) as base, CoreAPI(base) as local_api:
+            manufacturers_result = await local_api.get_ir_manufacturers(page=2, q="lg")
+            codesets_result = await local_api.get_ir_manufacturer_codesets("lg", page=2, q="tv")
+            commands_result = await local_api.get_ir_manufacturer_codeset_commands("lg", "hfwgPmT")
+
+        assert received == {
+            "manufacturers": {"limit": "100", "page": "2", "q": "lg"},
+            "codesets": {"limit": "100", "page": "2", "q": "tv"},
+        }
+        assert manufacturers_result == [{"id": "lg", "name": "LG"}]
+        assert codesets_result[0]["id"] == "hfwgPmT"
+        assert commands_result == ["POWER_ON", "POWER_OFF"]
+
     async def test_get_api_keys(self, api: CoreAPI):
         payload = [{"name": "pyUnfoldedCircle", "key_id": "k1"}]
         with aioresponses() as m:

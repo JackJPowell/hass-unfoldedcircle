@@ -268,6 +268,30 @@ class TestIREmitter:
         assert emitter.ports == []
 
 
+class TestManufacturerIR:
+    async def test_resolves_names_case_insensitively_before_sending(self, remote: Remote):
+        emitter = IREmitter({"device_id": "emitter-001", "name": "Remote"}, remote)
+        emitter.send_codeset_command = AsyncMock(return_value=True)
+        remote.ir_emitters.append(emitter)
+        remote.api.get_ir_custom_codes = AsyncMock(return_value=[])
+        remote.api.get_ir_manufacturers = AsyncMock(return_value=[{"id": "lg", "name": "LG"}])
+        remote.api.get_ir_manufacturer_codesets = AsyncMock(
+            return_value=[{"id": "hfwgPmT", "name": "Generic TV 1", "custom": False}]
+        )
+        remote.api.get_ir_manufacturer_codeset_commands = AsyncMock(
+            return_value=["POWER_ON", "POWER_OFF"]
+        )
+
+        assert await remote.ir.send("power_off", device="lG", codeset="generic tv 1")
+
+        remote.api.get_ir_manufacturers.assert_awaited_once_with(q="lG")
+        remote.api.get_ir_manufacturer_codesets.assert_awaited_once_with("lg", q="generic tv 1")
+        remote.api.get_ir_manufacturer_codeset_commands.assert_awaited_once_with("lg", "hfwgPmT")
+        emitter.send_codeset_command.assert_awaited_once_with(
+            "hfwgPmT", "POWER_OFF", port_id=None, repeat=0
+        )
+
+
 class TestWsMessageHandling:
     async def test_battery_message_updates_state(self, remote: Remote):
         await remote._handle_ws_message(

@@ -66,19 +66,19 @@ send_ir_command:
   fields:
     device:
       name: Device Name / Manufacturer
-      description: Custom Codeset Device Name / Manufacturer
+      description: Custom codeset device name or manufacturer name.
       required: false
       selector:
         text:
     codeset:
       name: Manufacturer Codeset Name
-      description: The name of the manufacturer codeset
+      description: Manufacturer codeset name (used with a manufacturer device).
       required: false
       selector:
         text:
     command:
       name: IR Command
-      description: IR command (Raw code or learned command)
+      description: IR command (raw code, learned command, or manufacturer command).
       required: true
       selector:
           text:

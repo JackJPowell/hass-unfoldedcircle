@@ -536,23 +536,44 @@ class CoreAPI:
 
     async def get_ir_custom_codeset(self, device_id: str) -> dict:
         """GET /ir/codes/custom/{device_id}."""
-        return await self._get(
-            f"ir/codes/custom/{self._path_segment(device_id)}"
-        )
+        return await self._get(f"ir/codes/custom/{self._path_segment(device_id)}")
 
-    async def get_ir_manufacturers(self, query: str, page: int = 1, limit: int = 100) -> dict:
-        """GET /ir/codes/manufacturers"""
-        return await self._get(
-            "ir/codes/manufacturers", params={"page": page, "limit": limit, "q": query}
-        )
+    async def get_ir_manufacturers(
+        self, limit: int = 100, *, page: int | None = None, q: str | None = None
+    ) -> list[dict]:
+        """GET /ir/codes/manufacturers, optionally filtering by name."""
+        params: dict[str, str | int] = {"limit": limit}
+        if page is not None:
+            params["page"] = page
+        if q is not None:
+            params["q"] = q
+        return await self._get("ir/codes/manufacturers", params=params)
 
     async def get_ir_manufacturer_codesets(
-        self, manufacturer_id: str, page: int = 1, limit: int = 100
-    ) -> dict:
-        """GET /ir/codes/manufacturers/{id}"""
+        self,
+        manufacturer_id: str,
+        limit: int = 100,
+        *,
+        page: int | None = None,
+        q: str | None = None,
+    ) -> list[dict]:
+        """GET /ir/codes/manufacturers/{manufacturer_id}, optionally filtering by name."""
+        params: dict[str, str | int] = {"limit": limit}
+        if page is not None:
+            params["page"] = page
+        if q is not None:
+            params["q"] = q
         return await self._get(
-            f"ir/codes/manufacturers/{self._path_segment(manufacturer_id)}",
-            params={"page": page, "limit": limit},
+            f"ir/codes/manufacturers/{self._path_segment(manufacturer_id)}", params=params
+        )
+
+    async def get_ir_manufacturer_codeset_commands(
+        self, manufacturer_id: str, codeset_id: str
+    ) -> list[str]:
+        """GET /ir/codes/manufacturers/{manufacturer_id}/{codeset_id}."""
+        return await self._get(
+            "ir/codes/manufacturers/"
+            f"{self._path_segment(manufacturer_id)}/{self._path_segment(codeset_id)}"
         )
 
     async def get_remotes(

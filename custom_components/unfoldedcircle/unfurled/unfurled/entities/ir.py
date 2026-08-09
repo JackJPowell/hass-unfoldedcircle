@@ -264,6 +264,17 @@ class IR(RemoteModule):
                 dock=dock,
             )
 
+        if device and codeset:
+            return await self._send_from_manufacturer(
+                device,
+                codeset,
+                command,
+                emitter_name=emitter_name,
+                emitter_id=emitter_id,
+                port_id=port_id,
+                repeat=repeat,
+            )
+
         if device:
             custom_code = await self.get_custom_code(device, command)
             if custom_code is not None:
@@ -279,9 +290,7 @@ class IR(RemoteModule):
 
         codeset_name = codeset or device
         if not codeset_name:
-            raise InvalidIRFormat(
-                "IR command must be raw or include a custom device or codeset"
-            )
+            raise InvalidIRFormat("IR command must be raw or include a custom device or codeset")
         return await self._send_from_codeset(
             codeset_name,
             command,
@@ -341,6 +350,61 @@ class IR(RemoteModule):
         emitter = self._resolve(emitter_name, emitter_id)
         return await emitter.send_code(code, ir_format, port_id=port_id, repeat=repeat)
 
+    async def _send_from_manufacturer(
+        self,
+        manufacturer_name: str,
+        codeset_name: str,
+        command: str,
+        *,
+        emitter_name: str | None,
+        emitter_id: str | None,
+        port_id: str | None,
+        repeat: int,
+    ) -> bool:
+        """Resolve and send a command from a manufacturer codeset."""
+        await self._ensure_awake()
+        manufacturers = await self._remote.api.get_ir_manufacturers(q=manufacturer_name)
+        manufacturer = next(
+            (
+                item
+                for item in manufacturers
+                if item.get("name", "").casefold() == manufacturer_name.casefold()
+            ),
+            manufacturers[0] if manufacturers else None,
+        )
+        if manufacturer is None:
+            raise InvalidIRFormat(f"IR manufacturer {manufacturer_name} was not found")
+
+        manufacturer_id = manufacturer.get("id", "")
+        codesets = await self._remote.api.get_ir_manufacturer_codesets(
+            manufacturer_id, q=codeset_name
+        )
+        codeset = next(
+            (
+                item
+                for item in codesets
+                if item.get("name", "").casefold() == codeset_name.casefold()
+            ),
+            codesets[0] if codesets else None,
+        )
+        if codeset is None:
+            raise InvalidIRFormat(
+                f"IR codeset {codeset_name} was not found for manufacturer {manufacturer_name}"
+            )
+
+        codeset_id = codeset.get("id", "")
+        commands = await self._remote.api.get_ir_manufacturer_codeset_commands(
+            manufacturer_id, codeset_id
+        )
+        cmd_id = next((item for item in commands if item.casefold() == command.casefold()), None)
+        if cmd_id is None:
+            raise InvalidIRFormat(f"IR command {command} was not found in codeset {codeset_name}")
+
+        emitter = self._resolve(emitter_name, emitter_id)
+        return await emitter.send_codeset_command(
+            codeset_id, cmd_id, port_id=port_id, repeat=repeat
+        )
+
     async def _send_from_codeset(
         self,
         codeset_name: str,
@@ -355,17 +419,13 @@ class IR(RemoteModule):
         await self._ensure_awake()
         ir_codeset = next((c for c in self.codesets if c.name == codeset_name), None)
         if not ir_codeset:
-            raise InvalidIRFormat(
-                f"IR device '{codeset_name}' not found in loaded codesets"
-            )
+            raise InvalidIRFormat(f"IR device '{codeset_name}' not found in loaded codesets")
         emitter = self._resolve(emitter_name, emitter_id)
         return await emitter.send_codeset_command(
             ir_codeset.id, command, port_id=port_id, repeat=repeat
         )
 
-    async def get_custom_code(
-        self, device: str, command: str
-    ) -> IRCode | None:
+    async def get_custom_code(self, device: str, command: str) -> IRCode | None:
         """Resolve a command from a user-defined custom IR device."""
         custom_devices = await self._remote.api.get_ir_custom_codes()
         custom_device = next(
@@ -379,9 +439,7 @@ class IR(RemoteModule):
         if custom_device is None:
             return None
 
-        detail = await self._remote.api.get_ir_custom_codeset(
-            custom_device.get("device_id", "")
-        )
+        detail = await self._remote.api.get_ir_custom_codeset(custom_device.get("device_id", ""))
         code = next(
             (
                 item
@@ -415,6 +473,4 @@ class IR(RemoteModule):
             port_id: Optional output port ID.
             repeat: Number of additional repeats.
         """
-        return await self.send_raw(
-            code, emitter_id=emitter_id, port_id=port_id, repeat=repeat
-        )
+        return await self.send_raw(code, emitter_id=emitter_id, port_id=port_id, repeat=repeat)
