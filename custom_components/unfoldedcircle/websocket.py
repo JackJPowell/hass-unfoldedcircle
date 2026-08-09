@@ -334,6 +334,7 @@ class UCWebsocketClient(metaclass=Singleton):
                 data,
             )
 
+        @callback
         def entities_state_change_event(event: Event[EventStateChangedData]) -> Any:
             """Method called by HA when one of the subscribed entities have changed state."""
             # Note that this method has to be encapsulated in the subscribe_entities_events method

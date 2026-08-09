@@ -5,7 +5,7 @@
 
 from collections.abc import Awaitable, Callable
 import logging
-from typing import Any, Type
+from typing import Any
 
 from aiohttp import ClientConnectionError
 from unfurled.helpers.exceptions import (
@@ -210,7 +210,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Confirm discovery."""
         errors: dict[str, str] = {}
-        zero_config_data_schema: dict[Required | Optional, Type] = vol.Schema(
+        zero_config_data_schema: dict[Required | Optional, type] = vol.Schema(
             {
                 vol.Required("pin"): str,
                 vol.Optional(
@@ -278,7 +278,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle the initial step."""
         errors: dict[str, str] = {}
         if user_input is None or user_input == {}:
-            schema: dict[Required | Optional, Type] = vol.Schema(
+            schema: dict[Required | Optional, type] = vol.Schema(
                 {
                     vol.Required("host"): str,
                     vol.Required("pin"): str,
@@ -324,7 +324,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 return await self.async_step_select_entities(None)
             return await self.async_step_finish(None)
 
-        schema: dict[Required | Optional, Type] = vol.Schema(
+        schema: dict[Required | Optional, type] = vol.Schema(
             {
                 vol.Required("host", default=user_input.get("host")): str,
                 vol.Required("pin"): str,
@@ -383,7 +383,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Dialog that informs the user that reauth is required."""
         errors = {}
-        zero_config_data_schema: dict[Required | Optional, Type] = vol.Schema(
+        zero_config_data_schema: dict[Required | Optional, type] = vol.Schema(
             {
                 vol.Required("pin"): str,
             }
