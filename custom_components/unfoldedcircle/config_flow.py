@@ -52,6 +52,7 @@ from .helpers import (
     validate_and_register_system_and_driver,
     validate_websocket_address,
 )
+from .websocket import UCWebsocketClient
 
 _LOGGER = logging.getLogger(__name__)
 CONF_DOCK_ID = "dock_id"
@@ -1053,51 +1054,55 @@ async def async_step_select_entities(
     finish_callback: Callable[[dict[str, Any] | None], Awaitable[FlowResult]],
     user_input: dict[str, Any] | None = None,
 ) -> FlowResult:
-    """Select Home Assistant entities using the Remote REST integration API."""
+    """Select entities through the Remote HA websocket subscription."""
     errors: dict[str, str] = {}
-    integration_id = ""
     saved_entities = list(
         getattr(config_flow, "options", {}).get("available_entities", [])
     )
-    configured_entities = saved_entities
+    client_id = getattr(config_flow, "options", {}).get(
+        "client_id", remote.device.hostname
+    )
+    subscribed_entities: list[str] = []
+    configuration_subscription = None
+    integration_id = ""
+    websocket_client = UCWebsocketClient(config_flow.hass)
 
     try:
         integration_id = await connect_integration(remote)
-        integration_entities = await remote.integrations.get_entities(
-            integration_id, reload=user_input is None
-        )
-        configured_entities = [
-            entity["entity_id"]
-            for entity in integration_entities
-            if entity.get("entity_id")
-        ]
-        configured_entities = list(
-            dict.fromkeys([*configured_entities, *saved_entities])
-        )
-
-        if user_input is not None:
-            selected_entities = user_input.get("add_entities", [])
-            removed_entities = set(user_input.get("remove_entities", []))
-            final_entities = [
-                entity_id
-                for entity_id in dict.fromkeys(
-                    [*configured_entities, *selected_entities]
-                )
-                if entity_id not in removed_entities
-            ]
-
-            if user_input.get("subscribe_entities", True):
-                await remote.integrations.configure_entities(
-                    integration_id, final_entities
-                )
-
-            config_flow.options["available_entities"] = final_entities
-            return await finish_callback(None)
+        (
+            entity_subscription,
+            configuration_subscription,
+        ) = await websocket_client.async_wait_for_subscriptions(client_id)
+        client_id = configuration_subscription.client_id
+        subscribed_entities = entity_subscription.entity_ids
     except Exception as ex:
         _LOGGER.warning(
-            "Unable to retrieve or configure entities for %s: %s",
+            "Unable to establish HA websocket subscriptions for %s: %s",
             remote.device.name,
             ex,
+        )
+        errors["base"] = "ha_driver_failure"
+
+    configured_entities = list(dict.fromkeys([*subscribed_entities, *saved_entities]))
+
+    if user_input is not None and configuration_subscription is not None:
+        selected_entities = user_input.get("add_entities", [])
+        final_entities = list(dict.fromkeys([*configured_entities, *selected_entities]))
+        entity_states = [
+            state
+            for entity_id in final_entities
+            if (state := config_flow.hass.states.get(entity_id)) is not None
+        ]
+
+        if await websocket_client.send_configuration_to_remote(
+            client_id, entity_states
+        ):
+            config_flow.options["available_entities"] = final_entities
+            config_flow.options["client_id"] = client_id
+            return await finish_callback(None)
+
+        _LOGGER.error(
+            "Failed to notify remote %s of selected entities", remote.device.name
         )
         errors["base"] = "ha_driver_failure"
 
@@ -1106,20 +1111,18 @@ async def async_step_select_entities(
         if remote.system.flags.new_web_configurator
         else f"{remote.configuration_url.rstrip('/')}#/integrations-devices/{integration_id}"
     )
-    selector_config: EntitySelectorConfig = {
+    add_selector: EntitySelectorConfig = {
         "exclude_entities": configured_entities,
         "filter": [{"domain": HA_SUPPORTED_DOMAINS}],
         "multiple": True,
     }
-    data_schema = vol.Schema(
-        {
-            vol.Optional("add_entities", default=[]): EntitySelector(selector_config),
-            vol.Required("subscribe_entities", default=True): bool,
-        }
-    )
+    schema: dict = {
+        vol.Optional("add_entities", default=[]): EntitySelector(add_selector),
+    }
+
     return config_flow.async_show_form(
         step_id="select_entities",
-        data_schema=data_schema,
+        data_schema=vol.Schema(schema),
         description_placeholders={
             "remote_name": remote.device.name,
             "remote_ha_config_url": remote_ha_config_url,
