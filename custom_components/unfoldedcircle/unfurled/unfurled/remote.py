@@ -303,6 +303,15 @@ class Remote:
     # ------------------------------------------------------------------
 
     @property
+    def is_available(self) -> bool:
+        """Whether the Remote is awake and its WebSocket is connected."""
+        return (
+            self._ws_client is not None
+            and self._ws_client.is_connected
+            and self.state.power_mode != PowerMode.SUSPEND
+        )
+
+    @property
     def last_update_type(self) -> UpdateType:
         """Type of the most recent state update."""
         return self._last_update_type

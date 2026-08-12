@@ -1,9 +1,9 @@
 """Update sensor."""
 
 import asyncio
+from datetime import timedelta
 import logging
 import math
-from datetime import timedelta
 from typing import Any
 
 from unfurled.helpers.exceptions import HTTPError
@@ -25,7 +25,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     config_entry: UnfoldedCircleConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
@@ -102,6 +102,13 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
             )
             return self._download_progress
 
+    @property
+    def available(self) -> bool:
+        """Do not report firmware state until its initial status poll completes."""
+        return (
+            super().available and self.coordinator.api.system.update_info.status_loaded
+        )
+
     async def async_install(
         self, version: str | None, backup: bool, **kwargs: Any
     ) -> None:
@@ -164,8 +171,6 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
                 "Unfolded Circle Update Failed ** If 503, battery level < 50 ** Status: %s",
                 ex.status_code,
             )
-        except Exception:
-            pass
 
         self._is_downloading = False
         self.async_write_ha_state()
@@ -273,8 +278,6 @@ class UpdateDock(UnfoldedCircleDockEntity, UpdateEntity):
                 "Unfolded Circle Update Failed ** If 503, battery level < 20 ** Status: %s",
                 ex.status_code,
             )
-        except Exception:
-            pass
 
         self._attr_in_progress = True
         self.async_write_ha_state()

@@ -3,6 +3,7 @@
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
 from . import UnfoldedCircleConfigEntry, UnfoldedCircleRemoteCoordinator
 from .const import DOMAIN
 from .coordinator import UnfoldedCircleDockCoordinator
@@ -55,12 +56,13 @@ class UnfoldedCircleDockEntity(CoordinatorEntity[UnfoldedCircleDockCoordinator])
 
         self._attr_device_info = DeviceInfo(
             identifiers={
+                (DOMAIN, self.subentry.unique_id),
                 (
                     DOMAIN,
                     self.subentry.unique_id,
                     self.coordinator.api.device.model_number,
                     self.coordinator.api.device.serial_number,
-                )
+                ),
             },
             name=self.coordinator.api.device.name,
             manufacturer=self.coordinator.api.device.manufacturer,

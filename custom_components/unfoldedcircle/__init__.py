@@ -174,11 +174,14 @@ async def async_setup_entry(
                     subentry.data["id"],
                 )
                 continue
+            password = subentry.data.get("password", "")
+            direct_communication = entry.options.get(
+                CONF_DIRECT_DOCK_COMMUNICATION, False
+            )
             dock.configure_communication(
-                "direct"
-                if entry.options.get(CONF_DIRECT_DOCK_COMMUNICATION, False)
-                else "proxy",
-                subentry.data.get("password", ""),
+                "direct" if direct_communication else "proxy",
+                password,
+                proxy_available=lambda: remote_api.is_available,
             )
             dock_coordinator = UnfoldedCircleDockCoordinator(
                 hass, dock, entry, subentry
@@ -186,7 +189,8 @@ async def async_setup_entry(
             # Keep dock entities registered even if the first request times
             # out. They will be unavailable until a later poll succeeds.
             docks[subentry_id] = dock_coordinator
-            await dock_coordinator.async_refresh()
+            if not direct_communication:
+                await dock_coordinator.async_refresh()
         else:
             dock = remote_api.find_dock(subentry.data["id"])
             if dock:

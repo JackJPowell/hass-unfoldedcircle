@@ -22,6 +22,7 @@ from homeassistant import config_entries
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
+    ConfigSubentry,
     ConfigSubentryFlow,
     SubentryFlowResult,
 )
@@ -685,6 +686,8 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         self.options = dict(config_entry.options)
         self._remote: Remote | None = self._config_entry.runtime_data.remote
         self._bypass_steps: bool = False
+        self._invalid_dock_subentry: ConfigSubentry | None = None
+        self._invalid_dock = None
 
     async def async_connect_remote(self) -> None:
         """Connect and initialize the remote for the options flow."""
@@ -706,7 +709,7 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         if self._remote.system.flags.external_entity_configuration_available:
             return self.async_show_menu(
                 step_id="init",
-                menu_options=["select_entities", "activities", "remote_host"],
+                menu_options=["select_entities", "activities", "dock_options", "remote_host"],
                 description_placeholders={"remote": self._remote.device.name},
             )
         return await self.async_step_activities()
@@ -796,6 +799,27 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
             last_step=True,
         )
 
+    async def async_step_dock_options(self, user_input=None) -> FlowResult:
+        """Configure direct communication with configured docks."""
+        if user_input is not None:
+            self.options[CONF_DIRECT_DOCK_COMMUNICATION] = user_input.get(
+                CONF_DIRECT_DOCK_COMMUNICATION, False
+            )
+            return await self._update_options(validate_docks=True)
+        return self.async_show_form(
+            step_id="dock_options",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_DIRECT_DOCK_COMMUNICATION,
+                        default=self._config_entry.options.get(
+                            CONF_DIRECT_DOCK_COMMUNICATION, False
+                        ),
+                    ): bool
+                }
+            ),
+        )
+
     async def async_step_remote_host(
         self, user_input=None, final_step: bool = False
     ) -> FlowResult:
@@ -832,9 +856,41 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
             step_id="websocket",
         )
 
-    async def _update_options(self):
-        """Update config entry options."""
+    async def _update_options(self, *, validate_docks: bool = False):
+        """Update options, validating dock credentials when requested."""
+        if validate_docks and self.options.get(CONF_DIRECT_DOCK_COMMUNICATION, False):
+            for subentry in self._config_entry.subentries.values():
+                dock = self._remote.find_dock(subentry.data["id"])
+                if dock and not await dock.validate_password(
+                    subentry.data.get("password", "")
+                ):
+                    self._invalid_dock_subentry = subentry
+                    self._invalid_dock = dock
+                    return await self.async_step_dock_password()
         return self.async_create_entry(title="", data=self.options)
+
+    async def async_step_dock_password(self, user_input=None) -> FlowResult:
+        """Replace an invalid cached direct-dock password."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            password = user_input.get("password", "")
+            if not await self._invalid_dock.validate_password(password):
+                errors["base"] = "invalid_dock_password"
+            else:
+                data = dict(self._invalid_dock_subentry.data)
+                data["password"] = password
+                self.hass.config_entries.async_update_subentry(
+                    self._config_entry, self._invalid_dock_subentry, data=data
+                )
+                self._invalid_dock_subentry = None
+                self._invalid_dock = None
+                return await self._update_options()
+        return self.async_show_form(
+            step_id="dock_password",
+            data_schema=vol.Schema({vol.Required("password"): str}),
+            errors=errors,
+            description_placeholders={"name": self._invalid_dock.device.name},
+        )
 
     async def async_step_select_entities(
         self, user_input: dict[str, Any] | None = None
@@ -894,16 +950,6 @@ async def async_step_remote_host(
                 _LOGGER.debug("Updating host for remote")
                 data["host"] = remote_api.endpoint
                 hass.config_entries.async_update_entry(config_entry, data=data)
-                config_flow.options[CONF_DIRECT_DOCK_COMMUNICATION] = user_input.get(
-                    CONF_DIRECT_DOCK_COMMUNICATION,
-                    config_flow.options.get(CONF_DIRECT_DOCK_COMMUNICATION, False),
-                )
-                options = dict(config_entry.options)
-                options[CONF_DIRECT_DOCK_COMMUNICATION] = user_input.get(
-                    CONF_DIRECT_DOCK_COMMUNICATION,
-                    options.get(CONF_DIRECT_DOCK_COMMUNICATION, False),
-                )
-                hass.config_entries.async_update_entry(config_entry, options=options)
         except ClientConnectionError:
             errors["base"] = "cannot_connect"
         except Exception:  # pylint: disable=broad-except
@@ -913,6 +959,8 @@ async def async_step_remote_host(
             if next_step_callback is not None:
                 return await next_step_callback()
             return await finish_callback()
+        finally:
+            await remote_api.close()
 
     last_step = next_step_callback is None
 
@@ -924,12 +972,6 @@ async def async_step_remote_host(
                     "host",
                     default=config_entry.data["host"],
                 ): str,
-                vol.Optional(
-                    CONF_DIRECT_DOCK_COMMUNICATION,
-                    default=config_entry.options.get(
-                        CONF_DIRECT_DOCK_COMMUNICATION, False
-                    ),
-                ): bool,
             }
         ),
         description_placeholders={"name": remote.device.name if remote else "Remote"},

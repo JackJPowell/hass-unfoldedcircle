@@ -105,21 +105,28 @@ class DockPasswordRepairFlow(RepairsFlow):
         self.subentry = self.data["subentry"]
 
     async def async_step_init(
+        self, _user_input: dict[str, str] | None = None
+    ) -> data_entry_flow.FlowResult:
+        """Start the dock password repair flow."""
+        return await self.async_step_confirm()
+
+    async def async_step_confirm(
         self, user_input: dict[str, str] | None = None
     ) -> data_entry_flow.FlowResult:
         """Prompt for and validate the dock password."""
         errors: dict[str, str] = {}
         if user_input is not None:
+            password = user_input.get("password", "")
             dock = self.config_entry.runtime_data.remote.find_dock(
                 self.subentry.data["id"]
             )
             if dock is None:
                 errors["base"] = "cannot_connect"
-            elif not await dock.validate_password(user_input["password"]):
+            elif not await dock.validate_password(password):
                 errors["base"] = "invalid_dock_password"
             else:
                 data = dict(self.subentry.data)
-                data["password"] = user_input["password"]
+                data["password"] = password
                 self.hass.config_entries.async_update_subentry(
                     self.config_entry, self.subentry, data=data
                 )

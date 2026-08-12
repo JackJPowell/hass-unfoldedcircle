@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -16,11 +17,22 @@ from .helpers.websocket import (
 )
 
 if TYPE_CHECKING:
-    from .helpers.websocket import MessageCallback
+    from .helpers.websocket import ConnectCallback, MessageCallback
 
 _LOGGER = logging.getLogger(__name__)
 
 _SIMULATOR_NAMES = {"Remote Two Simulator", "Remote 3 Simulator"}
+_DOCK_LED_NATIVE_MAX = 255
+
+
+def _brightness_percentage(value: int) -> int:
+    """Convert a Dock-native 0-255 brightness value to a percentage."""
+    return round(max(0, min(_DOCK_LED_NATIVE_MAX, value)) * 100 / _DOCK_LED_NATIVE_MAX)
+
+
+def _brightness_native(value: int) -> int:
+    """Convert a 0-100 percentage to a Dock-native brightness value."""
+    return round(max(0, min(100, value)) * _DOCK_LED_NATIVE_MAX / 100)
 
 
 class Dock:
@@ -68,8 +80,8 @@ class Dock:
         self.state = DockState(
             is_active=is_active,
             state=state,
-            led_brightness=led_brightness,
-            ethernet_led_brightness=ethernet_led_brightness,
+            led_brightness_native=led_brightness,
+            ethernet_led_brightness_native=ethernet_led_brightness,
             is_learning_active=is_learning_active,
         )
 
@@ -86,6 +98,7 @@ class Dock:
         self._ws_client: DockWebSocketClient | None = None
         self._ws_password: str = ""
         self._communication_mode = DockCommunicationMode.PROXY
+        self._proxy_available: Callable[[], bool] = lambda: True
 
         # IR data
         self._codesets: list[dict] = []
@@ -113,7 +126,7 @@ class Dock:
             remote_endpoint=remote_endpoint,
             remote_configuration_url=remote_configuration_url,
             name=data.get("name", ""),
-            ws_url=data.get("ws_url", ""),
+            ws_url=data.get("ws_url") or data.get("resolved_ws_url", ""),
             is_active=data.get("active", False),
             model_number=data.get("model_number", ""),
             hardware_revision=data.get("hardware_revision", ""),
@@ -163,11 +176,16 @@ class Dock:
         return self._communication_mode is DockCommunicationMode.DIRECT
 
     def configure_communication(
-        self, mode: DockCommunicationMode | str, password: str = ""
+        self,
+        mode: DockCommunicationMode | str,
+        password: str = "",
+        proxy_available: Callable[[], bool] | None = None,
     ) -> None:
         """Configure the preferred dock transport and direct password."""
         self._communication_mode = DockCommunicationMode(mode)
         self._ws_password = password
+        if proxy_available is not None:
+            self._proxy_available = proxy_available
 
     # ------------------------------------------------------------------
     # WebSocket
@@ -178,6 +196,7 @@ class Dock:
         password: str,
         *,
         message_callback: MessageCallback | None = None,
+        authenticated_callback: ConnectCallback | None = None,
         reconnect_delay: float = 10.0,
     ) -> None:
         """Open a native WebSocket connection to the dock.
@@ -185,6 +204,7 @@ class Dock:
         Args:
             password: The dock token / password.
             message_callback: Optional async callable(raw_message: str).
+            authenticated_callback: Optional callable invoked after authentication.
             reconnect_delay: Seconds between reconnection attempts.
         """
         if not self.direct_communication or not self._ws_url:
@@ -198,6 +218,8 @@ class Dock:
         self._ws_client.on_message(self._handle_ws_message)
         if message_callback:
             self._ws_client.on_message(message_callback)
+        if authenticated_callback:
+            self._ws_client.on_authenticated(authenticated_callback)
 
         await self._ws_client.connect()
 
@@ -277,15 +299,22 @@ class Dock:
             raise DockWebSocketError("Dock WebSocket is not configured")
         return await self._ws_client.request(command, **data)
 
+    def _can_use_proxy(self) -> bool:
+        """Return whether proxy fallback is currently safe to attempt."""
+        return self._proxy_available()
+
     async def _proxy_command(self, command: DockCommand, **params: object) -> dict:
         body: dict[str, str] = {"command": command.value}
         if params:
-            body["value"] = str(next(iter(params.values())))
+            value = next(iter(params.values()))
+            if command is DockCommand.SET_LED_BRIGHTNESS:
+                value = _brightness_native(int(value))
+            body["value"] = str(value)
         return await self.api.post_dock_command(self.device.id, body)
 
     async def _direct_command(self, command: DockCommand, **params: object) -> dict:
         if command is DockCommand.SET_LED_BRIGHTNESS:
-            brightness = int(params["brightness"])
+            brightness = _brightness_native(int(params["brightness"]))
             return await self._direct_request(
                 "set_brightness", status_led=brightness, eth_led=brightness
             )
@@ -299,7 +328,7 @@ class Dock:
             try:
                 return await self._direct_command(command, **params)
             except (DockWebSocketError, TimeoutError):
-                if command is DockCommand.SET_LED_BRIGHTNESS:
+                if self._can_use_proxy():
                     return await self._proxy_command(command, **params)
                 raise
         return await self._proxy_command(command, **params)
@@ -320,6 +349,8 @@ class Dock:
                 "ir_send", code=code, format=ir_format.lower(), repeat=repeat, **outputs
             )
             return True
+        if not self._can_use_proxy():
+            raise DockWebSocketError("Dock WebSocket is not connected and Remote is unavailable")
         body: dict[str, object] = {"code": code, "format": ir_format}
         if port_mask is not None:
             body["port_id"] = str(port_mask)
@@ -395,9 +426,11 @@ class Dock:
         self.device.hardware_revision = info.get("revision", self.device.hardware_revision)
         self.device.serial_number = info.get("serial", self.device.serial_number)
         self.device.software_version = info.get("version", self.device.software_version)
-        self.state.led_brightness = int(info.get("led_brightness", self.state.led_brightness))
-        self.state.ethernet_led_brightness = int(
-            info.get("eth_led_brightness", self.state.ethernet_led_brightness)
+        self.state.led_brightness_native = int(
+            info.get("led_brightness", self.state.led_brightness_native)
+        )
+        self.state.ethernet_led_brightness_native = int(
+            info.get("eth_led_brightness", self.state.ethernet_led_brightness_native)
         )
         self._set_learning_active(bool(info.get(learning_key, self.state.is_learning_active)))
         self._apply_external_ports(info.get("ports", []))
@@ -662,11 +695,21 @@ class DockState:
 
     is_active: bool = False
     state: str = ""
-    led_brightness: int = 0
-    ethernet_led_brightness: int = 0
+    led_brightness_native: int = 0
+    ethernet_led_brightness_native: int = 0
     is_learning_active: bool = False
     volume: int | None = None
     external_ports: dict[int, ExternalPort] = field(default_factory=dict)
+
+    @property
+    def led_brightness(self) -> int:
+        """Status LED brightness as a 0-100 percentage."""
+        return _brightness_percentage(self.led_brightness_native)
+
+    @property
+    def ethernet_led_brightness(self) -> int:
+        """Ethernet LED brightness as a 0-100 percentage."""
+        return _brightness_percentage(self.ethernet_led_brightness_native)
 
 
 class System:
@@ -697,7 +740,7 @@ class System:
             brightness: Brightness level 0-100.
         """
         await self._send_command(DockCommand.SET_LED_BRIGHTNESS, brightness=brightness)
-        self._dock.state.led_brightness = brightness
+        self._dock.state.led_brightness_native = _brightness_native(brightness)
 
     @property
     def volume(self) -> int | None:
@@ -754,6 +797,7 @@ class System:
         info = await self._dock.api.get_dock_update_status(self._dock.device.id)
         self.update_info.latest_version = info.get("version", "")
         self.update_info.available = info.get("update_available", [])
+        self.update_info.status_loaded = True
         self._dock.settings.software_update.check_for_updates = bool(
             info.get("update_check_enabled", False)
         )

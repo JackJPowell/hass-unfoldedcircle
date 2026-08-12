@@ -394,6 +394,7 @@ class UpdateInfo:
     release_notes: str = ""
     next_check_date: str = ""
     available: list[dict] = field(default_factory=list)
+    status_loaded: bool = False
 
 
 # ---------------------------------------------------------------------------

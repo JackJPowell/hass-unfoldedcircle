@@ -133,6 +133,7 @@
         "menu_options": {
           "select_entities": "Share entities with {remote}",
           "activities": "Configure local settings",
+          "dock_options": "Configure dock communication",
           "remote_host": "Configure connection settings"
         }
       },
@@ -159,12 +160,18 @@
           "remote_on_behavior": "Activity to start when remote entity is toggled on"
         }
       },
+      "dock_options": {
+        "title": "Dock Options",
+        "description": "Configure communication with your docks.",
+        "data": {
+          "direct_dock_communication": "Use direct dock communication"
+        }
+      },
       "remote_host": {
         "title": "Unfolded Circle Options",
         "description": "Configure Host / IP Address of {name}",
         "data": {
-          "host": "Host / IP Address",
-          "direct_dock_communication": "Use direct dock communication"
+          "host": "Host / IP Address"
         }
       },
       "websocket": {

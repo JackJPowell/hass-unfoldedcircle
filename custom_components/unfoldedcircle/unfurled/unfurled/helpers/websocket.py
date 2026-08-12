@@ -231,7 +231,12 @@ class DockWebSocketClient(WebSocketClient):
         self._password = password
         self._next_request_id = 1
         self._pending_requests: dict[int, asyncio.Future[dict[str, Any]]] = {}
+        self._authenticated_callbacks: list[ConnectCallback] = []
         self.on_message(self._handle_response)
+
+    def on_authenticated(self, callback: ConnectCallback) -> None:
+        """Register a callback invoked after each successful authentication."""
+        self._authenticated_callbacks.append(callback)
 
     async def request(self, command: str, *, timeout: float = 10.0, **data: Any) -> dict[str, Any]:
         """Send a Dock API command and await its correlated response."""
@@ -242,7 +247,7 @@ class DockWebSocketClient(WebSocketClient):
         future: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
         self._pending_requests[request_id] = future
         try:
-            await self.send({"type": "dock", "req_id": request_id, "command": command, **data})
+            await self.send({"type": "dock", "id": request_id, "command": command, **data})
             return await asyncio.wait_for(future, timeout)
         finally:
             self._pending_requests.pop(request_id, None)
@@ -265,27 +270,40 @@ class DockWebSocketClient(WebSocketClient):
     async def _on_connected(self, ws: Any) -> None:
         """Authenticate using the Dock API handshake."""
         try:
-            data = json.loads(await asyncio.wait_for(ws.recv(), timeout=5.0))
-            if data.get("type") == "auth_required":
-                await self.send({"type": "auth", "token": self._password})
-                response = json.loads(await asyncio.wait_for(ws.recv(), timeout=5.0))
-                if response.get("code") != 200:
-                    raise DockWebSocketError("Dock WebSocket authentication failed")
+            await self._authenticate(ws, self._password, timeout=5.0)
+            for callback in self._authenticated_callbacks:
+                asyncio.create_task(callback())
         except TimeoutError as err:
             raise DockWebSocketError("Timed out waiting for dock authentication") from err
         except (TypeError, ValueError) as err:
             raise DockWebSocketError("Invalid dock authentication response") from err
+
+    @staticmethod
+    async def _authenticate(ws: Any, password: str, *, timeout: float) -> None:
+        """Wait for and complete a Dock authentication handshake."""
+        deadline = asyncio.get_running_loop().time() + timeout
+        while True:
+            remaining = deadline - asyncio.get_running_loop().time()
+            if remaining <= 0:
+                raise TimeoutError
+            data = json.loads(await asyncio.wait_for(ws.recv(), timeout=remaining))
+            if data.get("type") != "auth_required":
+                continue
+            await ws.send(json.dumps({"type": "auth", "token": password}))
+            remaining = deadline - asyncio.get_running_loop().time()
+            if remaining <= 0:
+                raise TimeoutError
+            response = json.loads(await asyncio.wait_for(ws.recv(), timeout=remaining))
+            if response.get("code") != 200:
+                raise DockWebSocketError("Dock WebSocket authentication failed")
+            return
 
     @classmethod
     async def validate(cls, ws_url: str, password: str, *, timeout: float = 5.0) -> bool:
         """Return whether *password* is accepted by the dock."""
         try:
             async with websockets.connect(ws_url, ping_interval=None, close_timeout=3) as ws:
-                data = json.loads(await asyncio.wait_for(ws.recv(), timeout=timeout))
-                if data.get("type") != "auth_required":
-                    return True
-                await ws.send(json.dumps({"type": "auth", "token": password}))
-                response = json.loads(await asyncio.wait_for(ws.recv(), timeout=timeout))
-                return response.get("code") == 200
+                await cls._authenticate(ws, password, timeout=timeout)
+                return True
         except Exception:
             return False

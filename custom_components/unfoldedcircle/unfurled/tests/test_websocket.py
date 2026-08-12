@@ -95,7 +95,7 @@ class TestDockWebSocketClient:
         )
         assert (await task)["msg"] == "get_sysinfo"
         sent = json.loads(mock_ws.send.call_args[0][0])
-        assert sent == {"type": "dock", "req_id": 1, "command": "get_sysinfo"}
+        assert sent == {"type": "dock", "id": 1, "command": "get_sysinfo"}
 
 
 class TestWebSocketDisconnect:

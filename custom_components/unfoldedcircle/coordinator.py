@@ -13,6 +13,7 @@ from unfurled.remote import Remote
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
@@ -116,7 +117,7 @@ class UnfoldedCircleRemoteCoordinator(
         except Exception as ex:
             _LOGGER.warning(
                 "Unfolded Circle Remote WebSocket failed to connect: %s. "
-                "Real-time updates will be unavailable until the next poll.",
+                + "Real-time updates will be unavailable until the next poll.",
                 ex,
             )
 
@@ -200,6 +201,7 @@ class UnfoldedCircleDockCoordinator(
             await self.api.connect_websocket(
                 password=password,
                 message_callback=self._on_dock_message,
+                authenticated_callback=self._async_initial_direct_refresh,
             )
             _LOGGER.debug(
                 "Unfolded Circle Dock WebSocket connected for %s", self.api.device.name
@@ -207,13 +209,28 @@ class UnfoldedCircleDockCoordinator(
         except Exception as ex:
             _LOGGER.warning(
                 "Dock WebSocket connection failed for %s: %s. "
-                "Falling back to polling only.",
+                + "Falling back to polling only.",
                 self.api.device.name,
                 ex,
             )
 
-    async def _on_dock_message(self, raw: str) -> None:
-        """Trigger a coordinator update after a dock WS message is processed."""
+    async def _async_initial_direct_refresh(self) -> None:
+        """Populate state and firmware status after Dock authentication."""
+        await self.async_request_refresh()
+
+    async def _on_dock_message(self, _raw: str) -> None:
+        """Publish direct dock state and metadata after a WebSocket message."""
+        device_registry = dr.async_get(self.hass)
+        if device := device_registry.async_get_device(
+            identifiers={(DOMAIN, self.subentry.unique_id)}
+        ):
+            device_registry.async_update_device(
+                device.id,
+                name=self.api.device.name,
+                model=self.api.device.model_name,
+                sw_version=self.api.device.software_version,
+                hw_version=self.api.device.hardware_revision,
+            )
         self.async_set_updated_data({"updated": True})
 
     async def close_websocket(self):

@@ -46,6 +46,16 @@
           "host": "[%key:common::config_flow::data::host%]"
         }
       },
+      "dock_options": {
+        "data": {
+          "direct_dock_communication": "Use direct dock communication"
+        }
+      },
+      "dock_password": {
+        "data": {
+          "password": "Dock Password"
+        }
+      },
       "media_player": {
         "title": "[%key:common::config_flow::title%]",
         "data": {

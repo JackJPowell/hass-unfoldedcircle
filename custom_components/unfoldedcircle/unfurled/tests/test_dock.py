@@ -50,11 +50,19 @@ class TestDockFromDict:
         )
         assert dock.ws_url == DOCK_WS
 
+    def test_parses_resolved_ws_url(self):
+        data = {**DOCK_DATA, "ws_url": "", "resolved_ws_url": DOCK_WS}
+        dock = Dock.from_dict(
+            data, api_key=API_KEY, remote_endpoint=BASE_URL, remote_configuration_url=""
+        )
+        assert dock.ws_url == DOCK_WS
+
     def test_parses_led_brightness(self):
         dock = Dock.from_dict(
             DOCK_DATA, api_key=API_KEY, remote_endpoint=BASE_URL, remote_configuration_url=""
         )
-        assert dock.state.led_brightness == 50
+        assert dock.state.led_brightness == 20
+        assert dock.state.led_brightness_native == 50
 
     def test_parses_state(self):
         dock = Dock.from_dict(
@@ -91,7 +99,7 @@ class TestDockRestCommands:
 
         dock.api.post_dock_command.assert_awaited_once_with(
             dock.device.id,
-            {"command": "SET_LED_BRIGHTNESS", "value": "75"},
+            {"command": "SET_LED_BRIGHTNESS", "value": "191"},
         )
         assert dock.state.led_brightness == 75
 
@@ -214,7 +222,7 @@ class TestDockDirectTransport:
     async def test_led_brightness_uses_direct_command(self, dock: Dock):
         dock._direct_request = AsyncMock(return_value={"code": 200})
         await dock.system.set_led_brightness(75)
-        dock._direct_request.assert_awaited_once_with("set_brightness", status_led=75, eth_led=75)
+        dock._direct_request.assert_awaited_once_with("set_brightness", status_led=191, eth_led=191)
         assert dock.state.led_brightness == 75
 
     async def test_direct_ir_maps_port_mask(self, dock: Dock):
