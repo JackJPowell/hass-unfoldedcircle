@@ -102,13 +102,6 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
             )
             return self._download_progress
 
-    @property
-    def available(self) -> bool:
-        """Do not report firmware state until its initial status poll completes."""
-        return (
-            super().available and self.coordinator.api.system.update_info.status_loaded
-        )
-
     async def async_install(
         self, version: str | None, backup: bool, **kwargs: Any
     ) -> None:
@@ -255,6 +248,11 @@ class UpdateDock(UnfoldedCircleDockEntity, UpdateEntity):
 
         self._attr_supported_features = UpdateEntityFeature(UpdateEntityFeature.INSTALL)
         self._attr_title = f"{self.coordinator.api.device.name} Firmware"
+
+    @property
+    def available(self) -> bool:
+        """Wait for the dock firmware status to load."""
+        return super().available and self.coordinator.api.system.update_info.status_loaded
 
     async def async_install(
         self, version: str | None, backup: bool, **kwargs: Any
