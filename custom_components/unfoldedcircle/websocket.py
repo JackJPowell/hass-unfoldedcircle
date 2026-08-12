@@ -50,7 +50,7 @@ class SubscriptionEvent:
 @websocket_api.websocket_command(INFO_SCHEMA)
 @callback
 def ws_get_info(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     connection: websocket_api.ActiveConnection,
     msg: dict,
 ) -> None:
@@ -166,7 +166,7 @@ def ws_configure_unsubscribe_event(
 )
 @callback
 def ws_unsubscribe_entities_event(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     connection: websocket_api.ActiveConnection,
     msg: dict,
 ) -> None:
@@ -207,7 +207,7 @@ class Singleton(type):
 
     def __call__(cls, *args, **kwargs):
         if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+            cls._instances[cls] = super().__call__(*args, **kwargs)
         return cls._instances[cls]
 
 

@@ -1,14 +1,14 @@
 """Unfolded Circle Remote Web Socket Module"""
 
 import asyncio
+from collections.abc import Callable, Coroutine
 import logging
-from typing import Callable, Coroutine
 
-import websockets
 from requests import Session
-from .websocket import Websocket
+import websockets
 
 from .const import AUTH_APIKEY_NAME
+from .websocket import Websocket
 
 _LOGGER = logging.getLogger(__name__)
 

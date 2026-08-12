@@ -1,13 +1,14 @@
 """Unfolded Circle Dock Web Socket Module"""
 
 import asyncio
+from collections.abc import Callable, Coroutine
 import json
 import logging
-from typing import Callable, Coroutine
+
 import websockets
 
-from .websocket import Websocket
 from .const import WS_RECONNECTION_DELAY
+from .websocket import Websocket
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -99,9 +100,7 @@ class DockWebsocket(Websocket):
             try:
                 if data["type"] == "authentication":
                     await self.close_websocket()
-                    if data["code"] == 200:
-                        return True
-                    return False
+                    return data["code"] == 200
             except Exception:
                 await self.close_websocket()
             _LOGGER.debug("UCD received websocket message %s", data)

@@ -1,32 +1,31 @@
 """Module to interact with the Unfolded Circle Remote Two."""
 
 import asyncio
-from dataclasses import dataclass
 import copy
+from dataclasses import dataclass
+from datetime import datetime
 import json
 import logging
 import re
 import socket
 import time
-from datetime import datetime
 from urllib.parse import urljoin, urlparse
-from wakeonlan import send_magic_packet
-from packaging.version import Version
-
 
 import aiohttp
+from packaging.version import Version
+from wakeonlan import send_magic_packet
 import zeroconf
 
 from .const import (
     AUTH_APIKEY_NAME,
     AUTH_USERNAME,
     SIMULATOR_MAC_ADDRESS,
+    SIMULATOR_NAMES,
     SYSTEM_COMMANDS,
     ZEROCONF_SERVICE_TYPE,
     ZEROCONF_TIMEOUT,
     RemotePowerModes,
     RemoteUpdateType,
-    SIMULATOR_NAMES,
 )
 from .dock import Dock
 
@@ -2378,7 +2377,6 @@ class Remote:
                 data,
                 ex,
             )
-            pass
         try:
             # Only message where we have the link between the new activity and the media player entities (one message per media player entity)
             # We don't want to extract all media player entities by API one by one so we get them dynamically through websockets

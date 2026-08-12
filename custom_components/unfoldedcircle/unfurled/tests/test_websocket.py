@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 from unfurled.helpers.websocket import DockWebSocketClient, RemoteWebSocketClient, WebSocketClient
 

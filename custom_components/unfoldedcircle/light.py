@@ -2,20 +2,20 @@
 
 from dataclasses import dataclass
 
-from homeassistant.const import EntityCategory
 from homeassistant.components.light import (
-    LightEntity,
-    LightEntityDescription,
-    ColorMode,
     ATTR_BRIGHTNESS,
     ATTR_RGB_COLOR,
+    ColorMode,
+    LightEntity,
+    LightEntityDescription,
 )
-from homeassistant.util.color import value_to_brightness
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.typing import StateType
+from homeassistant.util.color import value_to_brightness
 
-from .entity import UnfoldedCircleEntity
 from . import UnfoldedCircleConfigEntry
+from .entity import UnfoldedCircleEntity
 
 BRIGHTNESS_SCALE = (1, 100)
 
@@ -38,7 +38,7 @@ UNFOLDED_CIRCLE_LIGHT: tuple[UnfoldedCircleLightEntityDescription, ...] = (
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, config_entry: UnfoldedCircleConfigEntry, async_add_entities
+    _hass: HomeAssistant, config_entry: UnfoldedCircleConfigEntry, async_add_entities
 ):
     """Add lights for passed config_entry in HA."""
     coordinator = config_entry.runtime_data.coordinator

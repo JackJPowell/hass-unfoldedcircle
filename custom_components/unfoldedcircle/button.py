@@ -1,16 +1,17 @@
 """Button for Unfolded Circle."""
 
 from homeassistant.components.button import ButtonDeviceClass, ButtonEntity
+from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.config_entries import ConfigSubentry
-from .entity import UnfoldedCircleEntity, UnfoldedCircleDockEntity
+
 from . import UnfoldedCircleConfigEntry
+from .entity import UnfoldedCircleDockEntity, UnfoldedCircleEntity
 
 
 async def async_setup_entry(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     config_entry: UnfoldedCircleConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:

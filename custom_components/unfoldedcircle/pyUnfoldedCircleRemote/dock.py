@@ -1,10 +1,10 @@
 """Module to interact with the Unfolded Circle Remote Two Dock."""
 
-import logging
 import asyncio
-import re
-import json
 from enum import Enum
+import json
+import logging
+import re
 from urllib.parse import urljoin, urlparse
 
 import aiohttp

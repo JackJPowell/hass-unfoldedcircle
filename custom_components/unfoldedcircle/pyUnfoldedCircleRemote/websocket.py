@@ -1,8 +1,8 @@
 """Unfolded Circle Dock Web Socket Module"""
 
+from collections.abc import Callable, Coroutine
 import json
 import logging
-from typing import Callable, Coroutine
 from urllib.parse import urlparse
 
 from requests import Session
