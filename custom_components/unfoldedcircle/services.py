@@ -517,7 +517,8 @@ def get_config_entry_by_remote_target(
     either kind of remote entity can invoke this Remote-level action.
     """
     config_entries = {
-        entry.entry_id: entry for entry in hass.config_entries.async_loaded_entries(DOMAIN)
+        entry.entry_id: entry
+        for entry in hass.config_entries.async_loaded_entries(DOMAIN)
     }
     entity_registry = er.async_get(hass)
 

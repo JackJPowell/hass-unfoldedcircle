@@ -252,7 +252,9 @@ class UpdateDock(UnfoldedCircleDockEntity, UpdateEntity):
     @property
     def available(self) -> bool:
         """Wait for the dock firmware status to load."""
-        return super().available and self.coordinator.api.system.update_info.status_loaded
+        return (
+            super().available and self.coordinator.api.system.update_info.status_loaded
+        )
 
     async def async_install(
         self, version: str | None, backup: bool, **kwargs: Any

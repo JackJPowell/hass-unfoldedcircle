@@ -709,7 +709,12 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         if self._remote.system.flags.external_entity_configuration_available:
             return self.async_show_menu(
                 step_id="init",
-                menu_options=["select_entities", "activities", "dock_options", "remote_host"],
+                menu_options=[
+                    "select_entities",
+                    "activities",
+                    "dock_options",
+                    "remote_host",
+                ],
                 description_placeholders={"remote": self._remote.device.name},
             )
         return await self.async_step_activities()
