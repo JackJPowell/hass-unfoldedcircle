@@ -220,7 +220,7 @@ class UCDockNumber(UnfoldedCircleDockEntity, NumberEntity):
         """Initialize a Number."""
         super().__init__(coordinator, config_entry, subentry)
         self.entity_description = description
-        self._attr_unique_id = f"{subentry.unique_id}_{description.unique_id}"
+        self._attr_unique_id = f"{subentry.unique_id}_{self.coordinator.api.device.model_number}_{self.coordinator.api.device.serial_number}_{description.unique_id}"
 
     @property
     def native_value(self) -> int | None:
