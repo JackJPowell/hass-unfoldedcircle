@@ -18,11 +18,13 @@
     },
     "step": {
       "user": {
+        "description": "By default, dock traffic is routed through your remote. Direct communication enables features such as IR learning, but requires a reachable dock and may require its password.",
         "data": {
           "host": "Host",
           "pin": "PIN Code",
           "ha_ws_url": "Home Assistant Websocket URL",
-          "activities_as_switches": "Create activities as Switch entities"
+          "activities_as_switches": "Create activities as Switch entities",
+          "direct_dock_communication": "Use direct dock communication"
         }
       },
       "select_entities": {
@@ -40,10 +42,12 @@
         }
       },
       "zeroconf_confirm": {
+        "description": "By default, dock traffic is routed through your remote. Direct communication enables features such as IR learning, but requires a reachable dock and may require its password.",
         "data": {
           "pin": "PIN Code",
           "ha_ws_url": "Home Assistant Websocket URL",
-          "activities_as_switches": "Create activities as Switch entities"
+          "activities_as_switches": "Create activities as Switch entities",
+          "direct_dock_communication": "Use direct dock communication"
         },
         "title": "Unfolded Circle Remote"
       },
@@ -129,6 +133,7 @@
         "menu_options": {
           "select_entities": "Share entities with {remote}",
           "activities": "Configure local settings",
+          "dock_options": "Configure dock communication",
           "remote_host": "Configure connection settings"
         }
       },
@@ -153,6 +158,13 @@
         "title": "Unfolded Circle Options",
         "data": {
           "remote_on_behavior": "Activity to start when remote entity is toggled on"
+        }
+      },
+      "dock_options": {
+        "title": "Dock Options",
+        "description": "Configure communication with your docks.",
+        "data": {
+          "direct_dock_communication": "Use direct dock communication"
         }
       },
       "remote_host": {
@@ -265,7 +277,7 @@
     },
     "dock_unreachable": {
       "title": "Dock {name} is unreachable",
-      "description": "The dock could not be reached during initialization. Error: {error}. The main remote will continue to work normally, but dock-specific features will be unavailable until the dock is back online. Try reloading the integration once the dock is accessible."
+      "description": "The dock did not respond. Error: {error}. The main remote will continue to work normally, but dock-specific features are unavailable while the dock is offline. This notice clears automatically once the dock responds again."
     }
   }
 }

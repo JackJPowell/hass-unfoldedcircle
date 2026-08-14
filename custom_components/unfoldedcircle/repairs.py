@@ -1,23 +1,24 @@
 """Unfolded Circle Repairs"""
 
 from __future__ import annotations
+
 import logging
+
 import voluptuous as vol
 
 from homeassistant import data_entry_flow
 from homeassistant.components.repairs import RepairsFlow
-from homeassistant.helpers import issue_registry
 from homeassistant.core import HomeAssistant
+
+from . import UnfoldedCircleConfigEntry
+from .config_flow import CannotConnect
 from .helpers import (
-    register_system_and_driver,
     get_ha_websocket_url,
+    register_system_and_driver,
     validate_websocket_address,
 )
-from .config_flow import CannotConnect
-from .const import DOMAIN
-from . import UnfoldedCircleConfigEntry
+from .issues import async_delete_issue
 from .websocket import UCWebsocketClient
-
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ class WebSocketRepairFlow(RepairsFlow):
                     websocket_client = UCWebsocketClient(self.hass)
                     configure_entities_subscription = (
                         websocket_client.get_driver_subscription(
-                            self.coordinator.api.hostname
+                            self.coordinator.api.device.hostname
                         )
                     )
                     if not configure_entities_subscription:
@@ -65,9 +66,7 @@ class WebSocketRepairFlow(RepairsFlow):
                             self.coordinator.config_entry.entry_id
                         )
 
-                        issue_registry.async_delete_issue(
-                            self.hass, DOMAIN, self.issue_id
-                        )
+                        async_delete_issue(self.hass, self.issue_id)
 
                         return self.async_abort(reason="ws_connection_successful")
                     except Exception:
@@ -94,6 +93,55 @@ class WebSocketRepairFlow(RepairsFlow):
         )
 
 
+class DockPasswordRepairFlow(RepairsFlow):
+    """Repair a dock password stored on a config subentry."""
+
+    def __init__(self, hass, issue_id, data) -> None:
+        super().__init__()
+        self.data = data
+        self.issue_id = issue_id
+        self.hass = hass
+        self.config_entry: UnfoldedCircleConfigEntry = self.data["config_entry"]
+        self.subentry = self.data["subentry"]
+
+    async def async_step_init(
+        self, _user_input: dict[str, str] | None = None
+    ) -> data_entry_flow.FlowResult:
+        """Start the dock password repair flow."""
+        return await self.async_step_confirm()
+
+    async def async_step_confirm(
+        self, user_input: dict[str, str] | None = None
+    ) -> data_entry_flow.FlowResult:
+        """Prompt for and validate the dock password."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            password = user_input.get("password", "")
+            dock = self.config_entry.runtime_data.remote.find_dock(
+                self.subentry.data["id"]
+            )
+            if dock is None:
+                errors["base"] = "cannot_connect"
+            elif not await dock.validate_password(password):
+                errors["base"] = "invalid_dock_password"
+            else:
+                data = dict(self.subentry.data)
+                data["password"] = password
+                self.hass.config_entries.async_update_subentry(
+                    self.config_entry, self.subentry, data=data
+                )
+                await self.hass.config_entries.async_reload(self.config_entry.entry_id)
+                async_delete_issue(self.hass, self.issue_id)
+                return self.async_abort(reason="reauth_successful")
+
+        return self.async_show_form(
+            step_id="confirm",
+            errors=errors,
+            data_schema=vol.Schema({vol.Required("password"): str}),
+            description_placeholders={"name": self.data["name"]},
+        )
+
+
 async def async_create_fix_flow(
     hass: HomeAssistant,
     issue_id: str,
@@ -102,6 +150,8 @@ async def async_create_fix_flow(
     """Create flow."""
     if issue_id == "websocket_connection":
         return WebSocketRepairFlow(hass, issue_id, data)
+    if issue_id.startswith("dock_password_"):
+        return DockPasswordRepairFlow(hass, issue_id, data)
 
 
 class WebsocketFailure(Exception):

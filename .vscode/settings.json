@@ -3,5 +3,6 @@
   "python.analysis.diagnosticSeverityOverrides": {
     "reportUnboundVariable": "information",
     "reportImplicitStringConcatenation": "warning"
-  }
+  },
+  "python-envs.defaultEnvManager": "ms-python.python:system"
 }

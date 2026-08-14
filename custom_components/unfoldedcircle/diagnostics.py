@@ -7,8 +7,8 @@ from typing import Any
 from homeassistant.components.diagnostics.util import async_redact_data
 from homeassistant.core import HomeAssistant
 
-from .coordinator import UnfoldedCircleRemoteCoordinator
 from . import UnfoldedCircleConfigEntry
+from .coordinator import UnfoldedCircleRemoteCoordinator
 
 TO_REDACT = {
     "apikey",
@@ -19,7 +19,7 @@ TO_REDACT = {
 
 
 async def async_get_config_entry_diagnostics(
-    hass: HomeAssistant, entry: UnfoldedCircleConfigEntry
+    _hass: HomeAssistant, entry: UnfoldedCircleConfigEntry
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
     coordinator: UnfoldedCircleRemoteCoordinator = entry.runtime_data.coordinator

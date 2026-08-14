@@ -1,19 +1,23 @@
 """Custom websocket commands --
 Implements the necessary methods called through HA websocket for the UC HA integration."""
 
-import logging
+import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+import logging
+from typing import Any
 
 import voluptuous as vol
+
 from homeassistant.components import websocket_api
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.event import (
     EventStateChangedData,
     async_track_state_change_event,
 )
-from .helpers import update_config_entities
+
 from .const import DOMAIN, UC_HA_DRIVER_ID
+from .helpers import update_config_entities
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,7 +50,7 @@ class SubscriptionEvent:
 @websocket_api.websocket_command(INFO_SCHEMA)
 @callback
 def ws_get_info(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     connection: websocket_api.ActiveConnection,
     msg: dict,
 ) -> None:
@@ -162,7 +166,7 @@ def ws_configure_unsubscribe_event(
 )
 @callback
 def ws_unsubscribe_entities_event(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     connection: websocket_api.ActiveConnection,
     msg: dict,
 ) -> None:
@@ -203,7 +207,7 @@ class Singleton(type):
 
     def __call__(cls, *args, **kwargs):
         if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+            cls._instances[cls] = super().__call__(*args, **kwargs)
         return cls._instances[cls]
 
 
@@ -219,6 +223,7 @@ class UCWebsocketClient(metaclass=Singleton):
         # List of events to subscribe to the websocket
         self._subscriptions: list[SubscriptionEvent] = []
         self._configurations: list[SubscriptionEvent] = []
+        self._subscriptions_changed = asyncio.Event()
         websocket_api.async_register_command(hass, ws_get_info)
         websocket_api.async_register_command(hass, ws_get_states)
         websocket_api.async_register_command(hass, ws_subscribe_entities_event)
@@ -291,6 +296,24 @@ class UCWebsocketClient(metaclass=Singleton):
                 return subscription
         return None
 
+    async def async_wait_for_subscriptions(
+        self, client_id: str, *, timeout: float = 5
+    ) -> tuple[SubscriptionEvent, SubscriptionEvent]:
+        """Wait for the Remote to establish both HA websocket subscriptions."""
+        try:
+            async with asyncio.timeout(timeout):
+                while True:
+                    self._subscriptions_changed.clear()
+                    entities = self.get_subscribed_entities(client_id)
+                    configuration = self.get_driver_subscription(client_id)
+                    if entities is not None and configuration is not None:
+                        return entities, configuration
+                    await self._subscriptions_changed.wait()
+        except TimeoutError as err:
+            raise TimeoutError(
+                f"Timed out waiting for HA websocket subscriptions from {client_id}"
+            ) from err
+
     async def send_configuration_to_remote(
         self, client_id: str, new_configuration: any
     ) -> bool:
@@ -334,6 +357,7 @@ class UCWebsocketClient(metaclass=Singleton):
                 data,
             )
 
+        @callback
         def entities_state_change_event(event: Event[EventStateChangedData]) -> Any:
             """Method called by HA when one of the subscribed entities have changed state."""
             # Note that this method has to be encapsulated in the subscribe_entities_events method
@@ -395,6 +419,7 @@ class UCWebsocketClient(metaclass=Singleton):
             entity_ids=entities,
         )
         self._subscriptions.append(subscription)
+        self._subscriptions_changed.set()
         _LOGGER.debug(
             "UC added subscription from remote %s for entity ids %s",
             client_id,
@@ -450,6 +475,7 @@ class UCWebsocketClient(metaclass=Singleton):
             entity_ids=[],
         )
         self._configurations.append(configuration)
+        self._subscriptions_changed.set()
         _LOGGER.debug("UC added configuration event for remote %s", client_id)
 
         connection.subscriptions[subscription_id] = remove_listener

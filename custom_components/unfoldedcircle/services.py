@@ -3,26 +3,29 @@
 import asyncio
 from datetime import timedelta
 import logging
-import re
 from typing import Any
 
+from unfurled.helpers.exceptions import AuthenticationError
 import voluptuous as vol
 from voluptuous import Any as VolAny
 
 from homeassistant.components import persistent_notification
 from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import (
     config_validation as cv,
-    entity_registry as er,
     device_registry as dr,
+    entity_registry as er,
 )
 from homeassistant.util import dt as dt_util
-from homeassistant.exceptions import HomeAssistantError
-from .coordinator import UnfoldedCircleConfigEntry
+
 from .const import DOMAIN
-from .coordinator import UnfoldedCircleCoordinator, UnfoldedCircleDockCoordinator
+from .coordinator import (
+    UnfoldedCircleConfigEntry,
+    UnfoldedCircleCoordinator,
+    UnfoldedCircleDockCoordinator,
+)
 from .helpers import Command
-from pyUnfoldedCircleRemote.remote import AuthenticationError
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
 
@@ -69,7 +72,9 @@ SEND_CODESET_SCHEMA = cv.make_entity_service_schema(
         vol.Required("command"): VolAny(str, list[str]),
         vol.Optional("device"): str,
         vol.Optional("codeset"): str,
-        vol.Optional("num_repeats"): str,
+        vol.Optional("num_repeats", default=0): vol.All(
+            vol.Coerce(int), vol.Range(min=0, max=20)
+        ),
         vol.Optional("dock"): str,
         vol.Optional("port"): str,
     },
@@ -95,7 +100,7 @@ SERVICE_TO_SCHEMA = {
 
 @callback
 def async_setup_services(
-    hass: HomeAssistant, config_entry: UnfoldedCircleConfigEntry
+    hass: HomeAssistant, _config_entry: UnfoldedCircleConfigEntry
 ) -> None:
     """Set up services for Unfolded Circle integration."""
 
@@ -126,7 +131,7 @@ async def async_inhibit_standby(
 ) -> None:
     """Inhibit standby on the Unfolded Circle Remote."""
 
-    config_entry = get_config_entry_by_entity_id(hass, service_call)
+    config_entry = get_config_entry_by_remote_target(hass, service_call)
     duration = service_call.data["duration"]
     if duration is None:
         return
@@ -135,13 +140,11 @@ async def async_inhibit_standby(
     if reason is None:
         reason = "User Requested"
 
-    inhibitors = (
-        await config_entry.runtime_data.coordinator.api.get_standby_inhibitors()
-    )
+    inhibitors = await config_entry.runtime_data.coordinator.api.system.refresh_standby_inhibitors()
     length = len(inhibitors)
     inhibitor_id = f"HA{length}"
 
-    await config_entry.runtime_data.coordinator.api.set_standby_inhibitor(
+    await config_entry.runtime_data.coordinator.api.system.set_standby_inhibitor(
         inhibitor_id, "Home Assistant", why=reason, delay=duration
     )
 
@@ -172,17 +175,15 @@ async def async_prevent_sleep(
             if service_call.service == UPDATE_ACTIVITY_SERVICE:
                 coordinator = config_entry.runtime_data.coordinator
                 # unique_id format is "{model}_{serial}_{activity_id}"; strip the prefix
-                prefix = (
-                    f"{coordinator.api.model_number}_{coordinator.api.serial_number}_"
-                )
+                prefix = f"{coordinator.api.device.model_number}_{coordinator.api.device.serial_number}_"
                 activity_id = entity.unique_id.removeprefix(prefix)
-                activity = coordinator.api.get_activity_by_id(activity_id)
+                activity = coordinator.api.find_activity(activity_id)
                 if activity is None:
                     raise HomeAssistantError(
                         translation_domain=DOMAIN,
                         translation_key="activity_not_found",
                     )
-                await activity.edit(service_call.data)
+                await activity.edit(**service_call.data)
 
 
 async def async_service_handle(
@@ -210,17 +211,17 @@ async def async_service_handle(
             for selected_device_id in service_call.data.get("device_id", []):
                 ha_device = device_registry.async_get(selected_device_id)
                 if ha_device:
-                    for _, coor in config_entry.runtime_data.docks.items():
+                    for coor in config_entry.runtime_data.docks.values():
                         dock_identifiers = {
                             (
                                 DOMAIN,
                                 coor.subentry.unique_id,
-                                coor.api.model_number,
-                                coor.api.serial_number,
+                                coor.api.device.model_number,
+                                coor.api.device.serial_number,
                             )
                         }
                         if dock_identifiers & ha_device.identifiers:
-                            dock_name = coor.api.name
+                            dock_name = coor.api.device.name
                             break
 
             # Fall back to resolving from entity_id target
@@ -230,25 +231,29 @@ async def async_service_handle(
                     if entity and entity.device_id:
                         ha_device = device_registry.async_get(entity.device_id)
                         if ha_device:
-                            for _, coor in config_entry.runtime_data.docks.items():
+                            for coor in config_entry.runtime_data.docks.values():
                                 dock_identifiers = {
                                     (
                                         DOMAIN,
                                         coor.subentry.unique_id,
-                                        coor.api.model_number,
-                                        coor.api.serial_number,
+                                        coor.api.device.model_number,
+                                        coor.api.device.serial_number,
                                     )
                                 }
                                 if dock_identifiers & ha_device.identifiers:
-                                    dock_name = coor.api.name
+                                    dock_name = coor.api.device.name
                                     break
 
-        # If still no dock name, fall back to single-dock auto-select
+        # A coordinator is kept for unreachable docks too, so only consider
+        # docks currently able to answer when auto-selecting one.
         if dock_name is None:
-            if len(config_entry.runtime_data.docks.items()) == 1:
-                dock_name = next(
-                    iter(config_entry.runtime_data.docks.values())
-                ).api.name
+            reachable_docks = [
+                coor
+                for coor in config_entry.runtime_data.docks.values()
+                if coor.last_update_success
+            ]
+            if len(reachable_docks) == 1:
+                dock_name = reachable_docks[0].api.device.name
             elif service_call.service in (
                 LEARN_IR_COMMAND_SERVICE,
                 SEND_IR_COMMAND_SERVICE,
@@ -258,19 +263,30 @@ async def async_service_handle(
                     translation_key="unknown_dock",
                 )
 
-    for _, coor in config_entry.runtime_data.docks.items():
-        if coor.api.name == dock_name:
+    for coor in config_entry.runtime_data.docks.values():
+        if coor.api.device.name == dock_name:
             dock_coordinator = coor
             break
 
     if service_call.service == LEARN_IR_COMMAND_SERVICE:
+        if dock_coordinator is None:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="unknown_dock",
+            )
         ir = IR(None, dock_coordinator, hass, data=service_call.data)
         await ir.async_learn_command()
 
     if service_call.service == SEND_IR_COMMAND_SERVICE:
         coordinator = config_entry.runtime_data.coordinator
 
-        ir = IR(coordinator, None, hass, data=service_call.data, dock_name=dock_name)
+        ir = IR(
+            coordinator,
+            dock_coordinator,
+            hass,
+            data=service_call.data,
+            dock_name=dock_name,
+        )
         await ir.async_send_command()
 
     if service_call.service == SEND_BUTTON_COMMAND_SERVICE:
@@ -281,6 +297,8 @@ async def async_service_handle(
 
 
 class IR:
+    """Class representing reusable IR related actions"""
+
     def __init__(
         self,
         coordinator: UnfoldedCircleCoordinator | None,
@@ -298,27 +316,24 @@ class IR:
     async def async_learn_command(self, **kwargs: Any) -> None:
         """Learn a list of commands from a remote."""
 
-        await self.dock_coordinator.api.get_remotes_complete()
-
         name = self.data.get("remote").get("name")
         description = self.data.get("remote").get("description")
         icon = self.data.get("remote").get("icon")
         subdevice = self.data.get("ir_dataset").get("name")
-        for command in self.data.get("ir_dataset").get("command"):
-            try:
-                await self._async_learn_ir_command(
-                    command, subdevice, name, description, icon
-                )
-
-            except (AuthenticationError, OSError) as err:
-                _LOGGER.error("Failed to learn '%s': %s", command, err)
-                break
-
-            except Exception as err:
-                _LOGGER.error("Failed to learn '%s': %s", command, err)
-                continue
-
-        await self.dock_coordinator.api.stop_ir_learning()
+        try:
+            for command in self.data.get("ir_dataset").get("command"):
+                try:
+                    await self._async_learn_ir_command(
+                        command, subdevice, name, description, icon
+                    )
+                except (AuthenticationError, OSError) as err:
+                    _LOGGER.error("Failed to learn '%s': %s", command, err)
+                    break
+                except Exception as err:
+                    _LOGGER.error("Failed to learn '%s': %s", command, err)
+                    continue
+        finally:
+            await self.dock_coordinator.api.stop_ir_learning()
 
     async def _async_learn_ir_command(self, command, device, name, description, icon):
         """Learn an infrared command."""
@@ -341,7 +356,12 @@ class IR:
         remote_entity_id = ""
         await self.dock_coordinator.api.get_remotes_complete()
         for remote in self.dock_coordinator.api.remotes_complete:
-            if remote.get("options").get("ir").get("codeset").get("name") == device:
+            if not isinstance(remote, dict):
+                continue
+            options = remote.get("options") or {}
+            ir_options = options.get("ir") or {}
+            codeset = ir_options.get("codeset") or {}
+            if codeset.get("name") == device:
                 remote_entity_id = remote.get("entity_id")
                 is_existing_list = True
 
@@ -371,7 +391,7 @@ class IR:
 
         try:
             start_time = dt_util.utcnow()
-            self.dock_coordinator.api._learned_code = None
+            self.dock_coordinator.api.clear_learned_code()
             while (dt_util.utcnow() - start_time) < LEARNING_TIMEOUT:
                 await asyncio.sleep(1)
                 try:
@@ -385,7 +405,7 @@ class IR:
                             ir_code,
                             ir_format,
                         )
-                        self.dock_coordinator.api._learned_code = None
+                        self.dock_coordinator.api.clear_learned_code()
                         return
                 except AuthenticationError:
                     continue
@@ -402,10 +422,6 @@ class IR:
     async def async_send_command(self, **kwargs: Any) -> None:
         """Send a list of commands from a remote."""
 
-        await self.coordinator.api.get_remotes()
-        ir_format = None
-        code = None
-
         device = self.data.get("device")
         codeset = self.data.get("codeset")
         repeat = self.data.get("num_repeats", 0)
@@ -416,48 +432,63 @@ class IR:
             port = self.translate_port(port)
 
         commands: list[str] = []
-        if type(self.data.get("command")) is list:
+        if isinstance(self.data.get("command"), list):
             commands = self.data.get("command")
         else:
             commands.append(self.data.get("command"))
 
         for command in commands:
-            pattern = r"^\d+;0x[0-9A-Fa-f]+;\d+;\d+$"
-            compiled_pattern = re.compile(pattern)
-
-            if command.startswith("0000"):  # PRONTO
-                ir_format = "PRONTO"
-                code = command
-                command = None
-            elif compiled_pattern.search(command):  # HEX
-                ir_format = "HEX"
-                code = command
-                command = None
             try:
-                await self.coordinator.api.send_remote_command(
-                    device,
+                await self.coordinator.api.ir.send(
                     command,
-                    repeat,
-                    codeset,
-                    dock=dock_name,
-                    port=port,
-                    format=ir_format,
-                    code=code,
+                    device=device,
+                    codeset=codeset,
+                    emitter_name=dock_name,
+                    port_id=port,
+                    repeat=repeat,
+                    dock=(
+                        self.dock_coordinator.api
+                        if self.dock_coordinator is not None
+                        else None
+                    ),
                 )
             except (AuthenticationError, OSError) as err:
+                _LOGGER.error(
+                    "Failed to send IR command via %s (port=%s): %s",
+                    dock_name or "the default emitter",
+                    port,
+                    err,
+                )
                 raise HomeAssistantError(
                     translation_domain=DOMAIN,
                     translation_key="failed_to_send_command",
                 ) from err
 
             except Exception as err:
+                _LOGGER.error(
+                    "Failed to send IR command via %s (port=%s): %s",
+                    dock_name or "the default emitter",
+                    port,
+                    err,
+                )
                 raise HomeAssistantError(
                     translation_domain=DOMAIN,
                     translation_key="failed_to_send_command",
                 ) from err
 
     def translate_port(self, port_name) -> str:
+        """Translate the service value to dock internal port id"""
         match port_name:
+            case "All Outputs" | "Default (all outputs)":
+                return "0"
+            case "Dock":
+                if self.dock_coordinator is not None:
+                    model = self.dock_coordinator.api.device.model_number.upper()
+                    if model == "UCD2":
+                        return "2"
+                    if model == "UCD3":
+                        return "3"
+                return "3"
             case "Dock Top":
                 return "2"
             case "Dock Bottom":
@@ -474,6 +505,48 @@ class IR:
                 return "9"
             case _:
                 return port_name
+
+
+def get_config_entry_by_remote_target(
+    hass: HomeAssistant, service_call: ServiceCall
+) -> UnfoldedCircleConfigEntry:
+    """Return the config entry for a selected Unfolded Circle remote target.
+
+    A Dock can expose a ``remote`` entity for its IR functionality. That
+    entity belongs to the same config entry as its paired physical Remote, so
+    either kind of remote entity can invoke this Remote-level action.
+    """
+    config_entries = {
+        entry.entry_id: entry
+        for entry in hass.config_entries.async_loaded_entries(DOMAIN)
+    }
+    entity_registry = er.async_get(hass)
+
+    entity_ids = service_call.data.get("entity_id", [])
+    if isinstance(entity_ids, str):
+        entity_ids = [entity_ids]
+    if len(entity_ids) == 1:
+        entity = entity_registry.async_get(entity_ids[0])
+        if entity is not None and entity.domain == "remote":
+            config_entry = config_entries.get(entity.config_entry_id)
+            if config_entry is not None:
+                return config_entry
+
+    device_ids = service_call.data.get("device_id", [])
+    if isinstance(device_ids, str):
+        device_ids = [device_ids]
+    if len(device_ids) == 1:
+        for entity in er.async_entries_for_device(entity_registry, device_ids[0]):
+            if entity.domain != "remote":
+                continue
+            config_entry = config_entries.get(entity.config_entry_id)
+            if config_entry is not None:
+                return config_entry
+
+    raise HomeAssistantError(
+        translation_domain=DOMAIN,
+        translation_key="unknown_config_entry",
+    )
 
 
 def get_config_entry_by_entity_id(

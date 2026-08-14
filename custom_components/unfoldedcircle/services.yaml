@@ -17,8 +17,9 @@ inhibit_standby:
   name: Prevent Device Standby
   description: Prevent the remote from going into standby mode for a custom duration
   target:
-      entity:
-        - integration: unfoldedcircle
+    entity:
+      - integration: unfoldedcircle
+        domain: remote
 
   fields:
     reason:
@@ -43,6 +44,8 @@ learn_ir_command:
     entity:
       - integration: unfoldedcircle
         domain: remote
+        supported_features:
+          - remote.RemoteEntityFeature.LEARN_COMMAND
   fields:
     remote:
       name: Remote Entity Information
@@ -52,12 +55,6 @@ learn_ir_command:
       name: IR Codeset Information
       description: IR Codeset Dictionary containing -> Name and a list of commands
       required: true
-    dock:
-      name: Dock Name
-      description: The name of the Dock to learn the command
-      required: false
-      selector:
-        text:
 
 send_ir_command:
   name: Send IR Commands
@@ -69,19 +66,19 @@ send_ir_command:
   fields:
     device:
       name: Device Name / Manufacturer
-      description: Custom Codeset Device Name / Manufacturer
+      description: Custom codeset device name or manufacturer name.
       required: false
       selector:
         text:
     codeset:
       name: Manufacturer Codeset Name
-      description: The name of the manufacturer codeset
+      description: Manufacturer codeset name (used with a manufacturer device).
       required: false
       selector:
         text:
     command:
       name: IR Command
-      description: IR command (Raw code or learned command)
+      description: IR command (raw code, learned command, or manufacturer command).
       required: true
       selector:
           text:
@@ -108,6 +105,8 @@ send_ir_command:
       selector:
         select:
           options:
+            - "All Outputs"
+            - "Dock"
             - "Dock Top"
             - "Dock Bottom"
             - "Ext 1"
@@ -118,15 +117,15 @@ send_ir_command:
 
 send_button_command:
   name: Send Button Commands
-  description: Allows for the automated sending of a sequence of predefined button commands
+  description: Allows for the automated sending of a sequence of predefined button commands and macros
   target:
     entity:
       - integration: unfoldedcircle
         domain: remote
   fields:
     command:
-      name: Remote button Name
-      description: Refer to documentation for list of valid button names
+      name: Remote button or macro name
+      description: A predefined button name or macro name. Macro names take precedence when both share a name.
       required: true
       selector:
           text:

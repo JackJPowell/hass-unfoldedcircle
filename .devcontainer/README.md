@@ -25,6 +25,10 @@ In the container you will have a dedicated Home Assistant core instance running 
 
 When you open this repository with Visual Studio code you are asked to "Reopen in Container", this will start the build of the container.
 
+The container image includes Node.js and native build tools. Python dependencies
+and the local editable Unfurled package are installed when the container is created;
+after changing requirements, rebuild the container to refresh them.
+
 _If you don't see this notification, open the command palette and select `Dev Containers: Reopen Folder in Container`._
 
 ### Step by Step debugging
