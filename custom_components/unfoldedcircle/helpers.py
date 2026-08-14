@@ -169,11 +169,11 @@ async def connect_integration(remote: Remote, driver_id=UC_HA_DRIVER_ID) -> str:
     # If the HA driver is disconnected, request connection in order to retrieve and update entities
     integration_id = ha_driver_instance.get("integration_id")
     if ha_driver_instance.get("device_state", "") != "CONNECTED":
-        ha_driver = await remote.integrations.get_driver(driver_id)
+        ha_driver = await remote.api.get_driver(driver_id)
         if ha_driver.get("driver_state", "") == "IDLE":
             _LOGGER.debug("Home assistant driver has not started. Starting...")
             try:
-                await remote.integrations.start_driver(driver_id)
+                await remote.api.start_driver(driver_id)
                 # Pull latest status
                 ha_driver_instance = await remote.integrations.get_by_driver(driver_id)
             except HTTPError as ex:
