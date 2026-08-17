@@ -6,7 +6,11 @@ from typing import Any
 
 from unfurled.helpers.models import UpdateType
 
-from homeassistant.components.remote import RemoteEntity, RemoteEntityFeature
+from homeassistant.components.remote import (
+    ATTR_ACTIVITY,
+    RemoteEntity,
+    RemoteEntityFeature,
+)
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import ToggleEntityDescription
@@ -95,11 +99,16 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
         return self._attr_is_on
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Turn the entity on."""
-        toggle_activity = self.config_entry.options.get(REMOTE_ON_BEHAVIOR, None)
+        """Turn the entity on, optionally starting a requested activity."""
+        requested_activity = kwargs.get(ATTR_ACTIVITY)
+        toggle_activity = requested_activity or self.config_entry.options.get(
+            REMOTE_ON_BEHAVIOR
+        )
+
         if toggle_activity and toggle_activity != "No Action":
             for activity in self.coordinator.api.activities:
-                if activity.name == toggle_activity:
+                if activity.name == toggle_activity or activity.id == toggle_activity:
+                    # Activity.turn_on() wakes the remote first when WoL is enabled.
                     await activity.turn_on()
                     self._attr_current_activity = activity.name
                     break
