@@ -1,0 +1,63 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify release version
+        id: version
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME}"
+          manifest_version=$(jq -r .version custom_components/unfoldedcircle/manifest.json)
+          if [ "$version" != "$manifest_version" ]; then
+            echo "Tag ($version) must match manifest version ($manifest_version)." >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Create integration archive
+        shell: bash
+        run: |
+          cd custom_components/unfoldedcircle
+          zip -r "$GITHUB_WORKSPACE/unfoldedcircle.zip" . \
+            -x "*/__pycache__/*" "*pyUnfoldedCircleRemote*"
+
+      - name: Extract release notes from CHANGELOG
+        shell: bash
+        run: |
+          awk -v version="${{ steps.version.outputs.version }}" \
+            "\$0 == \"## \" version { found=1; next } found && /^## / { exit } found { print }" \
+            CHANGELOG.md | sed "/^[[:space:]]*$/d" > "$RUNNER_TEMP/release_notes.md"
+          if [ ! -s "$RUNNER_TEMP/release_notes.md" ]; then
+            echo "No release notes provided." > "$RUNNER_TEMP/release_notes.md"
+          fi
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3.0.2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
+          body_path: ${{ runner.temp }}/release_notes.md
+          files: unfoldedcircle.zip
