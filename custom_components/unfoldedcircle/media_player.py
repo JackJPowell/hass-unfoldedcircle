@@ -1,6 +1,5 @@
 """Media Player support for Unfolded Circle."""
 
-import asyncio
 import base64
 from collections.abc import Mapping
 import hashlib
@@ -10,6 +9,7 @@ from typing import Any
 
 from unfurled.entities.activity import Activity, ActivityGroup
 from unfurled.entities.media_player import MediaPlayerEntity as UCMediaPlayerEntity
+from unfurled.helpers.exceptions import ConnectionError as UnfurledConnectionError
 from unfurled.helpers.models import UpdateType
 
 from homeassistant.components.media_player import (
@@ -563,7 +563,10 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
                 _LOGGER.debug(
                     "Unfolded circle changed active media player entity not initialized, update it"
                 )
-                asyncio.create_task(self._active_media_entity.update_data())
+                self.hass.async_create_task(
+                    self._async_refresh_active_media_entity(self._active_media_entity),
+                    "refresh Unfolded Circle active media player",
+                )
         except (KeyError, IndexError):
             _LOGGER.debug(
                 "Unfolded Circle Remote MediaPlayer _handle_coordinator_update error"
@@ -571,3 +574,14 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
             return
         # self._state = self.activity_group.state
         super()._handle_coordinator_update()
+
+    async def _async_refresh_active_media_entity(
+        self, media_entity: UCMediaPlayerEntity
+    ) -> None:
+        """Refresh a newly selected player without leaking connection errors."""
+        try:
+            await media_entity.update_data()
+        except UnfurledConnectionError:
+            _LOGGER.debug(
+                "Unable to refresh the active media player because the Remote disconnected"
+            )

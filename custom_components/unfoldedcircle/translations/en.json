@@ -201,11 +201,20 @@
           "finish": "Ignore this step and finish",
           "fix_ws": "Update Home Assistant Websocket URL"
         }
+      },
+      "image_resizing": {
+        "title": "Image Resizing",
+        "description": "Resize media-player artwork before it is sent to the Remote. This can improve Remote responsiveness when source artwork is large.",
+        "data": {
+          "resize_media_images": "Resize media-player artwork"
+        }
       }
     }
   },
   "exceptions": {
-    "integration_not_loaded": { "message": "Integration not loaded" },
+    "integration_not_loaded": {
+      "message": "Integration not loaded"
+    },
     "activity_not_found": {
       "message": "Unable to determine activity from entity"
     },
@@ -218,7 +227,9 @@
     "no_activity_running": {
       "message": "No activity is running, activity was not specified, or activity was invalid"
     },
-    "invalid_button_command": { "message": "The button command is not valid" },
+    "invalid_button_command": {
+      "message": "The button command is not valid"
+    },
     "remote_is_sleeping": {
       "message": "The remote is sleeping and did not respond to the wake command"
     },

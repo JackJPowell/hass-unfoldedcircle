@@ -9,6 +9,7 @@ CONF_ACTIVITIES_AS_SWITCHES = "activities_as_switches"
 CONF_GLOBAL_MEDIA_ENTITY = "global_media_entity"
 CONF_SUPPRESS_ACTIVITIY_GROUPS = "suppress_activity_groups"
 CONF_DIRECT_DOCK_COMMUNICATION = "direct_dock_communication"
+CONF_RESIZE_MEDIA_IMAGES = "resize_media_images"
 DEVICE_SCAN_INTERVAL = timedelta(seconds=30)
 DOCK_FAILURE_THRESHOLD = 2
 REMOTE_ON_BEHAVIOR = "remote_on_behavior"

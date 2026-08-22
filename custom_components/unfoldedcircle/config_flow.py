@@ -39,6 +39,7 @@ from .const import (
     CONF_ACTIVITY_MEDIA_ENTITIES,
     CONF_DIRECT_DOCK_COMMUNICATION,
     CONF_GLOBAL_MEDIA_ENTITY,
+    CONF_RESIZE_MEDIA_IMAGES,
     CONF_SUPPRESS_ACTIVITIY_GROUPS,
     DOMAIN,
     HA_SUPPORTED_DOMAINS,
@@ -750,7 +751,7 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         """Handle a flow initialized by the user."""
         if user_input is not None:
             self.options.update(user_input)
-            return await self.async_step_remote()
+            return await self.async_step_image_resizing()
 
         return self.async_show_form(
             step_id="media_player",
@@ -772,6 +773,27 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
                         CONF_ACTIVITY_MEDIA_ENTITIES,
                         default=self._config_entry.options.get(
                             CONF_ACTIVITY_MEDIA_ENTITIES, False
+                        ),
+                    ): bool,
+                }
+            ),
+            last_step=False,
+        )
+
+    async def async_step_image_resizing(self, user_input=None):
+        """Configure optional artwork resizing for entities shared with the Remote."""
+        if user_input is not None:
+            self.options.update(user_input)
+            return await self.async_step_remote()
+
+        return self.async_show_form(
+            step_id="image_resizing",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_RESIZE_MEDIA_IMAGES,
+                        default=self._config_entry.options.get(
+                            CONF_RESIZE_MEDIA_IMAGES, False
                         ),
                     ): bool,
                 }

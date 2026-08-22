@@ -10,14 +10,15 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.components import websocket_api
-from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.core import Event, HomeAssistant, State, callback
 from homeassistant.helpers.event import (
     EventStateChangedData,
     async_track_state_change_event,
 )
 
-from .const import DOMAIN, UC_HA_DRIVER_ID
+from .const import CONF_RESIZE_MEDIA_IMAGES, DOMAIN, UC_HA_DRIVER_ID
 from .helpers import update_config_entities
+from .image_proxy import get_image_proxy
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -111,7 +112,9 @@ def ws_get_states(
             "id": msg.get("id"),
             "type": "result",
             "success": True,
-            "result": entity_states,
+            "result": [
+                _state_for_remote(hass, state, client_id) for state in entity_states
+            ],
         }
     )
 
@@ -371,8 +374,8 @@ class UCWebsocketClient(metaclass=Singleton):
                     {
                         "data": {
                             "entity_id": entity_id,
-                            "new_state": new_state,
-                            "old_state": old_state,
+                            "new_state": _state_for_remote(self.hass, new_state, client_id),
+                            "old_state": _state_for_remote(self.hass, old_state, client_id),
                         }
                     }
                 )
@@ -481,3 +484,28 @@ class UCWebsocketClient(metaclass=Singleton):
         connection.subscriptions[subscription_id] = remove_listener
 
         return remove_listener
+
+
+def _state_for_remote(
+    hass: HomeAssistant, state: State | None, client_id: str | None
+) -> State | dict | None:
+    """Rewrite opted-in media artwork URLs to the local image proxy."""
+    if state is None or state.domain != "media_player" or not client_id:
+        return state
+    entry = next(
+        (
+            item
+            for item in hass.config_entries.async_entries(DOMAIN)
+            if item.options.get("client_id") == client_id
+        ),
+        None,
+    )
+    if entry is None or not entry.options.get(CONF_RESIZE_MEDIA_IMAGES, False):
+        return state
+    picture = state.attributes.get("entity_picture")
+    if not isinstance(picture, str) or picture.startswith("data:"):
+        return state
+    remote_state = dict(state.as_dict())
+    remote_state["attributes"] = dict(remote_state["attributes"])
+    remote_state["attributes"]["entity_picture"] = get_image_proxy(hass).url_for(picture)
+    return remote_state

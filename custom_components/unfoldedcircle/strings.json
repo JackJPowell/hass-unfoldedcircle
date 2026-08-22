@@ -71,6 +71,13 @@
           "suppress_activity_groups": "[%key:common::config_flow::data::suppress_activity_groups%]"
         },
         "description": "[%key:common::config_flow::activities::description%]"
+      },
+      "image_resizing": {
+        "title": "Image Resizing",
+        "description": "Resize media-player artwork before it is sent to the Remote. This can improve Remote responsiveness when source artwork is large.",
+        "data": {
+          "resize_media_images": "Resize media-player artwork"
+        }
       }
     }
   }
