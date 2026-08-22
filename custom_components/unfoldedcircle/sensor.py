@@ -1,6 +1,7 @@
 """Platform for sensor integration."""
 
 from dataclasses import dataclass
+from math import ceil
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -178,3 +179,35 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
     def native_value(self) -> StateType:
         """Return native value for entity."""
         return self.get_value()
+
+    @property
+    def icon(self) -> str | None:
+        """Return an icon that reflects the battery level and charging source."""
+        if self.entity_description.key != "battery_level":
+            return None
+
+        battery_level = self.get_value()
+        try:
+            percentage = min(100, max(0, int(float(battery_level))))
+        except (TypeError, ValueError):
+            return "mdi:battery-unknown"
+
+        if self.coordinator.api.state.is_charging:
+            if self.coordinator.api.state.is_wireless_charging:
+                if percentage >= 100:
+                    return "mdi:battery-charging-wireless"
+                if percentage <= 0:
+                    return "mdi:battery-charging-wireless-outline"
+                return f"mdi:battery-charging-wireless-{ceil(percentage / 10) * 10}"
+
+            if percentage >= 100:
+                return "mdi:battery-charging-100"
+            if percentage <= 0:
+                return "mdi:battery-charging-outline"
+            return f"mdi:battery-charging-{ceil(percentage / 10) * 10}"
+
+        if percentage >= 100:
+            return "mdi:battery"
+        if percentage <= 0:
+            return "mdi:battery-outline"
+        return f"mdi:battery-{ceil(percentage / 10) * 10}"

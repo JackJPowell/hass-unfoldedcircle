@@ -89,6 +89,15 @@ class BatteryBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
         self._attr_native_value = self.coordinator.api.state.is_charging
         return self._attr_native_value
 
+    @property
+    def icon(self) -> str:
+        """Return an icon that identifies the active charging source."""
+        if not self.coordinator.api.state.is_charging:
+            return "mdi:battery"
+        if self.coordinator.api.state.is_wireless_charging:
+            return "mdi:battery-charging-wireless"
+        return "mdi:battery-charging"
+
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
