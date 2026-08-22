@@ -149,7 +149,10 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         # ):
         #     self._selected_media_entity = None
 
-        if self._active_media_entity and not self._active_media_entity.is_on:
+        if self._active_media_entity and (
+            not self._active_media_entity.is_on
+            or self._active_media_entity.state == "UNAVAILABLE"
+        ):
             _LOGGER.debug(
                 "Unfolded circle changed media player entity turned off: %s",
                 vars(self._active_media_entity),
@@ -163,7 +166,7 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
                 for entity in activity.media_player_entities:
                     # Pick a media player entity : last one found or if it contains image media
                     # we suppose that this is the right one to take
-                    if not entity.is_on:
+                    if entity.state == "UNAVAILABLE" or not entity.is_on:
                         self._active_media_entities.append(entity)
                         continue
                     if self._active_media_entity is None:
@@ -534,10 +537,10 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        # Update only if activity changed
+        # Refresh selection when activity or media-player state changes
         try:
             last_update_type = self.coordinator.api.last_update_type
-            if last_update_type != UpdateType.ACTIVITY:
+            if last_update_type not in (UpdateType.ACTIVITY, UpdateType.MEDIA_PLAYER):
                 return
             self.update_state()
             if self._active_media_entity and not self._active_media_entity.initialized:
