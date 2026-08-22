@@ -40,8 +40,6 @@ SUPPORT_MEDIA_PLAYER = (
     | MediaPlayerEntityFeature.PLAY
     | MediaPlayerEntityFeature.PLAY_MEDIA
     | MediaPlayerEntityFeature.VOLUME_STEP
-    | MediaPlayerEntityFeature.VOLUME_MUTE
-    | MediaPlayerEntityFeature.VOLUME_SET
     | MediaPlayerEntityFeature.TURN_ON
     | MediaPlayerEntityFeature.TURN_OFF
     | MediaPlayerEntityFeature.SELECT_SOURCE
@@ -127,10 +125,28 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         self.update_state()
 
     @property
-    def supported_features(self):
-        """Flag media player features that are supported."""
-        # TODO handle available features based on media player capabilities + mapped buttons
-        return self._attr_supported_features
+    def supported_features(self) -> MediaPlayerEntityFeature:
+        """Return the features supported by the selected media player."""
+        features = MediaPlayerEntityFeature(self._attr_supported_features)
+        active_entity = self._active_media_entity
+        if active_entity is None:
+            return features
+
+        activity = active_entity.activity
+        if (
+            activity is not None
+            and activity.volume_mute_command is not None
+        ) or "media_player.mute_toggle" in active_entity.available_commands:
+            features |= MediaPlayerEntityFeature.VOLUME_MUTE
+
+        volume_entity = self._volume_control_entity()
+        if (
+            volume_entity is not None
+            and "media_player.volume" in volume_entity.available_commands
+        ):
+            features |= MediaPlayerEntityFeature.VOLUME_SET
+
+        return features
 
     def update_state(self):
         """Sets the active media entity choosing the best choice if multiple are active"""
@@ -431,41 +447,38 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         if self._active_media_entity:
             return self._active_media_entity.media_album
 
+    def _volume_control_entity(self) -> UCMediaPlayerEntity | None:
+        """Return the activity-mapped device that controls volume."""
+        if self._active_media_entity is None:
+            return None
+
+        activity = self._active_media_entity.activity
+        if activity is not None:
+            for command in (
+                activity.volume_up_command,
+                activity.volume_down_command,
+                activity.volume_mute_command,
+            ):
+                if command is None:
+                    continue
+                entity_id = command.get("entity_id")
+                for media_player in self._active_media_entities:
+                    if media_player.id == entity_id:
+                        return media_player
+
+        return self._active_media_entity
+
     @property
     def is_volume_muted(self) -> bool | None:
-        """Boolean if volume is currently muted."""
-        if (
-            self._active_media_entity is not None
-            and self._active_media_entity.activity is not None
-            and self._active_media_entity.activity.volume_mute_command is not None
-        ):
-            entity_id = self._active_media_entity.activity.volume_mute_command.get(
-                "entity_id"
-            )
-            for media_player in self._active_media_entities:
-                if media_player.id == entity_id:
-                    return media_player.muted
-        if self._active_media_entity:
-            return self._active_media_entity.muted
-        return False
+        """Return the mute state of the activity volume device."""
+        volume_entity = self._volume_control_entity()
+        return volume_entity.muted if volume_entity else False
 
     @property
     def volume_level(self) -> float | None:
-        """get volume level"""
-        if (
-            self._active_media_entity is not None
-            and self._active_media_entity.activity is not None
-            and self._active_media_entity.activity.volume_mute_command is not None
-        ):
-            entity_id = self._active_media_entity.activity.volume_mute_command.get(
-                "entity_id"
-            )
-            for media_player in self._active_media_entities:
-                if media_player.id == entity_id:
-                    return media_player.volume / 100
-        if self._active_media_entity:
-            return self._active_media_entity.volume / 100
-        return 0
+        """Return the volume of the activity volume device."""
+        volume_entity = self._volume_control_entity()
+        return volume_entity.volume / 100 if volume_entity else 0
 
     async def async_turn_on(self):
         """Turn the media player on."""
@@ -487,15 +500,18 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
         if self._active_media_entity:
             await self._active_media_entity.volume_down()
 
-    async def async_mute_volume(self, mute):
-        """Send mute command."""
-        if self._active_media_entity:
-            await self._active_media_entity.mute()
+    async def async_mute_volume(self, mute: bool) -> None:
+        """Set mute state through the activity mute-command mapping."""
+        if (
+            self._active_media_entity
+            and bool(mute) != bool(self.is_volume_muted)
+        ):
+            await self._active_media_entity.mute_toggle()
 
     async def async_set_volume_level(self, volume: float) -> None:
-        """Set volume command."""
-        if self._active_media_entity:
-            await self._active_media_entity.volume_set(volume * 100)
+        """Set volume on the activity-mapped volume device."""
+        if volume_entity := self._volume_control_entity():
+            await volume_entity.volume_set(volume * 100)
 
     async def async_media_play_pause(self):
         """Simulate play pause media player."""
