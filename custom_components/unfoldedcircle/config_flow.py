@@ -3,6 +3,7 @@
 # This module groups Home Assistant config and options flow handlers.
 # pylint: disable=too-many-lines
 
+import asyncio
 from collections.abc import Awaitable, Callable
 import logging
 from typing import Any
@@ -1166,14 +1167,32 @@ async def async_step_select_entities(
         if await websocket_client.send_configuration_to_remote(
             client_id, entity_states
         ):
-            config_flow.options["available_entities"] = final_entities
-            config_flow.options["client_id"] = client_id
-            return await finish_callback(None)
+            if user_input.get("subscribe_entities", True) and selected_entities:
+                try:
+                    await _async_configure_new_entities(
+                        remote, integration_id, selected_entities
+                    )
+                except Exception as ex:
+                    _LOGGER.error(
+                        "Failed to automatically configure entities on remote %s: %s",
+                        remote.device.name,
+                        ex,
+                    )
+                    errors["base"] = "ha_driver_failure"
+                else:
+                    config_flow.options["available_entities"] = final_entities
+                    config_flow.options["client_id"] = client_id
+                    return await finish_callback(None)
+            else:
+                config_flow.options["available_entities"] = final_entities
+                config_flow.options["client_id"] = client_id
+                return await finish_callback(None)
 
-        _LOGGER.error(
-            "Failed to notify remote %s of selected entities", remote.device.name
-        )
-        errors["base"] = "ha_driver_failure"
+        else:
+            _LOGGER.error(
+                "Failed to notify remote %s of selected entities", remote.device.name
+            )
+            errors["base"] = "ha_driver_failure"
 
     remote_ha_config_url = (
         f"{remote.configuration_url}#/integration/{integration_id}"
@@ -1187,6 +1206,7 @@ async def async_step_select_entities(
     }
     schema: dict = {
         vol.Optional("add_entities", default=[]): EntitySelector(add_selector),
+        vol.Required("subscribe_entities", default=True): bool,
     }
 
     return config_flow.async_show_form(
@@ -1197,6 +1217,32 @@ async def async_step_select_entities(
             "remote_ha_config_url": remote_ha_config_url,
         },
         errors=errors,
+    )
+
+
+async def _async_configure_new_entities(
+    remote: Remote, integration_id: str, selected_entity_ids: list[str]
+) -> None:
+    """Configure only entities selected in this submission on the Remote."""
+    selected = set(selected_entity_ids)
+    for attempt in range(5):
+        available_entities = await remote.integrations.available_entities(integration_id)
+        remote_entity_ids = [
+            entity.id
+            for entity in available_entities
+            if entity.id in selected
+            or any(entity.id.endswith(f".{entity_id}") for entity_id in selected)
+        ]
+        if len(remote_entity_ids) == len(selected):
+            await remote.integrations.configure_entities(
+                integration_id, remote_entity_ids
+            )
+            return
+        if attempt < 4:
+            await asyncio.sleep(1)
+
+    raise RuntimeError(
+        "Timed out waiting for the Remote to expose the newly shared entities"
     )
 
 
