@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## v2.0.2
+
+### Fixed
+
+- Integration now requires `unfurled` 0.4.0, which provides the required Remote entity API.
+- Media-player artwork larger than 5 MB is now downloaded and resized instead of being rejected.
+
 ## v2.0.1
 
 ### Added
