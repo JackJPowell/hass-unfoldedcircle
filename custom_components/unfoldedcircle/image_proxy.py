@@ -14,7 +14,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.network import get_url
 
-FROM_MAX_BYTES = 5_000_000
 MAX_SIZE = 512
 
 _LOGGER = logging.getLogger(__name__)
@@ -65,15 +64,7 @@ class ImageProxy:
         )
         async with session.get(url, timeout=10) as response:
             response.raise_for_status()
-            if response.content_length and response.content_length > FROM_MAX_BYTES:
-                raise web.HTTPRequestEntityTooLarge(
-                    max_size=FROM_MAX_BYTES, actual_size=response.content_length
-                )
-            raw = await response.content.read(FROM_MAX_BYTES + 1)
-        if len(raw) > FROM_MAX_BYTES:
-            raise web.HTTPRequestEntityTooLarge(
-                max_size=FROM_MAX_BYTES, actual_size=len(raw)
-            )
+            raw = await response.content.read()
         resized = await self.hass.async_add_executor_job(self._resize, raw)
         self._bytes[token] = resized
         return resized
