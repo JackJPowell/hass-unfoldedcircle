@@ -10,7 +10,7 @@
   "issue_tracker": "https://github.com/JackJPowell/hass-unfoldedcircle/issues",
   "requirements": [
     "websockets>=15.0,<17.0",
-    "unfurled==0.3.1",
+    "unfurled==0.4.0",
     "wakeonlan==3.1.0"
   ],
   "version": "v2.0.1",
