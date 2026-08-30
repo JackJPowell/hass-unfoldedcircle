@@ -439,19 +439,23 @@ class IR:
 
         for command in commands:
             try:
-                await self.coordinator.api.ir.send(
-                    command,
-                    device=device,
-                    codeset=codeset,
-                    emitter_name=dock_name,
-                    port_id=port,
-                    repeat=repeat,
-                    dock=(
+                send_kwargs: dict[str, Any] = {
+                    "emitter_name": dock_name,
+                    "port_id": port,
+                    "repeat": repeat,
+                    "dock": (
                         self.dock_coordinator.api
                         if self.dock_coordinator is not None
                         else None
                     ),
-                )
+                }
+                if codeset:
+                    send_kwargs["manufacturer"] = device
+                    send_kwargs["codeset"] = codeset
+                elif device:
+                    send_kwargs["remote_name"] = device
+
+                await self.coordinator.api.ir.send(command, **send_kwargs)
             except (AuthenticationError, OSError) as err:
                 _LOGGER.error(
                     "Failed to send IR command via %s (port=%s): %s",

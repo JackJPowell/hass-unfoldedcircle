@@ -65,8 +65,8 @@ send_ir_command:
         domain: remote
   fields:
     device:
-      name: Device Name / Manufacturer
-      description: Custom codeset device name or manufacturer name.
+      name: Remote Name / Manufacturer
+      description: Custom remote name or manufacturer name.
       required: false
       selector:
         text:
