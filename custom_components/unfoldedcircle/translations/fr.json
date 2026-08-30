@@ -4,7 +4,9 @@
       "already_configured": "L'appareil est déjà configuré",
       "already_in_progress": "L'appareil est en attente de configuration",
       "no_mac": "Cet appareil n'est pas reconnu comme une télécommande Unfolded Circle valide (pas d'adresse MAC)",
-      "reauth_successful": "Réauthentification avec succès"
+      "reauth_successful": "Réauthentification avec succès",
+      "unique_id_required": "L’appareil ne possède pas l’identifiant unique requis pour la découverte.",
+      "reconfigure_successful": "Reconfiguration réussie"
     },
     "error": {
       "cannot_connect": "Echec de la connexion",
@@ -12,15 +14,19 @@
       "invalid_auth": "Authentification incorrecte",
       "unknown": "Erreur inattendue",
       "ha_driver_failure": "Erreur inattendue lors de la configuration des entités de la télécommande",
-      "cannot_create_ha_token": "Impossible de créer un jeton Home Assistant"
+      "cannot_create_ha_token": "Impossible de créer un jeton Home Assistant",
+      "invalid_websocket_address": "Une adresse WebSocket Home Assistant non valide a été fournie"
     },
     "step": {
       "user": {
         "data": {
           "host": "Hôte",
           "pin": "Code PIN",
-          "ha_ws_url": "Adresse Websocket Home Assistant"
-        }
+          "ha_ws_url": "Adresse Websocket Home Assistant",
+          "activities_as_switches": "Créer des activités comme entités interrupteur",
+          "direct_dock_communication": "Utiliser la communication directe avec le dock"
+        },
+        "description": "Par défaut, le trafic du dock passe par votre télécommande. La communication directe active des fonctionnalités telles que l’apprentissage infrarouge, mais nécessite un dock accessible et peut nécessiter son mot de passe."
       },
       "dock": {
         "title": "Renseigner le mot de passe {name} {count}",
@@ -40,15 +46,19 @@
         "menu_options": {
           "remote_websocket": "La télécommande n'est pas connectée, essayez de reconfigurer l'adresse",
           "finish": "Ignorer cette étape et terminer",
-          "error": "Impossible de commmuniquer avec la télécommande. Réessayer ?"
+          "error": "Impossible de commmuniquer avec la télécommande. Réessayer ?",
+          "fix_ws": "Mettre à jour l’URL WebSocket de Home Assistant"
         }
       },
       "zeroconf_confirm": {
         "data": {
           "pin": "Code PIN",
-          "ha_ws_url": "Adresse Websocket Home Assistant"
+          "ha_ws_url": "Adresse Websocket Home Assistant",
+          "activities_as_switches": "Créer des activités comme entités interrupteur",
+          "direct_dock_communication": "Utiliser la communication directe avec le dock"
         },
-        "title": "Remote Two ou 3"
+        "title": "Remote Two ou 3",
+        "description": "Par défaut, le trafic du dock passe par votre télécommande. La communication directe active des fonctionnalités telles que l’apprentissage infrarouge, mais nécessite un dock accessible et peut nécessiter son mot de passe."
       },
       "reauth_confirm": {
         "data": {
@@ -56,6 +66,31 @@
           "ha_ws_url": "Adresse Websocket Home Assistant"
         },
         "title": "Réauthentification avec le code PIN"
+      },
+      "reconfigure": {
+        "title": "Reconfigurer la connexion",
+        "description": "Choisissez le paramètre de connexion à mettre à jour.",
+        "menu_options": {
+          "reconfigure_host": "Mettre à jour l’hôte de la télécommande",
+          "reconfigure_websocket": "Mettre à jour l’URL WebSocket"
+        },
+        "abort": {
+          "reconfigure_successful": "Reconfiguration réussie"
+        }
+      },
+      "reconfigure_host": {
+        "title": "Mettre à jour l’hôte de la télécommande",
+        "description": "Mettre à jour l’adresse IP ou le nom d’hôte de votre télécommande Unfolded Circle.",
+        "data": {
+          "host": "[%key:common::config_flow::data::host%]"
+        }
+      },
+      "reconfigure_websocket": {
+        "title": "Mettre à jour l’URL WebSocket",
+        "description": "Mettre à jour l’URL WebSocket Home Assistant utilisée par la télécommande.",
+        "data": {
+          "websocket_url": "URL WebSocket"
+        }
       }
     }
   },
@@ -65,7 +100,9 @@
         "title": "Options Unfolded Circle",
         "menu_options": {
           "select_entities": "Configurer les entités accessibles par la télécommande {remote}",
-          "activities": "Configurer l'intégration"
+          "activities": "Configurer l'intégration",
+          "dock_options": "Configurer la communication avec le dock",
+          "remote_host": "Configurer les paramètres de connexion"
         }
       },
       "media_player": {
@@ -78,7 +115,7 @@
         }
       },
       "activities": {
-        "title": "Unfolded Circle Options",
+        "title": "Options Unfolded Circle",
         "description": "Configurer les activités",
         "data": {
           "activities_as_switches": "Create all activities as switches",
@@ -97,9 +134,58 @@
         "menu_options": {
           "remote_websocket": "La télécommande n'est pas connectée, essayez de reconfigurer l'adresse",
           "finish": "Ignorer cette étape et terminer",
-          "error": "Impossible de commmuniquer avec la télécommande. Réessayer ?"
+          "error": "Impossible de commmuniquer avec la télécommande. Réessayer ?",
+          "fix_ws": "Mettre à jour l’URL WebSocket de Home Assistant"
+        }
+      },
+      "remote": {
+        "title": "Options Unfolded Circle",
+        "data": {
+          "remote_on_behavior": "Activité à démarrer lorsque l’entité de télécommande est activée"
+        }
+      },
+      "dock_options": {
+        "title": "Options du dock",
+        "description": "Configurer la communication avec vos docks.",
+        "data": {
+          "direct_dock_communication": "Utiliser la communication directe avec le dock"
+        }
+      },
+      "remote_host": {
+        "title": "Options Unfolded Circle",
+        "description": "Configurer l’hôte / l’adresse IP de {name}",
+        "data": {
+          "host": "Hôte / adresse IP"
+        }
+      },
+      "websocket": {
+        "title": "Options Unfolded Circle",
+        "description": "Configurer l’adresse WebSocket de Home Assistant",
+        "data": {
+          "websocket_url": "Adresse WebSocket de Home Assistant"
+        }
+      },
+      "fix_ws": {
+        "title": "Options Unfolded Circle",
+        "description": "Configurer l’adresse WebSocket de Home Assistant",
+        "data": {
+          "websocket_url": "Adresse WebSocket de Home Assistant"
+        }
+      },
+      "image_resizing": {
+        "title": "Redimensionnement des images",
+        "description": "Redimensionner l’illustration du lecteur multimédia avant son envoi à la télécommande. Cela peut améliorer sa réactivité lorsque l’image source est volumineuse.",
+        "data": {
+          "resize_media_images": "Redimensionner l’illustration du lecteur multimédia"
         }
       }
+    },
+    "error": {
+      "ha_driver_failure": "Erreur inattendue lors de la configuration des entités de la télécommande",
+      "cannot_create_ha_token": "Impossible de créer le jeton Home Assistant",
+      "invalid_websocket_address": "Une adresse WebSocket Home Assistant non valide a été fournie",
+      "invalid_host": "Un hôte non valide a été fourni pour la télécommande",
+      "user_determination": "Impossible de déterminer l’utilisateur Home Assistant"
     }
   },
   "issues": {
@@ -125,6 +211,95 @@
           "reauth_successful": "Authentification du Dock avec succès"
         }
       }
+    },
+    "websocket_connection": {
+      "title": "Activer une communication améliorée entre {name} et Home Assistant",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "URL WebSocket de Home Assistant",
+            "description": "Pour améliorer les communications, {name} nécessite l’adresse WebSocket de ce serveur Home Assistant.",
+            "data": {
+              "websocket_url": "URL WebSocket de Home Assistant"
+            }
+          }
+        },
+        "error": {
+          "cannot_connect": "Échec de la connexion",
+          "websocket_failure": "URL WebSocket non valide",
+          "unknown": "Erreur inattendue"
+        },
+        "abort": {
+          "ws_connection_successful": "Communication améliorée activée"
+        }
+      }
+    },
+    "dock_unreachable": {
+      "title": "Le dock {name} est inaccessible",
+      "description": "Le dock n’a pas répondu. Erreur : {error}. La télécommande principale continuera à fonctionner normalement, mais les fonctionnalités propres au dock seront indisponibles tant qu’il est hors ligne. Cet avis disparaîtra automatiquement lorsque le dock répondra à nouveau."
+    }
+  },
+  "config_subentries": {
+    "dock": {
+      "title": "Docks",
+      "step": {
+        "user": {
+          "title": "Docks",
+          "data": {
+            "dock_id": "Quel dock souhaitez-vous ajouter ?"
+          }
+        },
+        "dock": {
+          "title": "Saisissez le mot de passe de {name}",
+          "description": "Si vous ne vous souvenez pas du mot de passe du dock, vous pouvez le modifier dans le configurateur web.",
+          "data": {
+            "password": "Mot de passe"
+          }
+        }
+      },
+      "initiate_flow": {
+        "user": "Ajouter un dock"
+      },
+      "entry_type": "Dock",
+      "error": {
+        "cannot_connect": "Échec de la connexion",
+        "invalid_dock_password": "Mot de passe du dock incorrect. Veuillez réessayer.",
+        "invalid_auth": "Code PIN incorrect. Veuillez réessayer.",
+        "unknown": "Erreur inattendue"
+      },
+      "abort": {
+        "reauth_successful": "L’authentification du dock a réussi",
+        "no_docks_available": "Aucun dock n’est disponible pour la configuration"
+      }
+    }
+  },
+  "exceptions": {
+    "integration_not_loaded": {
+      "message": "Intégration non chargée"
+    },
+    "activity_not_found": {
+      "message": "Impossible de déterminer l’activité à partir de l’entité"
+    },
+    "unknown_config_entry": {
+      "message": "Impossible de déterminer la télécommande à partir de l’entrée fournie"
+    },
+    "unknown_dock": {
+      "message": "Impossible de déterminer le dock à partir de l’entrée fournie"
+    },
+    "no_activity_running": {
+      "message": "Aucune activité n’est en cours, aucune activité n’a été indiquée ou l’activité est invalide"
+    },
+    "invalid_button_command": {
+      "message": "La commande de bouton n’est pas valide"
+    },
+    "remote_is_sleeping": {
+      "message": "La télécommande est en veille et n’a pas répondu à la commande de réveil"
+    },
+    "entity_command_error": {
+      "message": "Une erreur s’est produite lors de l’envoi de la commande à la télécommande"
+    },
+    "failed_to_send_command": {
+      "message": "Échec de l’envoi de la commande à la télécommande. Vérifiez vos entrées."
     }
   }
 }

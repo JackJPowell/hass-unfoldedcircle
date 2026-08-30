@@ -4,7 +4,9 @@
       "already_configured": "O dispositivo já está configurado",
       "already_in_progress": "O dispositivo está pendente de configuração",
       "no_mac": "Este dispositivo não é reconhecido como um Unfolded Circle Remote válido (Sem Endereço MAC)",
-      "reauth_successful": "A reautenticação foi bem-sucedida"
+      "reauth_successful": "A reautenticação foi bem-sucedida",
+      "unique_id_required": "O dispositivo não possui a identificação única necessária para a descoberta.",
+      "reconfigure_successful": "Reconfigurado com sucesso"
     },
     "error": {
       "cannot_connect": "Falha ao conectar",
@@ -17,10 +19,13 @@
     "step": {
       "user": {
         "data": {
-          "host": "Host",
+          "host": "Anfitrião",
           "pin": "Código PIN",
-          "ha_ws_url": "URL do Websocket do Home Assistant"
-        }
+          "ha_ws_url": "URL do Websocket do Home Assistant",
+          "activities_as_switches": "Criar atividades como entidades de interruptor",
+          "direct_dock_communication": "Usar comunicação direta com o dock"
+        },
+        "description": "Por predefinição, o tráfego do dock é encaminhado através do comando. A comunicação direta ativa funcionalidades como a aprendizagem de infravermelhos, mas requer um dock acessível e poderá necessitar da respetiva palavra-passe."
       },
       "dock": {
         "title": "Fornecer Palavra-passe de {name} {count}",
@@ -40,15 +45,19 @@
         "menu_options": {
           "remote_websocket": "O Controlo Remoto não está conectado, tente reconfigurar o URL",
           "finish": "Ignorar este passo e terminar",
-          "error": "Não foi possível comunicar com o controlo remoto. Tentar novamente?"
+          "error": "Não foi possível comunicar com o controlo remoto. Tentar novamente?",
+          "fix_ws": "Atualizar URL WebSocket do Home Assistant"
         }
       },
       "zeroconf_confirm": {
         "data": {
           "pin": "Código PIN",
-          "ha_ws_url": "URL do Websocket do Home Assistant"
+          "ha_ws_url": "URL do Websocket do Home Assistant",
+          "activities_as_switches": "Criar atividades como entidades de interruptor",
+          "direct_dock_communication": "Usar comunicação direta com o dock"
         },
-        "title": "Unfolded Circle Remote"
+        "title": "Comando Unfolded Circle",
+        "description": "Por predefinição, o tráfego do dock é encaminhado através do comando. A comunicação direta ativa funcionalidades como a aprendizagem de infravermelhos, mas requer um dock acessível e poderá necessitar da respetiva palavra-passe."
       },
       "reauth_confirm": {
         "data": {
@@ -56,6 +65,31 @@
           "ha_ws_url": "URL do Websocket do Home Assistant"
         },
         "title": "Reautenticar com PIN"
+      },
+      "reconfigure": {
+        "title": "Reconfigurar ligação",
+        "description": "Escolha a definição de ligação a atualizar.",
+        "menu_options": {
+          "reconfigure_host": "Atualizar anfitrião do comando",
+          "reconfigure_websocket": "Atualizar URL WebSocket"
+        },
+        "abort": {
+          "reconfigure_successful": "Reconfigurado com sucesso"
+        }
+      },
+      "reconfigure_host": {
+        "title": "Atualizar anfitrião do comando",
+        "description": "Atualize o endereço IP ou o nome de anfitrião do seu comando Unfolded Circle.",
+        "data": {
+          "host": "[%key:common::config_flow::data::host%]"
+        }
+      },
+      "reconfigure_websocket": {
+        "title": "Atualizar URL WebSocket",
+        "description": "Atualize a URL WebSocket do Home Assistant utilizada pelo comando.",
+        "data": {
+          "websocket_url": "URL WebSocket"
+        }
       }
     }
   },
@@ -64,14 +98,17 @@
       "ha_driver_failure": "Erro inesperado ao configurar entidades remotas",
       "cannot_create_ha_token": "Não foi possível criar o Token do Home Assistant",
       "invalid_websocket_address": "Foi fornecido um endereço de websocket do Home Assistant inválido",
-      "invalid_host": "Foi fornecido um host inválido para o controlo remoto"
+      "invalid_host": "Foi fornecido um host inválido para o controlo remoto",
+      "user_determination": "Não foi possível determinar o utilizador do Home Assistant"
     },
     "step": {
       "init": {
         "title": "Opções do Unfolded Circle",
         "menu_options": {
           "select_entities": "Configurar entidades a partilhar com {remote}",
-          "activities": "Configurar esta integração"
+          "activities": "Configurar esta integração",
+          "dock_options": "Configurar comunicação com o dock",
+          "remote_host": "Configurar definições de ligação"
         }
       },
       "media_player": {
@@ -117,7 +154,35 @@
         "menu_options": {
           "remote_websocket": "O Controlo Remoto não está conectado, tente reconfigurar o URL",
           "finish": "Ignorar este passo e terminar",
-          "error": "Não foi possível comunicar com o controlo remoto. Tentar novamente?"
+          "error": "Não foi possível comunicar com o controlo remoto. Tentar novamente?",
+          "fix_ws": "Atualizar URL WebSocket do Home Assistant"
+        }
+      },
+      "remote": {
+        "title": "Opções do Unfolded Circle",
+        "data": {
+          "remote_on_behavior": "Atividade a iniciar quando a entidade do comando é ligada"
+        }
+      },
+      "dock_options": {
+        "title": "Opções do dock",
+        "description": "Configurar a comunicação com os seus docks.",
+        "data": {
+          "direct_dock_communication": "Usar comunicação direta com o dock"
+        }
+      },
+      "fix_ws": {
+        "title": "Opções do Unfolded Circle",
+        "description": "Configurar endereço WebSocket do Home Assistant",
+        "data": {
+          "websocket_url": "Endereço WebSocket do Home Assistant"
+        }
+      },
+      "image_resizing": {
+        "title": "Redimensionamento de imagens",
+        "description": "Redimensione a imagem do leitor multimédia antes de a enviar para o comando. Isto pode melhorar a capacidade de resposta do comando quando a imagem de origem é grande.",
+        "data": {
+          "resize_media_images": "Redimensionar imagem do leitor multimédia"
         }
       }
     }
@@ -167,6 +232,73 @@
           "reauth_successful": "A autenticação do dock foi bem-sucedida"
         }
       }
+    },
+    "dock_unreachable": {
+      "title": "O dock {name} está inacessível",
+      "description": "O dock não respondeu. Erro: {error}. O comando principal continuará a funcionar normalmente, mas as funcionalidades específicas do dock estarão indisponíveis enquanto este estiver offline. Este aviso desaparece automaticamente quando o dock voltar a responder."
+    }
+  },
+  "config_subentries": {
+    "dock": {
+      "title": "Docks",
+      "step": {
+        "user": {
+          "title": "Docks",
+          "data": {
+            "dock_id": "Que dock pretende adicionar?"
+          }
+        },
+        "dock": {
+          "title": "Forneça a palavra-passe de {name}",
+          "description": "Se não se lembrar da palavra-passe do dock, pode atualizá-la no configurador web.",
+          "data": {
+            "password": "Palavra-passe"
+          }
+        }
+      },
+      "initiate_flow": {
+        "user": "Adicionar dock"
+      },
+      "entry_type": "Dock",
+      "error": {
+        "cannot_connect": "Falha ao ligar",
+        "invalid_dock_password": "Palavra-passe do dock incorreta. Tente novamente.",
+        "invalid_auth": "PIN incorreto. Tente novamente.",
+        "unknown": "Erro inesperado"
+      },
+      "abort": {
+        "reauth_successful": "A autenticação do dock foi bem-sucedida",
+        "no_docks_available": "Não existem docks disponíveis para configurar"
+      }
+    }
+  },
+  "exceptions": {
+    "integration_not_loaded": {
+      "message": "Integração não carregada"
+    },
+    "activity_not_found": {
+      "message": "Não foi possível determinar a atividade a partir da entidade"
+    },
+    "unknown_config_entry": {
+      "message": "Não foi possível determinar o comando a partir da entrada fornecida"
+    },
+    "unknown_dock": {
+      "message": "Não foi possível determinar o dock a partir da entrada fornecida"
+    },
+    "no_activity_running": {
+      "message": "Nenhuma atividade está em execução, a atividade não foi especificada ou é inválida"
+    },
+    "invalid_button_command": {
+      "message": "O comando de botão não é válido"
+    },
+    "remote_is_sleeping": {
+      "message": "O comando está em suspensão e não respondeu ao comando de ativação"
+    },
+    "entity_command_error": {
+      "message": "Ocorreu um erro ao enviar o comando para o comando"
+    },
+    "failed_to_send_command": {
+      "message": "Falha ao enviar o comando para o comando. Verifique os dados introduzidos."
     }
   }
 }

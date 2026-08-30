@@ -5,7 +5,8 @@
       "already_in_progress": "Gerät wird gerade eingerichtet",
       "no_mac": "Dieses Gerät wird nicht als gültige Unfolded-Circle-Fernbedienung erkannt (keine MAC-Adresse)",
       "reauth_successful": "Erneute Anmeldung war erfolgreich",
-      "unique_id_required": "Gerät besitzt keine eindeutige Kennung für die Erkennung"
+      "unique_id_required": "Gerät besitzt keine eindeutige Kennung für die Erkennung",
+      "reconfigure_successful": "Erfolgreich neu konfiguriert"
     },
     "error": {
       "cannot_connect": "Verbindung fehlgeschlagen",
@@ -20,8 +21,11 @@
         "data": {
           "host": "Host",
           "pin": "PIN-Code",
-          "ha_ws_url": "Home-Assistant-WebSocket-URL"
-        }
+          "ha_ws_url": "Home-Assistant-WebSocket-URL",
+          "activities_as_switches": "Aktivitäten als Schalter-Entitäten erstellen",
+          "direct_dock_communication": "Direkte Dock-Kommunikation verwenden"
+        },
+        "description": "Standardmäßig wird der Dock-Datenverkehr über die Fernbedienung geleitet. Direkte Kommunikation ermöglicht Funktionen wie das Lernen von IR-Befehlen, erfordert jedoch ein erreichbares Dock und möglicherweise dessen Passwort."
       },
       "select_entities": {
         "title": "Entitäten konfigurieren",
@@ -40,9 +44,12 @@
       "zeroconf_confirm": {
         "data": {
           "pin": "PIN-Code",
-          "ha_ws_url": "Home-Assistant-WebSocket-URL"
+          "ha_ws_url": "Home-Assistant-WebSocket-URL",
+          "activities_as_switches": "Aktivitäten als Schalter-Entitäten erstellen",
+          "direct_dock_communication": "Direkte Dock-Kommunikation verwenden"
         },
-        "title": "Unfolded-Circle-Fernbedienung"
+        "title": "Unfolded-Circle-Fernbedienung",
+        "description": "Standardmäßig wird der Dock-Datenverkehr über die Fernbedienung geleitet. Direkte Kommunikation ermöglicht Funktionen wie das Lernen von IR-Befehlen, erfordert jedoch ein erreichbares Dock und möglicherweise dessen Passwort."
       },
       "reauth_confirm": {
         "data": {
@@ -50,6 +57,31 @@
           "ha_ws_url": "Home-Assistant-WebSocket-URL"
         },
         "title": "Mit PIN erneut authentifizieren"
+      },
+      "reconfigure": {
+        "title": "Verbindung neu konfigurieren",
+        "description": "Wählen Sie die zu aktualisierende Verbindungseinstellung aus.",
+        "menu_options": {
+          "reconfigure_host": "Host der Fernbedienung aktualisieren",
+          "reconfigure_websocket": "WebSocket-URL aktualisieren"
+        },
+        "abort": {
+          "reconfigure_successful": "Erfolgreich neu konfiguriert"
+        }
+      },
+      "reconfigure_host": {
+        "title": "Host der Fernbedienung aktualisieren",
+        "description": "Aktualisieren Sie die IP-Adresse oder den Hostnamen Ihrer Unfolded-Circle-Fernbedienung.",
+        "data": {
+          "host": "[%key:common::config_flow::data::host%]"
+        }
+      },
+      "reconfigure_websocket": {
+        "title": "WebSocket-URL aktualisieren",
+        "description": "Aktualisieren Sie die von der Fernbedienung verwendete Home-Assistant-WebSocket-URL.",
+        "data": {
+          "websocket_url": "WebSocket-URL"
+        }
       }
     }
   },
@@ -101,7 +133,8 @@
         "menu_options": {
           "select_entities": "Entitäten mit {remote} teilen",
           "activities": "Lokale Einstellungen konfigurieren",
-          "remote_host": "Verbindungseinstellungen konfigurieren"
+          "remote_host": "Verbindungseinstellungen konfigurieren",
+          "dock_options": "Dock-Kommunikation konfigurieren"
         }
       },
       "media_player": {
@@ -161,6 +194,20 @@
           "remote_websocket": "Fernbedienung nicht verbunden – URL neu konfigurieren",
           "finish": "Diesen Schritt überspringen und beenden",
           "fix_ws": "Home-Assistant-WebSocket-URL aktualisieren"
+        }
+      },
+      "dock_options": {
+        "title": "Dock-Optionen",
+        "description": "Kommunikation mit Ihren Docks konfigurieren.",
+        "data": {
+          "direct_dock_communication": "Direkte Dock-Kommunikation verwenden"
+        }
+      },
+      "image_resizing": {
+        "title": "Bildgrößenanpassung",
+        "description": "Die Medienplayer-Grafik vor dem Senden an die Fernbedienung verkleinern. Dies kann die Reaktionsfähigkeit der Fernbedienung bei großen Quellbildern verbessern.",
+        "data": {
+          "resize_media_images": "Medienplayer-Grafik verkleinern"
         }
       }
     }
@@ -239,6 +286,10 @@
           "reauth_successful": "Dock-Authentifizierung erfolgreich"
         }
       }
+    },
+    "dock_unreachable": {
+      "title": "Dock {name} ist nicht erreichbar",
+      "description": "Das Dock hat nicht geantwortet. Fehler: {error}. Die Hauptfernbedienung funktioniert weiterhin normal, dock-spezifische Funktionen sind jedoch nicht verfügbar, solange das Dock offline ist. Dieser Hinweis wird automatisch entfernt, sobald das Dock wieder antwortet."
     }
   }
 }
