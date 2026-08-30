@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- The `send_ir_command` action again accepts the user-visible Remote name.
+- Firmware-update failures now explain when an HTTP 503 is likely caused by the Remote battery being below 50%.
+
 ## v2.0.2
 
 ### Fixed
