@@ -82,6 +82,7 @@
         "description": "Configurer les activités",
         "data": {
           "activities_as_switches": "Create all activities as switches",
+          "auto_sync_activity_states": "Synchroniser automatiquement les états d’activité avec les autres télécommandes",
           "suppress_activity_groups": "Supprimer la création d'entités de groupe d'activités"
         }
       },

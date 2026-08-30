@@ -366,7 +366,29 @@ data:
   prevent_sleep: true
 ```
 
-Currently supports `prevent_sleep` (more may follow).
+Set an activity's reported state without running its activity sequence on firmware
+that supports activity-state updates:
+
+```yaml
+service: unfoldedcircle.update_activity
+target:
+  entity_id: switch.remote_two_control_projector
+data:
+  state: "ON"
+```
+
+The action supports `prevent_sleep` and `state` (`ON` or `OFF`).
+
+### Synchronizing activity states
+
+On compatible firmware, each remote exposes a **Sync Activity States** button.
+It copies that remote's `ON` and `OFF` activity states to the matching activities
+on every other configured compatible remote. Activities are matched by ID, falling
+back to a unique activity name.
+
+The Activities options menu also provides **Automatically sync activity states to
+other remotes**. When enabled, an activity-state change on that remote syncs to
+the others that are defined within home assistant.
 
 ---
 
@@ -461,7 +483,7 @@ Behavior:
 | `unfoldedcircle.send_button_command` | Send mapped remote button | `button`, `activity?`, `num_repeats?`, `delay_secs?`, `hold?` |
 | `unfoldedcircle.send_ir_command` | Emit predefined IR command | `device`, `codeset?`, `command`, `dock_name?`, `port?`, `num_repeats?` |
 | `unfoldedcircle.learn_ir_command` | Start IR learning workflow | `remote{}`, `ir_dataset{}` |
-| `unfoldedcircle.update_activity` | Modify activity attributes | `prevent_sleep?` |
+| `unfoldedcircle.update_activity` | Modify activity attributes or state | `prevent_sleep?`, `state?` |
 | `unfoldedcircle.inhibit_standby` | Create a new standby inhibitor | `reason?`, `duration` |
 
 Confirm exact service IDs in Developer Tools → Services.

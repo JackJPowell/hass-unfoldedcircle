@@ -7,6 +7,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import UnfoldedCircleConfigEntry
+from .activity_sync import async_sync_activity_states
 from .entity import UnfoldedCircleDockEntity, UnfoldedCircleEntity
 
 
@@ -22,6 +23,11 @@ async def async_setup_entry(
             RebootButton(coordinator),
             UpdateCheckButton(coordinator),
             ShutdownButton(coordinator),
+            *(
+                [SyncActivityStatesButton(coordinator)]
+                if coordinator.api.system.flags.entity_state_update_available
+                else []
+            ),
         ]
     )
 
@@ -96,6 +102,24 @@ class UpdateCheckButton(UnfoldedCircleEntity, ButtonEntity):
         """Press the button."""
         await self.coordinator.api.system.force_update_check()
         self.async_write_ha_state()
+
+
+class SyncActivityStatesButton(UnfoldedCircleEntity, ButtonEntity):
+    """Synchronize this remote's activity states to other configured remotes."""
+
+    def __init__(self, coordinator) -> None:
+        """Initialize the button."""
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.api.device.model_number}_{coordinator.api.device.serial_number}_sync_activity_states_button"
+        self._attr_name = "Sync Activity States"
+        self._attr_entity_category = EntityCategory.CONFIG
+        self._attr_icon = "mdi:sync"
+        self._attr_entity_registry_enabled_default = False
+        self._attr_entity_registry_visible_default = False
+
+    async def async_press(self) -> None:
+        """Synchronize all ON/OFF activity states from this remote."""
+        await async_sync_activity_states(self.hass, self.coordinator)
 
 
 class RebootDockButton(UnfoldedCircleDockEntity, ButtonEntity):

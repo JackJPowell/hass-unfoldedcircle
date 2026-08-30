@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
+from time import monotonic
 from typing import Any
 
 from unfurled.dock import Dock
@@ -20,7 +21,13 @@ from homeassistant.helpers.update_coordinator import (
     UpdateFailed,
 )
 
-from .const import DEVICE_SCAN_INTERVAL, DOCK_FAILURE_THRESHOLD, DOMAIN
+from .activity_sync import async_sync_activity_states
+from .const import (
+    CONF_AUTO_SYNC_ACTIVITY_STATES,
+    DEVICE_SCAN_INTERVAL,
+    DOCK_FAILURE_THRESHOLD,
+    DOMAIN,
+)
 from .issues import (
     async_create_issue_dock_unreachable,
     async_delete_issue_dock_unreachable,
@@ -107,6 +114,35 @@ class UnfoldedCircleRemoteCoordinator(
         """Initialize the Coordinator."""
         super().__init__(hass, UCRemote, config_entry)
         self.docks: list[Dock] = self.api.docks
+        self._activity_states = {
+            activity.id: activity.state for activity in self.api.activities
+        }
+        self._expected_synced_activity_states: dict[str, tuple[str, float]] = {}
+
+    def expect_synced_activity_state(self, activity_id: str, state: str) -> None:
+        """Mark a target activity update as originating from another remote."""
+        self._expected_synced_activity_states[activity_id] = (
+            state,
+            monotonic() + 30,
+        )
+
+    def clear_expected_synced_activity_state(self, activity_id: str) -> None:
+        """Clear a previously marked target activity update."""
+        self._expected_synced_activity_states.pop(activity_id, None)
+
+    def _is_expected_synced_activity_state(self, activity_id: str, state: str) -> bool:
+        """Return whether this state update was sent by the sync helper."""
+        expected = self._expected_synced_activity_states.get(activity_id)
+        if expected is None:
+            return False
+        expected_state, expiry = expected
+        if monotonic() > expiry:
+            self._expected_synced_activity_states.pop(activity_id, None)
+            return False
+        if expected_state != state:
+            return False
+        self._expected_synced_activity_states.pop(activity_id, None)
+        return True
 
     async def init_websocket(self):
         """Start the unfurled WebSocket and register a state-change callback."""
@@ -123,7 +159,33 @@ class UnfoldedCircleRemoteCoordinator(
 
     async def _on_remote_state_change(self) -> None:
         """Trigger a coordinator update whenever the remote's state changes via WS."""
+        current_activity_states = {
+            activity.id: activity.state for activity in self.api.activities
+        }
+        changed_activity_states = {
+            activity_id: state
+            for activity_id, state in current_activity_states.items()
+            if self._activity_states.get(activity_id) != state
+        }
+        self._activity_states = current_activity_states
         self.async_set_updated_data({"updated": True})
+
+        if not changed_activity_states:
+            return
+        if all(
+            self._is_expected_synced_activity_state(activity_id, state)
+            for activity_id, state in changed_activity_states.items()
+        ):
+            return
+        if (
+            not self.config_entry.options.get(CONF_AUTO_SYNC_ACTIVITY_STATES, False)
+            or not self.api.system.flags.entity_state_update_available
+        ):
+            return
+
+        await async_sync_activity_states(
+            self.hass, self, changed_activity_states.keys()
+        )
 
     async def close_websocket(self):
         """Disconnect the WebSocket."""

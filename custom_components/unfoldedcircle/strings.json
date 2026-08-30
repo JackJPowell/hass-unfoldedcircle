@@ -68,7 +68,8 @@
         "title": "[%key:common::config_flow::title%]",
         "data": {
           "activities_as_switches": "[%key:common::config_flow::data::activities_as_switches%]",
-          "suppress_activity_groups": "[%key:common::config_flow::data::suppress_activity_groups%]"
+          "suppress_activity_groups": "[%key:common::config_flow::data::suppress_activity_groups%]",
+          "auto_sync_activity_states": "Automatically sync activity states to other remotes"
         },
         "description": "[%key:common::config_flow::activities::description%]"
       },

@@ -44,7 +44,10 @@ INHIBIT_STANDBY_SERVICE_SCHEMA = cv.make_entity_service_schema(
 )
 
 PREVENT_SLEEP_SCHEMA = cv.make_entity_service_schema(
-    {vol.Optional("prevent_sleep", default=False): cv.boolean}
+    {
+        vol.Optional("prevent_sleep"): cv.boolean,
+        vol.Optional("state"): vol.In(("ON", "OFF")),
+    }
 )
 
 SEND_BUTTON_SCHEMA = cv.make_entity_service_schema(
@@ -183,7 +186,17 @@ async def async_prevent_sleep(
                         translation_domain=DOMAIN,
                         translation_key="activity_not_found",
                     )
-                await activity.edit(**service_call.data)
+                if "prevent_sleep" in service_call.data:
+                    await activity.edit(
+                        prevent_sleep=service_call.data["prevent_sleep"]
+                    )
+                if "state" in service_call.data:
+                    if not coordinator.api.system.flags.entity_state_update_available:
+                        raise HomeAssistantError(
+                            "This remote firmware does not support activity state updates"
+                        )
+                    await activity.set_state(service_call.data["state"])
+                coordinator.async_set_updated_data({"updated": True})
 
 
 async def async_service_handle(

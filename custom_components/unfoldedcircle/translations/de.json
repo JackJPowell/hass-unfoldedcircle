@@ -118,6 +118,7 @@
         "description": "Aktivitäten konfigurieren",
         "data": {
           "activities_as_switches": "Alle Aktivitäten als Schalter-Entitäten erstellen",
+          "auto_sync_activity_states": "Aktivitätszustände automatisch mit anderen Fernbedienungen synchronisieren",
           "suppress_activity_groups": "Erstellung von Aktivitätsgruppen-Entitäten unterdrücken"
         }
       },

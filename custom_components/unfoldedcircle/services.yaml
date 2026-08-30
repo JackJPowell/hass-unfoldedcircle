@@ -12,6 +12,15 @@ update_activity:
       required: false
       selector:
         boolean:
+    state:
+      name: Activity State
+      description: Set the activity state without running the activity sequence.
+      required: false
+      selector:
+        select:
+          options:
+            - "ON"
+            - "OFF"
 
 inhibit_standby:
   name: Prevent Device Standby

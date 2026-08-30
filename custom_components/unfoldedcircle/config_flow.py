@@ -38,6 +38,7 @@ from .const import (
     CONF_ACTIVITIES_AS_SWITCHES,
     CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
     CONF_ACTIVITY_MEDIA_ENTITIES,
+    CONF_AUTO_SYNC_ACTIVITY_STATES,
     CONF_DIRECT_DOCK_COMMUNICATION,
     CONF_GLOBAL_MEDIA_ENTITY,
     CONF_RESIZE_MEDIA_IMAGES,
@@ -727,24 +728,33 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
             self.options.update(user_input)
             return await self.async_step_media_player()
 
+        schema = {
+            vol.Optional(
+                CONF_ACTIVITIES_AS_SWITCHES,
+                default=self._config_entry.options.get(
+                    CONF_ACTIVITIES_AS_SWITCHES, False
+                ),
+            ): bool,
+            vol.Optional(
+                CONF_SUPPRESS_ACTIVITIY_GROUPS,
+                default=self._config_entry.options.get(
+                    CONF_SUPPRESS_ACTIVITIY_GROUPS, False
+                ),
+            ): bool,
+        }
+        if self._remote.system.flags.entity_state_update_available:
+            schema[
+                vol.Optional(
+                    CONF_AUTO_SYNC_ACTIVITY_STATES,
+                    default=self._config_entry.options.get(
+                        CONF_AUTO_SYNC_ACTIVITY_STATES, False
+                    ),
+                )
+            ] = bool
+
         return self.async_show_form(
             step_id="activities",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_ACTIVITIES_AS_SWITCHES,
-                        default=self._config_entry.options.get(
-                            CONF_ACTIVITIES_AS_SWITCHES, False
-                        ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_SUPPRESS_ACTIVITIY_GROUPS,
-                        default=self._config_entry.options.get(
-                            CONF_SUPPRESS_ACTIVITIY_GROUPS, False
-                        ),
-                    ): bool,
-                }
-            ),
+            data_schema=vol.Schema(schema),
             last_step=False,
         )
 

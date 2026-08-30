@@ -88,6 +88,7 @@
         "description": "Configurar Atividades",
         "data": {
           "activities_as_switches": "Criar todas as atividades como entidades de interruptor",
+          "auto_sync_activity_states": "Sincronizar automaticamente os estados das atividades com outros comandos",
           "suppress_activity_groups": "Suprimir a criação de entidades de grupo de atividades"
         }
       },
