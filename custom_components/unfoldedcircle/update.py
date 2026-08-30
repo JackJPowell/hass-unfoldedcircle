@@ -16,6 +16,7 @@ from homeassistant.components.update import (
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import UnfoldedCircleConfigEntry, UnfoldedCircleDockCoordinator
@@ -160,10 +161,29 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
                 self._attr_in_progress = False
 
         except HTTPError as ex:
-            _LOGGER.error(
-                "Unfolded Circle Update Failed ** If 503, battery level < 50 ** Status: %s",
-                ex.status_code,
-            )
+            battery_level = self.coordinator.api.state.battery_level
+            try:
+                battery_percentage = float(battery_level)
+            except (TypeError, ValueError):
+                battery_percentage = None
+
+            if ex.status_code == 503 and (
+                battery_percentage is not None and battery_percentage < 50
+            ):
+                message = (
+                    "Firmware update was rejected because the remote battery is "
+                    f"{battery_percentage:g}%. Charge it to at least 50% and try again."
+                )
+            else:
+                message = (
+                    "Firmware update failed: the remote returned "
+                    f"HTTP status {ex.status_code}."
+                )
+
+            _LOGGER.error("Unfolded Circle Update Failed: %s", message)
+            self._is_downloading = False
+            self.async_write_ha_state()
+            raise HomeAssistantError(message) from ex
 
         self._is_downloading = False
         self.async_write_ha_state()
