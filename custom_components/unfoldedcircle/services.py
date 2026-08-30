@@ -428,6 +428,11 @@ class IR:
         dock_name = self.dock_name or self.data.get("dock", None)
         port = self.data.get("port", None)
 
+        device = device.strip() if device else device
+        codeset = codeset.strip() if codeset else codeset
+        dock_name = dock_name.strip() if dock_name else dock_name
+        port = port.strip() if port else port
+
         if port:
             port = self.translate_port(port)
 
@@ -438,6 +443,7 @@ class IR:
             commands.append(self.data.get("command"))
 
         for command in commands:
+            command = command.strip()
             try:
                 send_kwargs: dict[str, Any] = {
                     "emitter_name": dock_name,
