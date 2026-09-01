@@ -301,20 +301,24 @@ class UCWebsocketClient(metaclass=Singleton):
 
     async def async_wait_for_subscriptions(
         self, client_id: str, *, timeout: float = 5
-    ) -> tuple[SubscriptionEvent, SubscriptionEvent]:
-        """Wait for the Remote to establish both HA websocket subscriptions."""
+    ) -> tuple[SubscriptionEvent | None, SubscriptionEvent]:
+        """Wait for the Remote configuration subscription.
+
+        An entity-state subscription is optional until the Remote has entities
+        configured, so a new Remote may legitimately not create one yet.
+        """
         try:
             async with asyncio.timeout(timeout):
                 while True:
                     self._subscriptions_changed.clear()
                     entities = self.get_subscribed_entities(client_id)
                     configuration = self.get_driver_subscription(client_id)
-                    if entities is not None and configuration is not None:
+                    if configuration is not None:
                         return entities, configuration
                     await self._subscriptions_changed.wait()
         except TimeoutError as err:
             raise TimeoutError(
-                f"Timed out waiting for HA websocket subscriptions from {client_id}"
+                f"Timed out waiting for the HA websocket configuration subscription from {client_id}"
             ) from err
 
     async def send_configuration_to_remote(

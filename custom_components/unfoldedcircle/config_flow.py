@@ -29,7 +29,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_HOST, CONF_MAC, CONF_NAME, CONF_PORT
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.data_entry_flow import FlowResult
+from homeassistant.data_entry_flow import AbortFlow, FlowResult
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.selector import EntitySelector, EntitySelectorConfig
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
@@ -79,6 +79,16 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self.info: dict[str, any] = {}
         self.options: dict[str, any] = {}
 
+    async def _async_close_remote(self) -> None:
+        """Close the temporary Remote used while this config flow is active."""
+        remote, self._remote = self._remote, None
+        if remote is None:
+            return
+        try:
+            await remote.close()
+        except Exception as ex:  # pylint: disable=broad-except
+            _LOGGER.debug("Error closing temporary Remote: %s", ex)
+
     async def validate_input(
         self, data: dict[str, Any], host: str = ""
     ) -> dict[str, Any]:
@@ -86,6 +96,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
         """
         endpoint = host if host else data["host"]
+        await self._async_close_remote()
         self._remote = Remote(endpoint, pin=data["pin"])
 
         websocket_url = data.get(CONF_HA_WEBSOCKET_URL, get_ha_websocket_url(self.hass))
@@ -250,6 +261,9 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 self.info[CONF_MAC]
             )
 
+        except AbortFlow:
+            await self._async_close_remote()
+            raise
         except CannotConnect:
             errors["base"] = "cannot_connect"
         except InvalidAuth:
@@ -263,6 +277,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 return await self.async_step_select_entities(None)
             return await self.async_step_finish(None)
 
+        await self._async_close_remote()
         return self.async_show_form(
             step_id="zeroconf_confirm",
             data_schema=zero_config_data_schema,
@@ -311,8 +326,13 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_DIRECT_DOCK_COMMUNICATION, False
             )
             await self._async_set_unique_id_and_abort_if_already_configured(
-                self.info[CONF_MAC]
+                self.info[CONF_MAC], abort_matching_discovery=True
             )
+        except AbortFlow as err:
+            # Keep Home Assistant's normal configured/in-progress aborts out
+            # of the generic unexpected-exception handler.
+            await self._async_close_remote()
+            return self.async_abort(reason=err.reason)
         except CannotConnect:
             errors["base"] = "cannot_connect"
         except InvalidAuth:
@@ -346,22 +366,40 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 ): bool,
             }
         )
+        await self._async_close_remote()
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
 
     async def _async_set_unique_id_and_abort_if_already_configured(
-        self, unique_id: str, host: str | None = None, port: int | None = None
+        self,
+        unique_id: str,
+        host: str | None = None,
+        port: int | None = None,
+        abort_matching_discovery: bool = False,
     ) -> None:
         """Set the unique ID and abort if already configured.
 
         If host and port are provided (from mDNS discovery), update the config entry's
-        host field and reload the integration when the IP address changes.
+        host field and reload the integration when the IP address changes. When a user
+        manually configures the same remote, its pending mDNS flow can be replaced.
         """
         # Legacy dash check for compatibility (though remote MACs don't have dashes)
         index = unique_id.find("-")
         if index > 0:
             unique_id = unique_id[0:index]
 
-        await self.async_set_unique_id(unique_id)
+        await self.async_set_unique_id(
+            unique_id, raise_on_progress=not abort_matching_discovery
+        )
+
+        if abort_matching_discovery:
+            for flow in self.hass.config_entries.flow.async_progress_by_handler(
+                DOMAIN,
+                match_context={
+                    "unique_id": unique_id,
+                    "source": config_entries.SOURCE_ZEROCONF,
+                },
+            ):
+                self.hass.config_entries.flow.async_abort(flow["flow_id"])
 
         # If host/port provided (from mDNS), update them and reload on change
         if host is not None and port is not None:
@@ -477,7 +515,9 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             return result
         except Exception as ex:
             _LOGGER.error("Error while creating registry entry %s", ex)
-            raise ex
+            raise
+        finally:
+            await self._async_close_remote()
 
     async def async_step_reconfigure(
         self, _user_input: dict[str, Any] | None = None
@@ -534,10 +574,13 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self, _user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Finish reconfiguration."""
-        return self.async_update_reload_and_abort(
-            self._reconfigure_entry,
-            data=self._reconfigure_entry.data,
-        )
+        try:
+            return self.async_update_reload_and_abort(
+                self._reconfigure_entry,
+                data=self._reconfigure_entry.data,
+            )
+        finally:
+            await self._async_close_remote()
 
 
 class DockSubentryFlowHandler(ConfigSubentryFlow):
@@ -1149,12 +1192,24 @@ async def async_step_select_entities(
 
     try:
         integration_id = await connect_integration(remote)
+        if user_input is None:
+            # Match the v1.1.6 sequence: revalidate the external HA token and
+            # reconnect the driver immediately before requesting an entity reload.
+            websocket_url = await get_registered_websocket_url(remote)
+            if websocket_url is None:
+                websocket_url = get_ha_websocket_url(config_flow.hass)
+            integration_id = await validate_and_register_system_and_driver(
+                remote, config_flow.hass, websocket_url
+            )
+            await remote.integrations.get_entities(integration_id, reload=True)
         (
             entity_subscription,
             configuration_subscription,
         ) = await websocket_client.async_wait_for_subscriptions(client_id)
         client_id = configuration_subscription.client_id
-        subscribed_entities = entity_subscription.entity_ids
+        subscribed_entities = (
+            entity_subscription.entity_ids if entity_subscription is not None else []
+        )
     except Exception as ex:
         _LOGGER.warning(
             "Unable to establish HA websocket subscriptions for %s: %s",

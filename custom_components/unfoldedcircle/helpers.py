@@ -154,11 +154,13 @@ async def connect_integration(remote: Remote, driver_id=UC_HA_DRIVER_ID) -> str:
             "No Home assistant driver instance (%s), create one",
             UC_HA_SYSTEM,
         )
-        await remote.integrations.create_driver(
+        # ``create_driver`` was removed in unfurled 0.6, but the underlying
+        # direct driver-instance endpoint is still available on CoreAPI.
+        await remote.api.post_driver(
             UC_HA_SYSTEM,
             {
                 "name": {"en": "Home Assistant"},
-                "icon": "uc:hass",
+                "icon": "uc:house",
                 "enabled": True,
             },
         )
