@@ -1,6 +1,6 @@
 # Home Assistant
 homeassistant==2026.8.3
-unfurled==0.4.0
+unfurled==0.6.0
 
 # HA component dependencies not bundled in the core package.
 # These are normally installed by HA at runtime into config/deps/, but HA
