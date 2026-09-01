@@ -49,7 +49,7 @@ async def _async_sync_remote_activity_states(target_coordinator, activities) -> 
             name_matches = [
                 activity
                 for activity in target_coordinator.api.activities
-                if activity.name == source_activity.name
+                if activity.name.casefold() == source_activity.name.casefold()
             ]
             target_activity = name_matches[0] if len(name_matches) == 1 else None
         if target_activity is None:
