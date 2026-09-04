@@ -4,6 +4,25 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Activity states can now be synchronized across compatible configured Remotes using the **Sync Activity States** button.
+- An Activities option can automatically synchronize activity state changes to other configured Remotes.
+- The `update_activity` action now supports setting an activity state (`ON` or `OFF`) without running its activity sequence.
+
+### Changed
+
+- Expanded German, French, and Portuguese translations for configuration, Dock, WebSocket, and error-recovery flows.
+
+### Fixed
+
+- Activity synchronization now matches activity names case-insensitively when an ID match is unavailable.
+- Restored reliable entity-configuration setup by revalidating and reconnecting the Home Assistant driver before refreshing entities.
+- Manual setup of a Remote already discovered through mDNS no longer surfaces an unexpected in-progress-flow error.
+- New Remotes without an entity-state subscription can complete configuration once their required configuration subscription is established.
+
+## v2.0.3
+
 ### Fixed
 
 - The `send_ir_command` action again accepts the user-visible Remote name.
