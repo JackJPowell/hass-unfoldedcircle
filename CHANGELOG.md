@@ -4,10 +4,18 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 2.1.1
+
+### Fixed
+
+- Some battery sensor icon states were not being rendered correctly
+
+## v2.1.0
+
 ### Added
 
-- Activity states can now be synchronized across compatible configured Remotes using the **Sync Activity States** button.
-- An Activities option can automatically synchronize activity state changes to other configured Remotes.
+- An Activities option can automatically synchronize activity state changes to other configured Remotes. It is located in the option menu `Configure local settings`
+- Activity states can now be synchronized across configured Remotes using the **Sync Activity States** button.
 - The `update_activity` action now supports setting an activity state (`ON` or `OFF`) without running its activity sequence.
 
 ### Changed
@@ -16,10 +24,9 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
-- Activity synchronization now matches activity names case-insensitively when an ID match is unavailable.
 - Restored reliable entity-configuration setup by revalidating and reconnecting the Home Assistant driver before refreshing entities.
 - Manual setup of a Remote already discovered through mDNS no longer surfaces an unexpected in-progress-flow error.
-- New Remotes without an entity-state subscription can complete configuration once their required configuration subscription is established.
+
 
 ## v2.0.3
 
