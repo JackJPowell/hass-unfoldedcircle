@@ -206,7 +206,7 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
                 return "mdi:battery-charging-outline"
             return f"mdi:battery-charging-{ceil(percentage / 10) * 10}"
 
-        if percentage >= 100:
+        if percentage > 90:
             return "mdi:battery"
         if percentage <= 0:
             return "mdi:battery-outline"
