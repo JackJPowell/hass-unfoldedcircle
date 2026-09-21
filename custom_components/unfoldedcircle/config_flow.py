@@ -468,7 +468,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             )
             if existing_entry:
                 self.hass.config_entries.async_update_entry(existing_entry, data=info)
-                await self.hass.config_entries.async_reload(existing_entry.entry_id)
                 return self.async_abort(reason="reauth_successful")
 
             return self.async_create_entry(title=info["title"], data=info)

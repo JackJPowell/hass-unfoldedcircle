@@ -1,6 +1,7 @@
 """Base entity for Unfolded Circle Remote Integration"""
 
 from homeassistant.config_entries import ConfigSubentry
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -53,6 +54,15 @@ class UnfoldedCircleDockEntity(CoordinatorEntity[UnfoldedCircleDockCoordinator])
         self.entry = entry
         self.subentry = subentry
         remote_coordinator = self.entry.runtime_data.coordinator
+        remote_device = dr.async_get(
+            self.coordinator.hass
+        ).async_get_device_by_identifier(
+            (
+                DOMAIN,
+                remote_coordinator.api.device.model_number,
+                remote_coordinator.api.device.serial_number,
+            )
+        )
 
         self._attr_device_info = DeviceInfo(
             identifiers={
@@ -70,9 +80,5 @@ class UnfoldedCircleDockEntity(CoordinatorEntity[UnfoldedCircleDockCoordinator])
             sw_version=self.coordinator.api.device.software_version,
             hw_version=self.coordinator.api.device.hardware_revision,
             configuration_url=self.coordinator.api.configuration_url,
-            via_device=(
-                DOMAIN,
-                remote_coordinator.api.device.model_number,
-                remote_coordinator.api.device.serial_number,
-            ),
+            via_device_id=remote_device.id,
         )

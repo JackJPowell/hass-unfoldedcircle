@@ -76,6 +76,26 @@ async def async_setup_entry(
     coordinator = UnfoldedCircleRemoteCoordinator(hass, remote_api, config_entry=entry)
     await coordinator.api.init()
 
+    # Ensure the parent remote device exists before dock entities are added. Dock
+    # entities use its registry ID as their ``via_device_id``.
+    device_registry = dr.async_get(hass)
+    device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={
+            (
+                DOMAIN,
+                coordinator.api.device.model_number,
+                coordinator.api.device.serial_number,
+            )
+        },
+        name=coordinator.api.device.name,
+        manufacturer=coordinator.api.device.manufacturer,
+        model=coordinator.api.device.model_name,
+        sw_version=coordinator.api.device.sw_version,
+        hw_version=coordinator.api.device.hw_revision,
+        configuration_url=coordinator.api.configuration_url,
+    )
+
     if entry.version < 3:
         dock_data = {}
         if "docks" in entry.data:
@@ -296,14 +316,12 @@ def create_subentry(
 async def async_remove_device(hass: HomeAssistant, dock) -> None:
     """Remove the dock device from the device registry."""
     dev_reg = dr.async_get(hass)
-    device = dev_reg.async_get_device(
-        identifiers={
-            (
-                DOMAIN,
-                dock.device.model_number,
-                dock.device.serial_number,
-            )
-        }
+    device = dev_reg.async_get_device_by_identifier(
+        (
+            DOMAIN,
+            dock.device.model_number,
+            dock.device.serial_number,
+        )
     )
     if device:
         dev_reg.async_remove_device(device.id)

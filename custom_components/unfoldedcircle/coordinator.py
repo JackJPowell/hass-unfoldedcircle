@@ -283,8 +283,8 @@ class UnfoldedCircleDockCoordinator(
     async def _on_dock_message(self, _raw: str) -> None:
         """Publish direct dock state and metadata after a WebSocket message."""
         device_registry = dr.async_get(self.hass)
-        if device := device_registry.async_get_device(
-            identifiers={(DOMAIN, self.subentry.unique_id)}
+        if device := device_registry.async_get_device_by_identifier(
+            (DOMAIN, self.subentry.unique_id)
         ):
             device_registry.async_update_device(
                 device.id,

@@ -62,8 +62,11 @@ class WebSocketRepairFlow(RepairsFlow):
                     if not configure_entities_subscription:
                         raise WebsocketFailure
                     try:
-                        await self.hass.config_entries.async_reload(
-                            self.coordinator.config_entry.entry_id
+                        # The entry update listener schedules the reload. This avoids
+                        # bypassing it with a direct reload call.
+                        self.hass.config_entries.async_update_entry(
+                            self.coordinator.config_entry,
+                            data=self.coordinator.config_entry.data,
                         )
 
                         async_delete_issue(self.hass, self.issue_id)
@@ -130,7 +133,6 @@ class DockPasswordRepairFlow(RepairsFlow):
                 self.hass.config_entries.async_update_subentry(
                     self.config_entry, self.subentry, data=data
                 )
-                await self.hass.config_entries.async_reload(self.config_entry.entry_id)
                 async_delete_issue(self.hass, self.issue_id)
                 return self.async_abort(reason="reauth_successful")
 
