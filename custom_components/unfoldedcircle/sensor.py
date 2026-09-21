@@ -34,6 +34,13 @@ UNFOLDED_CIRCLE_SENSOR: tuple[UnfoldedCircleSensorEntityDescription, ...] = (
         unique_id="battery",
     ),
     UnfoldedCircleSensorEntityDescription(
+        key="charging_type",
+        device_class=SensorDeviceClass.ENUM,
+        options=("Dock", "Wireless Charger", "Not Charging"),
+        name="Charging Type",
+        unique_id="charging_type",
+    ),
+    UnfoldedCircleSensorEntityDescription(
         key="ambient_light_intensity",
         unit_of_measurement=LIGHT_LUX,
         native_unit_of_measurement=LIGHT_LUX,
@@ -104,9 +111,12 @@ async def async_setup_entry(
     """Add sensors for passed config_entry in HA."""
     coordinator = config_entry.runtime_data.coordinator
 
+    sensors = UNFOLDED_CIRCLE_SENSOR
+    if "WIRELESS_CHARGING" not in coordinator.api.system.flags.charging_options:
+        sensors = tuple(sensor for sensor in sensors if sensor.key != "charging_type")
+
     async_add_entities(
-        UnfoldedCircleSensor(coordinator, description)
-        for description in UNFOLDED_CIRCLE_SENSOR
+        UnfoldedCircleSensor(coordinator, description) for description in sensors
     )
 
 
@@ -158,6 +168,12 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
             return self._attr_extra_state_attributes.get("Synchronized entities", 0)
         if key == "battery_level":
             return api.state.battery_level
+        if key == "charging_type":
+            if not api.state.is_charging:
+                return "Not Charging"
+            if api.state.is_wireless_charging:
+                return "Wireless Charger"
+            return "Dock"
         if key == "ambient_light_intensity":
             return api.state.ambient_light_level
         if key == "power_mode":
@@ -183,6 +199,13 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
     @property
     def icon(self) -> str | None:
         """Return an icon that reflects the battery level and charging source."""
+        if self.entity_description.key == "charging_type":
+            if not self.coordinator.api.state.is_charging:
+                return "mdi:battery"
+            if self.coordinator.api.state.is_wireless_charging:
+                return "mdi:battery-charging-wireless"
+            return "mdi:battery-charging"
+
         if self.entity_description.key != "battery_level":
             return None
 
