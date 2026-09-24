@@ -120,6 +120,9 @@
     }
   },
   "options": {
+    "abort": {
+      "entry_not_loaded": "The integration is not loaded. Complete reauthentication if requested, or reload the integration, then try again."
+    },
     "error": {
       "ha_driver_failure": "Unexpected error when configuring remote entities",
       "cannot_create_ha_token": "Unable to create Home Assistant Token",

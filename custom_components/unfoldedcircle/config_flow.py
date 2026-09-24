@@ -22,6 +22,7 @@ from voluptuous import Optional, Required
 from homeassistant import config_entries
 from homeassistant.config_entries import (
     ConfigEntry,
+    ConfigEntryState,
     ConfigFlow,
     ConfigSubentry,
     ConfigSubentryFlow,
@@ -417,9 +418,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Perform reauth upon an API authentication error."""
-        user_input["pin"] = None
-        user_input["apiKey"] = None
-        return await self.async_step_reauth_confirm(user_input)
+        return await self.async_step_reauth_confirm()
 
     async def async_step_reauth_confirm(
         self, user_input: dict[str, Any] | None = None
@@ -463,14 +462,13 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.exception(ex)
             errors["base"] = "unknown"
         else:
-            existing_entry = await self.async_set_unique_id(
-                self.reauth_entry.unique_id, raise_on_progress=False
+            return self.async_update_reload_and_abort(
+                self.reauth_entry,
+                data_updates=info,
+                reason="reauth_successful",
             )
-            if existing_entry:
-                self.hass.config_entries.async_update_entry(existing_entry, data=info)
-                return self.async_abort(reason="reauth_successful")
-
-            return self.async_create_entry(title=info["title"], data=info)
+        finally:
+            await self._async_close_remote()
 
         return self.async_show_form(
             step_id="reauth_confirm",
@@ -729,7 +727,7 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         """Initialize options flow."""
         self._config_entry = config_entry
         self.options = dict(config_entry.options)
-        self._remote: Remote | None = self._config_entry.runtime_data.remote
+        self._remote: Remote | None = None
         self._bypass_steps: bool = False
         self._invalid_dock_subentry: ConfigSubentry | None = None
         self._invalid_dock = None
@@ -746,6 +744,13 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input=None):  # pylint: disable=unused-argument
         """Manage the options."""
+        runtime_data = getattr(self._config_entry, "runtime_data", None)
+        if (
+            self._config_entry.state is not ConfigEntryState.LOADED
+            or runtime_data is None
+        ):
+            return self.async_abort(reason="entry_not_loaded")
+        self._remote = runtime_data.remote
         try:
             await self._remote.validate_connection()
         except Exception:

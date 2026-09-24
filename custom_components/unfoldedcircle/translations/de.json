@@ -120,6 +120,9 @@
     }
   },
   "options": {
+    "abort": {
+      "entry_not_loaded": "Die Integration ist nicht geladen. Schließe gegebenenfalls die erneute Anmeldung ab oder lade die Integration neu und versuche es erneut."
+    },
     "error": {
       "ha_driver_failure": "Unerwarteter Fehler bei der Einrichtung der Fernbedienungs-Entitäten",
       "cannot_create_ha_token": "Home-Assistant-Token konnte nicht erstellt werden",

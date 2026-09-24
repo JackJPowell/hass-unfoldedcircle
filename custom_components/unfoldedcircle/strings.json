@@ -39,6 +39,9 @@
     }
   },
   "options": {
+    "abort": {
+      "entry_not_loaded": "The integration is not loaded. Complete reauthentication if requested, or reload the integration, then try again."
+    },
     "step": {
       "init": {
         "data": {
