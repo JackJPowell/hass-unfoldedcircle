@@ -62,11 +62,10 @@ class WebSocketRepairFlow(RepairsFlow):
                     if not configure_entities_subscription:
                         raise WebsocketFailure
                     try:
-                        # The entry update listener schedules the reload. This avoids
-                        # bypassing it with a direct reload call.
-                        self.hass.config_entries.async_update_entry(
-                            self.coordinator.config_entry,
-                            data=self.coordinator.config_entry.data,
+                        # Registration changes the remote, not the config entry,
+                        # so no entry update listener will trigger a reload.
+                        self.hass.config_entries.async_schedule_reload(
+                            self.coordinator.config_entry.entry_id
                         )
 
                         async_delete_issue(self.hass, self.issue_id)

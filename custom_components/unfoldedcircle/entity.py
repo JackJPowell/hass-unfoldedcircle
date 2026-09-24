@@ -61,7 +61,8 @@ class UnfoldedCircleDockEntity(CoordinatorEntity[UnfoldedCircleDockCoordinator])
                 DOMAIN,
                 remote_coordinator.api.device.model_number,
                 remote_coordinator.api.device.serial_number,
-            )
+            ),
+            config_entry_id=entry.entry_id,
         )
 
         self._attr_device_info = DeviceInfo(

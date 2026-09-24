@@ -64,6 +64,8 @@ async def async_setup_entry(
         remote_api = Remote(
             entry.data["host"], pin=entry.data["pin"], api_key=entry.data["apiKey"]
         )
+        # Home Assistant also runs unload callbacks when setup fails.
+        entry.async_on_unload(remote_api.close)
         await remote_api.validate_connection()
 
     except AuthenticationError as err:
@@ -110,7 +112,7 @@ async def async_setup_entry(
                     dock_data["name"] = dock.device.name
                     create_subentry(hass, entry, dock_data)
 
-                    await async_remove_device(hass, dock)
+                    await async_remove_device(hass, entry, dock)
 
             copy_data = copy.deepcopy(dict(entry.data))
             copy_data["docks"] = []
@@ -255,12 +257,6 @@ async def async_unload_entry(
         _LOGGER.error("Unfolded Circle Remote async_unload_entry error: %s", ex)
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    if unload_ok:
-        try:
-            await coordinator.api.close()
-        except Exception as ex:
-            _LOGGER.error("Error closing Unfolded Circle resources: %s", ex)
-
     return unload_ok
 
 
@@ -289,7 +285,7 @@ async def async_remove_entry(
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Handle update."""
-    await hass.config_entries.async_reload(entry.entry_id)
+    hass.config_entries.async_schedule_reload(entry.entry_id)
 
 
 def create_subentry(
@@ -313,7 +309,9 @@ def create_subentry(
     )
 
 
-async def async_remove_device(hass: HomeAssistant, dock) -> None:
+async def async_remove_device(
+    hass: HomeAssistant, entry: ConfigEntry, dock
+) -> None:
     """Remove the dock device from the device registry."""
     dev_reg = dr.async_get(hass)
     device = dev_reg.async_get_device_by_identifier(
@@ -321,7 +319,8 @@ async def async_remove_device(hass: HomeAssistant, dock) -> None:
             DOMAIN,
             dock.device.model_number,
             dock.device.serial_number,
-        )
+        ),
+        config_entry_id=entry.entry_id,
     )
     if device:
         dev_reg.async_remove_device(device.id)
