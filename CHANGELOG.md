@@ -4,11 +4,15 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
-## 2.1.1
+### Added
+
+- TV episodes shared with the Remote now show their season and episode number as a subtitle (for example, **S17E10**).
+- A **Charging Type** sensor for Remotes that support wireless charging shows whether the Remote is charging on a Dock, using a wireless charger, or not charging.
 
 ### Fixed
 
-- Some battery sensor icon states were not being rendered correctly
+- Improved Home Assistant 2026.9 compatibility for Remote and Dock setup, reconfiguration, and connection repairs.
+- Corrected battery sensor icon states that were not rendering correctly
 
 ## v2.1.0
 
