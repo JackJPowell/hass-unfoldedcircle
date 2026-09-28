@@ -9,6 +9,7 @@ from custom_components.unfoldedcircle import _async_update_listener, async_remov
 from custom_components.unfoldedcircle.const import DOMAIN
 from custom_components.unfoldedcircle.coordinator import UnfoldedCircleDockCoordinator
 from custom_components.unfoldedcircle.entity import UnfoldedCircleDockEntity
+from custom_components.unfoldedcircle.helpers import validate_tokens
 from custom_components.unfoldedcircle.repairs import WebSocketRepairFlow
 from homeassistant.helpers.device_registry import DeviceRegistry
 
@@ -154,3 +155,37 @@ async def test_failed_setup_registers_session_cleanup(failure_stage):
     finally:
         if session is not None:
             await session.close()
+
+
+@pytest.mark.asyncio
+async def test_validate_tokens_uses_admin_when_owner_is_missing():
+    token = SimpleNamespace(client_name="UCR:Remote Two")
+    admin = SimpleNamespace(
+        id="admin-id",
+        is_active=True,
+        system_generated=False,
+        is_admin=True,
+        refresh_tokens={"token-id": token},
+    )
+    hass = Mock()
+    hass.auth.async_get_owner = AsyncMock(return_value=None)
+    hass.auth.async_get_users = AsyncMock(return_value=[admin])
+    hass.auth.async_get_user = AsyncMock(return_value=admin)
+    remote = Mock()
+    remote.device.name = "Remote Two"
+    remote.auth.system_has_token = AsyncMock(return_value=True)
+
+    assert await validate_tokens(hass, remote) is True
+    hass.auth.async_get_user.assert_awaited_once_with("admin-id")
+    remote.auth.system_has_token.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_validate_tokens_without_eligible_user_returns_false():
+    hass = Mock()
+    hass.auth.async_get_owner = AsyncMock(return_value=None)
+    hass.auth.async_get_users = AsyncMock(return_value=[])
+    remote = Mock()
+
+    assert await validate_tokens(hass, remote) is False
+    remote.auth.system_has_token.assert_not_called()
