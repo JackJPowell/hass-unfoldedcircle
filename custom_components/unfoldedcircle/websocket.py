@@ -4,7 +4,9 @@ Implements the necessary methods called through HA websocket for the UC HA integ
 import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 import logging
+from math import isfinite
 from typing import Any
 
 import voluptuous as vol
@@ -15,6 +17,7 @@ from homeassistant.helpers.event import (
     EventStateChangedData,
     async_track_state_change_event,
 )
+from homeassistant.util import dt as dt_util
 
 from .const import CONF_RESIZE_MEDIA_IMAGES, DOMAIN, UC_HA_DRIVER_ID
 from .helpers import update_config_entities
@@ -201,6 +204,25 @@ def ws_subscribe_entities_event(
     websocket_client = UCWebsocketClient(hass)
     websocket_client.subscribe_entities_events(connection, msg)
     connection.send_result(msg["id"])
+    # A waking Remote may have missed updates while disconnected. Send a fresh
+    # media snapshot after acknowledging the subscription, without waiting for
+    # another state change from the player.
+    for entity_id in msg["data"].get("entities", []):
+        state = hass.states.get(entity_id)
+        if state is None or state.domain != "media_player":
+            continue
+        connection.send_event(
+            msg["id"],
+            {
+                "data": {
+                    "entity_id": entity_id,
+                    "new_state": _state_for_remote(
+                        hass, state, msg["data"].get("client_id")
+                    ),
+                    "old_state": None,
+                }
+            },
+        )
 
 
 class Singleton(type):
@@ -378,8 +400,12 @@ class UCWebsocketClient(metaclass=Singleton):
                     {
                         "data": {
                             "entity_id": entity_id,
-                            "new_state": _state_for_remote(self.hass, new_state, client_id),
-                            "old_state": _state_for_remote(self.hass, old_state, client_id),
+                            "new_state": _state_for_remote(
+                                self.hass, new_state, client_id
+                            ),
+                            "old_state": _state_for_remote(
+                                self.hass, old_state, client_id
+                            ),
                         }
                     }
                 )
@@ -493,23 +519,85 @@ class UCWebsocketClient(metaclass=Singleton):
 def _state_for_remote(
     hass: HomeAssistant, state: State | None, client_id: str | None
 ) -> State | dict | None:
-    """Rewrite opted-in media artwork URLs to the local image proxy."""
-    if state is None or state.domain != "media_player" or not client_id:
+    """Enrich outgoing media metadata without changing Home Assistant state."""
+    if state is None or state.domain != "media_player":
         return state
+
+    remote_state = dict(state.as_dict())
+    attributes = remote_state["attributes"] = dict(state.attributes)
+    # SEEK workaround disabled pending upstream driver review. Preserve HA's
+    # advertised capabilities while continuing to forward playback metadata.
+    # To restore this workaround, also restore the MediaPlayerEntityFeature import.
+    # duration = attributes.get("media_duration")
+    # position = attributes.get("media_position")
+    # if _valid_media_time(duration) and duration > 0 and _valid_media_time(position):
+    #     attributes["supported_features"] = int(
+    #         attributes.get("supported_features", 0)
+    #     ) | int(MediaPlayerEntityFeature.SEEK)
+    if attributes.get("media_content_type") == "tvshow":
+        season = _episode_number(attributes.get("media_season"))
+        episode = _episode_number(attributes.get("media_episode"))
+        if season is not None and episode is not None:
+            attributes["media_artist"] = f"S{season}E{episode}"
+
+    _update_media_position(attributes, state.state)
+
     entry = next(
         (
             item
             for item in hass.config_entries.async_entries(DOMAIN)
-            if item.options.get("client_id") == client_id
+            if client_id and item.options.get("client_id") == client_id
         ),
         None,
     )
-    if entry is None or not entry.options.get(CONF_RESIZE_MEDIA_IMAGES, False):
-        return state
-    picture = state.attributes.get("entity_picture")
-    if not isinstance(picture, str) or picture.startswith("data:"):
-        return state
-    remote_state = dict(state.as_dict())
-    remote_state["attributes"] = dict(remote_state["attributes"])
-    remote_state["attributes"]["entity_picture"] = get_image_proxy(hass).url_for(picture)
+    if entry is not None and entry.options.get(CONF_RESIZE_MEDIA_IMAGES, False):
+        picture = attributes.get("entity_picture")
+        if isinstance(picture, str) and not picture.startswith("data:"):
+            attributes["entity_picture"] = get_image_proxy(hass).url_for(picture)
     return remote_state
+
+
+def _valid_media_time(value: Any) -> bool:
+    """Check for a finite, non-negative time in seconds."""
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and isfinite(value)
+        and value >= 0
+    )
+
+
+def _episode_number(value: Any) -> int | None:
+    """Accept non-negative episode numbers, including numeric strings."""
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return value
+    if isinstance(value, str) and value.isascii() and value.isdecimal():
+        return int(value)
+    return None
+
+
+def _update_media_position(attributes: dict[str, Any], state: str) -> None:
+    """Advance a playing position and its timestamp together for the Remote."""
+    if state != "playing":
+        return
+    position = attributes.get("media_position")
+    if not _valid_media_time(position):
+        return
+    updated_at = attributes.get("media_position_updated_at")
+    if isinstance(updated_at, str):
+        try:
+            updated_at = dt_util.parse_datetime(updated_at)
+        except ValueError:
+            return
+    if not isinstance(updated_at, datetime) or updated_at.tzinfo is None:
+        return
+    now = dt_util.utcnow()
+    elapsed = (now - updated_at).total_seconds()
+    if elapsed < 0:
+        return
+    position += elapsed
+    duration = attributes.get("media_duration")
+    if _valid_media_time(duration) and duration > 0:
+        position = min(position, duration)
+    attributes["media_position"] = position
+    attributes["media_position_updated_at"] = now.isoformat()
