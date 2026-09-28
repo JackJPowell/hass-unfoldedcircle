@@ -17,7 +17,11 @@ from unfurled.helpers.exceptions import (
 )
 from unfurled.remote import Remote
 
-from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN, RefreshToken
+from homeassistant.auth.models import (
+    TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN,
+    RefreshToken,
+    User,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.network import NoURLAvailableError, get_url
@@ -72,8 +76,8 @@ async def generate_token(hass: HomeAssistant, name):
     return hass.auth.async_create_access_token(token)
 
 
-async def get_user(hass: HomeAssistant) -> str:
-    """Retrieve the currently logged-in user ID."""
+async def get_user(hass: HomeAssistant) -> User | None:
+    """Return the HA owner, or an active admin when no owner exists."""
     user = await hass.auth.async_get_owner()
     if user:
         return user
@@ -210,7 +214,9 @@ async def validate_tokens(hass: HomeAssistant, remote: Remote) -> bool:
     This currently doesn't not validate the tokens are still valid,
     just that they exist."""
     refresh_token = None
-    user = await hass.auth.async_get_owner()
+    user = await get_user(hass)
+    if user is None:
+        return False
     token: RefreshToken | None = None
     if user.refresh_tokens:
         for token in user.refresh_tokens.values():
@@ -220,9 +226,7 @@ async def validate_tokens(hass: HomeAssistant, remote: Remote) -> bool:
 
     remote_has_token = await remote.auth.system_has_token(UC_HA_SYSTEM)
 
-    if not remote_has_token or not refresh_token:
-        return False
-    return True
+    return not (not remote_has_token or not refresh_token)
 
 
 def validate_websocket_address(websocket_url: str | None) -> bool:
