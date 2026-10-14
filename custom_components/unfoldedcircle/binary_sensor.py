@@ -31,9 +31,6 @@ async def async_setup_entry(
 class PollingBinarySensor(UnfoldedCircleEntity, BinarySensorEntity):
     """Sensor indicating if HTTP Polling is active"""
 
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-
     def __init__(self, coordinator) -> None:
         """Initialize Binary Sensor."""
         super().__init__(coordinator)

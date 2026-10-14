@@ -9,7 +9,7 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
 )
 from homeassistant.const import LIGHT_LUX, PERCENTAGE, EntityCategory, UnitOfInformation
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.typing import StateType
 
 from . import UnfoldedCircleConfigEntry
@@ -159,6 +159,11 @@ class UnfoldedCircleSensor(UnfoldedCircleEntity, SensorEntity):
             }
 
         await super().async_added_to_hass()
+
+    @callback
+    def async_entity_id_changed(self, old_entity_id: str) -> None:
+        """Opt in to in-place entity ID changes."""
+        super().async_entity_id_changed(old_entity_id)
 
     def get_value(self) -> StateType:
         """return native value of entity"""
