@@ -162,6 +162,11 @@ class RemoteSensor(UnfoldedCircleEntity, RemoteEntity):
         await super().async_will_remove_from_hass()
 
     @callback
+    def async_entity_id_changed(self, old_entity_id: str) -> None:
+        """Opt in to in-place entity ID changes."""
+        super().async_entity_id_changed(old_entity_id)
+
+    @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         if self.update_state():
