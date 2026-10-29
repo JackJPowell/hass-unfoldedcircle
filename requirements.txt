@@ -1,5 +1,5 @@
 # Home Assistant
-homeassistant==2026.9.3
+homeassistant==2026.11.0
 unfurled==0.6.3
 
 # HA component dependencies not bundled in the core package.

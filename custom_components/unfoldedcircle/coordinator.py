@@ -224,7 +224,9 @@ class UnfoldedCircleDockCoordinator(
 
         self._consecutive_failures = 0
         self._unreachable_reported = False
-        async_delete_issue_dock_unreachable(self.hass, self.api.device.id)
+        async_delete_issue_dock_unreachable(
+            self.hass, self.config_entry.entry_id, self.api.device.id
+        )
         return {"updated": True}
 
     def _handle_failed_poll(

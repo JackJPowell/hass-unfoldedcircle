@@ -10,7 +10,20 @@ from custom_components.unfoldedcircle.const import DOMAIN
 from custom_components.unfoldedcircle.coordinator import UnfoldedCircleDockCoordinator
 from custom_components.unfoldedcircle.entity import UnfoldedCircleDockEntity
 from custom_components.unfoldedcircle.helpers import validate_tokens
-from custom_components.unfoldedcircle.repairs import WebSocketRepairFlow
+from custom_components.unfoldedcircle.issues import (
+    async_create_issue_dock_password,
+    async_create_issue_dock_unreachable,
+    async_create_issue_websocket_connection,
+    async_delete_issue_dock_unreachable,
+    async_delete_legacy_issues,
+    dock_password_issue_id,
+    dock_unreachable_issue_id,
+    websocket_connection_issue_id,
+)
+from custom_components.unfoldedcircle.repairs import (
+    WebSocketRepairFlow,
+    async_create_fix_flow,
+)
 from homeassistant.helpers.device_registry import DeviceRegistry
 
 
@@ -69,7 +82,8 @@ async def test_websocket_repair_schedules_reload_without_data_change():
     hass = Mock()
     entry = Mock(entry_id="remote-entry", data={"host": "remote"})
     entry.runtime_data.coordinator.config_entry = entry
-    flow = WebSocketRepairFlow(hass, "websocket_connection", {"config_entry": entry})
+    issue_id = websocket_connection_issue_id(entry.entry_id)
+    flow = WebSocketRepairFlow(hass, issue_id, {"config_entry": entry})
     with (
         patch(
             "custom_components.unfoldedcircle.repairs.register_system_and_driver",
@@ -85,7 +99,117 @@ async def test_websocket_repair_schedules_reload_without_data_change():
     hass.config_entries.async_schedule_reload.assert_called_once_with("remote-entry")
     hass.config_entries.async_reload.assert_not_called()
     hass.config_entries.async_update_entry.assert_not_called()
-    delete.assert_called_once_with(hass, "websocket_connection")
+    delete.assert_called_once_with(hass, issue_id)
+
+
+def test_repair_issues_belong_to_their_config_entries():
+    """Issue IDs and registry ownership isolate two remotes with the same dock ID."""
+    from homeassistant.helpers import issue_registry
+
+    hass = Mock()
+    dock = Mock()
+    dock.device.id = "dock-id"
+    dock.device.name = "Dock"
+    entry_one = Mock(entry_id="entry-one")
+    entry_two = Mock(entry_id="entry-two")
+    coordinator = Mock()
+    coordinator.api.device.name = "Remote"
+
+    with patch.object(issue_registry, "async_create_issue") as create:
+        async_create_issue_dock_password(hass, dock, entry_one, Mock())
+        async_create_issue_dock_unreachable(
+            hass, dock, entry_two, Mock(), ConnectionError("offline")
+        )
+        async_create_issue_websocket_connection(hass, entry_one, coordinator)
+        async_create_issue_websocket_connection(hass, entry_two, coordinator)
+
+    calls = create.call_args_list
+    assert [call.args[2] for call in calls] == [
+        dock_password_issue_id("entry-one", "dock-id"),
+        dock_unreachable_issue_id("entry-two", "dock-id"),
+        websocket_connection_issue_id("entry-one"),
+        websocket_connection_issue_id("entry-two"),
+    ]
+    assert [call.kwargs["config_entry_id"] for call in calls] == [
+        "entry-one",
+        "entry-two",
+        "entry-one",
+        "entry-two",
+    ]
+
+
+def test_legacy_issue_cleanup_preserves_entry_owned_issues():
+    """Only old unowned IDs are removed when issue names change."""
+    from homeassistant.helpers import issue_registry
+
+    issues = {
+        (DOMAIN, "websocket_connection"): SimpleNamespace(config_entry_id=None),
+        (DOMAIN, "dock_password_dock-id"): SimpleNamespace(config_entry_id=None),
+        (DOMAIN, "dock_unreachable_dock-id"): SimpleNamespace(config_entry_id=None),
+        (
+            DOMAIN,
+            websocket_connection_issue_id("entry-one"),
+        ): SimpleNamespace(config_entry_id="entry-one"),
+        ("other", "websocket_connection"): SimpleNamespace(config_entry_id=None),
+    }
+    hass = Mock()
+    with (
+        patch.object(
+            issue_registry, "async_get", return_value=SimpleNamespace(issues=issues)
+        ),
+        patch.object(issue_registry, "async_delete_issue") as delete,
+    ):
+        async_delete_legacy_issues(hass)
+
+    assert {call.args for call in delete.call_args_list} == {
+        (hass, DOMAIN, "websocket_connection"),
+        (hass, DOMAIN, "dock_password_dock-id"),
+        (hass, DOMAIN, "dock_unreachable_dock-id"),
+    }
+
+
+def test_resolved_dock_issue_deletes_only_its_own_entry():
+    """A recovered dock does not clear another remote's issue."""
+    from homeassistant.helpers import issue_registry
+
+    hass = Mock()
+    with patch.object(issue_registry, "async_delete_issue") as delete:
+        async_delete_issue_dock_unreachable(hass, "entry-one", "dock-id")
+
+    delete.assert_called_once_with(
+        hass, DOMAIN, dock_unreachable_issue_id("entry-one", "dock-id")
+    )
+
+
+@pytest.mark.asyncio
+async def test_repair_flow_routes_entry_scoped_websocket_issue():
+    """The repair dispatcher accepts the entry-scoped WebSocket issue ID."""
+    hass = Mock()
+    entry = Mock(entry_id="entry-one")
+    flow = await async_create_fix_flow(
+        hass,
+        websocket_connection_issue_id(entry.entry_id),
+        {"config_entry": entry},
+    )
+    assert isinstance(flow, WebSocketRepairFlow)
+
+
+@pytest.mark.asyncio
+async def test_unload_preserves_issues_during_reload():
+    """Issue registry ownership handles removal; unload only unloads platforms."""
+    from custom_components.unfoldedcircle import PLATFORMS, async_unload_entry
+    from homeassistant.helpers import issue_registry
+
+    hass = Mock()
+    hass.config_entries.async_unload_platforms_or_raise = AsyncMock()
+    entry = Mock(entry_id="entry-one")
+    with patch.object(issue_registry, "async_delete_issue") as delete:
+        assert await async_unload_entry(hass, entry) is None
+
+    hass.config_entries.async_unload_platforms_or_raise.assert_awaited_once_with(
+        entry, PLATFORMS
+    )
+    delete.assert_not_called()
 
 
 @pytest.mark.asyncio

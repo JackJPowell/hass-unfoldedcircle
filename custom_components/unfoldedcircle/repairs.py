@@ -149,7 +149,7 @@ async def async_create_fix_flow(
     data: dict[str, str | int | float | None] | None,
 ) -> RepairsFlow:
     """Create flow."""
-    if issue_id == "websocket_connection":
+    if issue_id.startswith("websocket_connection_"):
         return WebSocketRepairFlow(hass, issue_id, data)
     if issue_id.startswith("dock_password_"):
         return DockPasswordRepairFlow(hass, issue_id, data)

@@ -16,6 +16,35 @@ _LOGGER = logging.getLogger(__name__)
 _LEARN_MORE_URL = "https://github.com/jackjpowell/hass-unfoldedcircle"
 
 
+def dock_password_issue_id(entry_id: str, dock_id: str) -> str:
+    """Return the entry-scoped issue ID for a dock password."""
+    return f"dock_password_{entry_id}_{dock_id}"
+
+
+def dock_unreachable_issue_id(entry_id: str, dock_id: str) -> str:
+    """Return the entry-scoped issue ID for an unreachable dock."""
+    return f"dock_unreachable_{entry_id}_{dock_id}"
+
+
+def websocket_connection_issue_id(entry_id: str) -> str:
+    """Return the entry-scoped issue ID for a WebSocket connection."""
+    return f"websocket_connection_{entry_id}"
+
+
+@callback
+def async_delete_legacy_issues(hass: HomeAssistant) -> None:
+    """Remove old issue IDs that cannot be linked to a config entry."""
+    for (domain, issue_id), issue in list(
+        issue_registry.async_get(hass).issues.items()
+    ):
+        if domain != DOMAIN or issue.config_entry_id is not None:
+            continue
+        if issue_id == "websocket_connection" or issue_id.startswith(
+            ("dock_password_", "dock_unreachable_")
+        ):
+            issue_registry.async_delete_issue(hass, DOMAIN, issue_id)
+
+
 @callback
 def async_create_issue_dock_password(
     hass: HomeAssistant, dock: Dock, entry: Any, subentry: Any
@@ -25,7 +54,8 @@ def async_create_issue_dock_password(
     issue_registry.async_create_issue(
         hass,
         DOMAIN,
-        f"dock_password_{dock.device.id}",
+        dock_password_issue_id(entry.entry_id, dock.device.id),
+        config_entry_id=entry.entry_id,
         breaks_in_ha_version=None,
         data={
             "id": dock.device.id,
@@ -51,7 +81,8 @@ def async_create_issue_dock_unreachable(
     issue_registry.async_create_issue(
         hass,
         DOMAIN,
-        f"dock_unreachable_{dock.device.id}",
+        dock_unreachable_issue_id(entry.entry_id, dock.device.id),
+        config_entry_id=entry.entry_id,
         breaks_in_ha_version=None,
         data={
             "id": dock.device.id,
@@ -76,7 +107,8 @@ def async_create_issue_websocket_connection(
     issue_registry.async_create_issue(
         hass,
         DOMAIN,
-        "websocket_connection",
+        websocket_connection_issue_id(entry.entry_id),
+        config_entry_id=entry.entry_id,
         breaks_in_ha_version=None,
         data={"config_entry": entry, "name": coordinator.api.device.name},
         is_fixable=True,
@@ -95,6 +127,8 @@ def async_delete_issue(hass: HomeAssistant, issue_id: str) -> None:
 
 
 @callback
-def async_delete_issue_dock_unreachable(hass: HomeAssistant, dock_id: str) -> None:
+def async_delete_issue_dock_unreachable(
+    hass: HomeAssistant, entry_id: str, dock_id: str
+) -> None:
     """Delete the unreachable-dock issue once the dock is available."""
-    async_delete_issue(hass, f"dock_unreachable_{dock_id}")
+    async_delete_issue(hass, dock_unreachable_issue_id(entry_id, dock_id))
