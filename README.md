@@ -440,6 +440,12 @@ Access via Integration → Configure:
   - Per activity group
   - Per activity
 
+Turning on a per-activity media player starts its activity. For a global or group
+media player, Turn On uses the configured remote start activity when it belongs
+to that player's scope, then the last active media activity, then the only media
+activity in scope. If several activities remain possible, select one with the
+remote or activity switch first.
+
 - Remote start
   - Define which activity starts when toggling the remote entity (Good fit with HomeKit Bridge)
 
