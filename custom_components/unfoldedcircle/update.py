@@ -77,9 +77,13 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
         self._attr_release_notes = self.coordinator.api.system.update_info.release_notes
         self._attr_entity_category = EntityCategory.CONFIG
         self._download_progress = 0
+        self._download_percentage = 0
+        self._installation_started = False
+        self._target_version = self.coordinator.api.system.update_info.latest_version
         self._is_downloading = False
         self._updated_requested = False
         self._download_failed = asyncio.Event()
+        self._update_operation = "POST /api/system/update/latest"
 
         self._attr_supported_features = UpdateEntityFeature(
             UpdateEntityFeature.INSTALL
@@ -109,6 +113,9 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
         ):
             return
 
+        self._download_percentage = 0
+        self._installation_started = False
+        self._target_version = self.coordinator.api.system.update_info.latest_version
         self._download_failed.clear()
         self._updated_requested = True
         self._attr_in_progress = True
@@ -137,7 +144,7 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
             else:
                 message = (
                     "Firmware update failed: the remote returned "
-                    f"HTTP status {ex.status_code}."
+                    f"HTTP status {ex.status_code} during {self._update_operation}."
                 )
             _LOGGER.error("Unfolded Circle Update Failed: %s", message)
             raise HomeAssistantError(message) from ex
@@ -155,6 +162,7 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
 
     async def _async_start_update(self) -> None:
         """Wait for download completion before retrying the install request."""
+        self._update_operation = "POST /api/system/update/latest"
         try:
             state = await self.coordinator.api.system.update_firmware()
         except HTTPError as ex:
@@ -175,11 +183,28 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
         previous_percentage = -1
         stalled_polls = 0
         install_attempts = 0
+        poll_status = True
         while True:
             await self._async_wait_for_download_poll()
             self._raise_if_download_failed()
-            status = await self.coordinator.api.system.get_update_status()
+            if self._installation_started:
+                return
+            status = {}
+            if poll_status:
+                self._update_operation = "GET /api/system/update/latest"
+                try:
+                    status = await self.coordinator.api.system.get_update_status()
+                except HTTPError as ex:
+                    if ex.status_code != 404:
+                        raise
+                    poll_status = False
+                    _LOGGER.warning(
+                        "GET /api/system/update/latest returned 404; using "
+                        "WebSocket firmware progress for this update attempt"
+                    )
             self._raise_if_download_failed()
+            if self._installation_started:
+                return
             progress = status.get("progress", status)
             state = progress.get("state", status.get("state"))
             if state in ("START", "RUN", "PROGRESS", "INSTALLING", "UPDATING"):
@@ -203,6 +228,7 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
             # Validation can lag behind the final download event. Retry a few
             # times, tolerating conflicts while the remote finishes validation.
             install_attempts += 1
+            self._update_operation = "POST /api/system/update/latest (install retry)"
             try:
                 state = await self.coordinator.api.system.update_firmware()
             except HTTPError as ex:
@@ -243,11 +269,13 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
         """Publish download progress using the raw response and WebSocket state."""
         progress = status.get("progress", status)
         download_percentage = max(
+            self._download_percentage,
             progress.get("download_percent", 0) or 0,
             self.coordinator.api.system.update_info.download_percent,
         )
         if progress.get("state") == "DOWNLOADED":
             download_percentage = 100
+        self._download_percentage = download_percentage
         self._download_progress = max(
             self._download_progress, min(100, download_percentage) // 10
         )
@@ -280,13 +308,20 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
             self._attr_in_progress = False
             self._download_progress = 0
         if self._updated_requested:
+            # Preserve observations if a later metadata refresh clears the cache.
+            self._installation_started |= (
+                update_info.in_progress or update_info.update_percent > 0
+            )
+            self._download_percentage = max(
+                self._download_percentage, update_info.download_percent
+            )
             self._download_progress = max(
                 self._download_progress, min(100, update_info.download_percent) // 10
             )
             if update_info.update_percent == 100 or (
                 not self._is_downloading
                 and not update_info.in_progress
-                and self.coordinator.api.device.sw_version == update_info.latest_version
+                and self.coordinator.api.device.sw_version == self._target_version
             ):
                 self._updated_requested = False
                 self._attr_in_progress = False

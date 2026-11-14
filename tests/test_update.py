@@ -78,7 +78,7 @@ async def test_failure_clears_progress(entity, failure):
     elif failure == "failure":
         system.get_update_status.return_value = {"state": "FAILURE"}
     elif failure == "http":
-        system.get_update_status.side_effect = HTTPError(404, "Not found")
+        system.get_update_status.side_effect = HTTPError(500, "Server error")
     elif failure == "timeout":
         system.get_update_status.side_effect = TimeoutError
     with (
@@ -210,3 +210,122 @@ async def test_poll_observes_dependency_download_failure(entity):
         await entity.async_install(None, False)
     assert entity._attr_in_progress is False
     system.update_firmware.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("phase", ["initial", "poll", "retry"])
+async def test_http_error_identifies_request(entity, phase):
+    system = entity.coordinator.api.system
+    code = 500 if phase == "poll" else 404
+    error = HTTPError(code, "Request failed")
+    system.update_firmware.side_effect = (
+        error if phase == "initial" else ["DOWNLOAD", error]
+    )
+    system.get_update_status.return_value = {
+        "state": "DOWNLOAD",
+        "download_percent": 100,
+    }
+    if phase == "poll":
+        system.get_update_status.side_effect = error
+    operation = "GET" if phase == "poll" else "POST"
+    suffix = r" \(install retry\)" if phase == "retry" else ""
+    with (
+        patch.object(entity, "_async_wait_for_download_poll", new_callable=AsyncMock),
+        pytest.raises(
+            HomeAssistantError,
+            match=rf"{code} during {operation} /api/system/update/latest{suffix}\.",
+        ),
+    ):
+        await entity.async_install(None, False)
+    assert entity._attr_in_progress is False
+
+
+@pytest.mark.asyncio
+async def test_get_404_falls_back_to_websocket(entity, caplog):
+    system = entity.coordinator.api.system
+    system.update_firmware.side_effect = ["DOWNLOAD", "START"]
+    system.get_update_status.side_effect = HTTPError(404, "Not found")
+    percentages = iter([10, 50, 100])
+
+    async def receive_progress():
+        system.update_info.download_percent = next(percentages)
+        entity._handle_coordinator_update()
+        # A subsequent refresh must not erase observed download completion.
+        system.update_info.download_percent = 0
+        system.update_info.in_progress = False
+
+    with patch.object(entity, "_async_wait_for_download_poll", receive_progress):
+        await entity.async_install(None, False)
+    system.get_update_status.assert_awaited_once()
+    assert system.update_firmware.await_count == 2
+    assert entity.update_percentage == 10
+    assert entity._attr_in_progress is True
+    assert "using WebSocket firmware progress" in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["stall", "failure", "retries"])
+async def test_get_404_fallback_remains_bounded(entity, failure):
+    system = entity.coordinator.api.system
+    system.update_firmware.return_value = "DOWNLOAD"
+    system.get_update_status.side_effect = HTTPError(404, "Not found")
+    polls = 0
+
+    async def receive_progress():
+        nonlocal polls
+        polls += 1
+        if failure == "failure" and polls == 2:
+            system.update_info.download_state = "FAILURE"
+            entity._handle_coordinator_update()
+        elif failure == "retries":
+            system.update_info.download_percent = 100
+            entity._handle_coordinator_update()
+
+    message = {
+        "stall": "stopped making progress",
+        "failure": "download failure",
+        "retries": "installation did not start",
+    }[failure]
+    with (
+        patch.object(entity, "_async_wait_for_download_poll", receive_progress),
+        patch(
+            "custom_components.unfoldedcircle.update._DOWNLOAD_STALL_TIMEOUT",
+            12 if failure == "stall" else 300,
+        ),
+        pytest.raises(HomeAssistantError, match=message),
+    ):
+        await entity.async_install(None, False)
+    system.get_update_status.assert_awaited_once()
+    assert entity._attr_in_progress is False
+    assert entity._updated_requested is False
+    assert system.update_firmware.await_count == (6 if failure == "retries" else 1)
+
+
+@pytest.mark.asyncio
+async def test_websocket_install_start_survives_cache_refresh(entity):
+    system = entity.coordinator.api.system
+    system.update_firmware.return_value = "DOWNLOAD"
+    system.get_update_status.side_effect = HTTPError(404, "Not found")
+    polls = 0
+
+    async def receive_progress():
+        nonlocal polls
+        polls += 1
+        if polls == 2:
+            system.update_info.in_progress = True
+            entity._handle_coordinator_update()
+            system.update_info.in_progress = False
+            entity._handle_coordinator_update()
+
+    with patch.object(entity, "_async_wait_for_download_poll", receive_progress):
+        await entity.async_install(None, False)
+    system.get_update_status.assert_awaited_once()
+    system.update_firmware.assert_awaited_once()
+    assert entity._attr_in_progress is True
+
+
+def test_metadata_refresh_cannot_fake_install_completion(entity):
+    entity._updated_requested = True
+    entity.coordinator.api.system.update_info.latest_version = "1"
+    entity._handle_coordinator_update()
+    assert entity._attr_in_progress is True
