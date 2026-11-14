@@ -2,7 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
-## Unreleased
+## v2.3.0
+
+### Changed
+
+- Requires Home Assistant 2026.11 or later, with improved support for renaming entities.
+- Turning on an activity media player now starts its activity. Global and group players use the configured start activity, the last active media activity, or the only available media activity in their scope.
+
+### Fixed
+
+- More reliable firmware downloads and installation, with clearer progress and automatic retries when starting the install.
+- Failed or stalled firmware updates now stop the Home Assistant progress indicator instead of leaving it spinning.
+- Connection and Dock repair notifications now stay associated with the correct Remote and clear when resolved.
+
+## v2.2.0
 
 ### Added
 
