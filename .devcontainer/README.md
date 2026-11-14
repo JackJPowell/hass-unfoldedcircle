@@ -26,8 +26,16 @@ In the container you will have a dedicated Home Assistant core instance running 
 When you open this repository with Visual Studio code you are asked to "Reopen in Container", this will start the build of the container.
 
 The container image includes Node.js and native build tools. Python dependencies
-and the local editable Unfurled package are installed when the container is created;
-after changing requirements, rebuild the container to refresh them.
+and Unfurled are installed from `requirements_all.txt` and `requirements_dev.txt`
+when the container is created. After changing requirements, rebuild the container
+and wait for the post-create setup to finish before starting Home Assistant.
+
+Python packages are installed in the container's `/opt/venv` virtual environment.
+The terminal and the `Home Assistant` debugger both use this interpreter; no manual
+interpreter selection is needed after rebuilding. The environment is recreated
+with the container, so it cannot retain packages from a previous Python version.
+Setup checks `python -m homeassistant --version` and fails if Home Assistant cannot
+start. To launch without the debugger, run `python -m homeassistant -c config`.
 
 _If you don't see this notification, open the command palette and select `Dev Containers: Reopen Folder in Container`._
 
