@@ -13,7 +13,11 @@ from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import (
+    device_registry as dr,
+    entity_registry as er,
+    issue_registry as ir,
+)
 
 from .const import CONF_DIRECT_DOCK_COMMUNICATION, DOMAIN, UC_HA_SYSTEM, UC_HA_TOKEN_ID
 from .coordinator import (
@@ -26,7 +30,10 @@ from .helpers import get_registered_websocket_url
 from .issues import (
     async_create_issue_dock_password,
     async_create_issue_websocket_connection,
-    async_delete_issue,
+    async_delete_legacy_issues,
+    dock_password_issue_id,
+    dock_unreachable_issue_id,
+    websocket_connection_issue_id,
 )
 from .services import async_setup_services
 
@@ -49,7 +56,7 @@ _LOGGER: logging.Logger = logging.getLogger(__package__)
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: UnfoldedCircleConfigEntry
-) -> bool:
+) -> None:
     """Set up Unfolded Circle Remote from a config entry."""
 
     try:
@@ -77,6 +84,7 @@ async def async_setup_entry(
 
     coordinator = UnfoldedCircleRemoteCoordinator(hass, remote_api, config_entry=entry)
     await coordinator.api.init()
+    async_delete_legacy_issues(hass)
 
     # Ensure the parent remote device exists before dock entities are added. Dock
     # entities use its registry ID as their ``via_device_id``.
@@ -186,37 +194,79 @@ async def async_setup_entry(
                 entity_registry.async_remove(entity.entity_id)
         hass.config_entries.async_update_entry(entry, version=6)
 
-    docks = {}
-    for subentry_id, subentry in entry.subentries.items():
-        if subentry.data["password"] != "":
-            dock = remote_api.find_dock(subentry.data["id"])
-            if dock is None:
-                _LOGGER.warning(
-                    "Dock with ID %s not found on remote, skipping",
-                    subentry.data["id"],
+    with (
+        ir.async_refresh_issues(
+            hass,
+            DOMAIN,
+            issue_id_pattern=f"dock_password_{entry.entry_id}_",
+            config_entry_id=entry.entry_id,
+        ),
+        ir.async_refresh_issues(
+            hass,
+            DOMAIN,
+            issue_id_pattern=f"dock_unreachable_{entry.entry_id}_",
+            config_entry_id=entry.entry_id,
+        ),
+    ):
+        docks = {}
+        for subentry_id, subentry in entry.subentries.items():
+            if subentry.data["password"] != "":
+                dock = remote_api.find_dock(subentry.data["id"])
+                if dock is None:
+                    ir.async_keep_issue(
+                        hass,
+                        DOMAIN,
+                        dock_unreachable_issue_id(entry.entry_id, subentry.data["id"]),
+                    )
+                    _LOGGER.warning(
+                        "Dock with ID %s not found on remote, skipping",
+                        subentry.data["id"],
+                    )
+                    continue
+                # A configured dock can still be unreachable if it was not polled
+                # during setup. A successful poll deletes its issue explicitly.
+                ir.async_keep_issue(
+                    hass,
+                    DOMAIN,
+                    dock_unreachable_issue_id(entry.entry_id, dock.device.id),
                 )
-                continue
-            password = subentry.data.get("password", "")
-            direct_communication = entry.options.get(
-                CONF_DIRECT_DOCK_COMMUNICATION, False
-            )
-            dock.configure_communication(
-                "direct" if direct_communication else "proxy",
-                password,
-                proxy_available=lambda: remote_api.is_available,
-            )
-            dock_coordinator = UnfoldedCircleDockCoordinator(
-                hass, dock, entry, subentry
-            )
-            # Keep dock entities registered even if the first request times
-            # out. They will be unavailable until a later poll succeeds.
-            docks[subentry_id] = dock_coordinator
-            if not direct_communication:
-                await dock_coordinator.async_refresh()
-        else:
-            dock = remote_api.find_dock(subentry.data["id"])
-            if dock:
-                async_create_issue_dock_password(hass, dock, entry, subentry)
+                password = subentry.data.get("password", "")
+                direct_communication = entry.options.get(
+                    CONF_DIRECT_DOCK_COMMUNICATION, False
+                )
+                dock.configure_communication(
+                    "direct" if direct_communication else "proxy",
+                    password,
+                    proxy_available=lambda: remote_api.is_available,
+                )
+                dock_coordinator = UnfoldedCircleDockCoordinator(
+                    hass, dock, entry, subentry
+                )
+                # Keep dock entities registered even if the first request times
+                # out. They will be unavailable until a later poll succeeds.
+                docks[subentry_id] = dock_coordinator
+                if not direct_communication:
+                    await dock_coordinator.async_refresh()
+            else:
+                dock = remote_api.find_dock(subentry.data["id"])
+                if dock:
+                    ir.async_keep_issue(
+                        hass,
+                        DOMAIN,
+                        dock_unreachable_issue_id(entry.entry_id, dock.device.id),
+                    )
+                    async_create_issue_dock_password(hass, dock, entry, subentry)
+                else:
+                    ir.async_keep_issue(
+                        hass,
+                        DOMAIN,
+                        dock_password_issue_id(entry.entry_id, subentry.data["id"]),
+                    )
+                    ir.async_keep_issue(
+                        hass,
+                        DOMAIN,
+                        dock_unreachable_issue_id(entry.entry_id, subentry.data["id"]),
+                    )
 
     entry.runtime_data = UnfoldedCircleRuntimeData(
         coordinator=coordinator, remote=remote_api, docks=docks
@@ -224,9 +274,17 @@ async def async_setup_entry(
 
     await coordinator.async_config_entry_first_refresh()
 
-    if coordinator.api.system.flags.external_entity_configuration_available:
-        if not await get_registered_websocket_url(coordinator.api):
-            # We haven't registered a new external system yet, raise issue
+    with ir.async_refresh_issues(
+        hass,
+        DOMAIN,
+        issue_ids=[websocket_connection_issue_id(entry.entry_id)],
+        config_entry_id=entry.entry_id,
+    ):
+        if (
+            coordinator.api.system.flags.external_entity_configuration_available
+            and not await get_registered_websocket_url(coordinator.api)
+        ):
+            # We haven't registered a new external system yet, raise issue.
             async_create_issue_websocket_connection(hass, entry, coordinator)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -236,28 +294,17 @@ async def async_setup_entry(
     for dock_coordinator in docks.values():
         await dock_coordinator.init_websocket()
     async_setup_services(hass, entry)
-    return True
 
 
-async def async_migrate_entry(_hass: HomeAssistant, _config_entry: ConfigEntry) -> bool:
+async def async_migrate_entry(_hass: HomeAssistant, _config_entry: ConfigEntry) -> None:
     """Migrate old config entries."""
-    return True
 
 
 async def async_unload_entry(
     hass: HomeAssistant, entry: UnfoldedCircleConfigEntry
-) -> bool:
+) -> None:
     """Unload a config entry."""
-    coordinator = entry.runtime_data.coordinator
-    try:
-        for dock in coordinator.api.docks:
-            async_delete_issue(hass, f"dock_password_{dock.device.id}")
-        async_delete_issue(hass, "websocket_connection")
-    except Exception as ex:
-        _LOGGER.error("Unfolded Circle Remote async_unload_entry error: %s", ex)
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-
-    return unload_ok
+    await hass.config_entries.async_unload_platforms_or_raise(entry, PLATFORMS)
 
 
 async def async_remove_entry(
@@ -309,9 +356,7 @@ def create_subentry(
     )
 
 
-async def async_remove_device(
-    hass: HomeAssistant, entry: ConfigEntry, dock
-) -> None:
+async def async_remove_device(hass: HomeAssistant, entry: ConfigEntry, dock) -> None:
     """Remove the dock device from the device registry."""
     dev_reg = dr.async_get(hass)
     device = dev_reg.async_get_device_by_identifier(

@@ -9,7 +9,10 @@ from typing import Any
 
 from unfurled.entities.activity import Activity, ActivityGroup
 from unfurled.entities.media_player import MediaPlayerEntity as UCMediaPlayerEntity
-from unfurled.helpers.exceptions import ConnectionError as UnfurledConnectionError
+from unfurled.helpers.exceptions import (
+    ConnectionError as UnfurledConnectionError,
+    HTTPError,
+)
 from unfurled.helpers.models import UpdateType
 
 from homeassistant.components.media_player import (
@@ -20,6 +23,7 @@ from homeassistant.components.media_player import (
 )
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import UnfoldedCircleConfigEntry
@@ -27,6 +31,7 @@ from .const import (
     CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
     CONF_ACTIVITY_MEDIA_ENTITIES,
     CONF_GLOBAL_MEDIA_ENTITY,
+    REMOTE_ON_BEHAVIOR,
 )
 from .entity import UnfoldedCircleEntity
 
@@ -482,6 +487,39 @@ class MediaPlayerUCRemote(UnfoldedCircleEntity, MediaPlayerEntity):
 
     async def async_turn_on(self):
         """Turn the media player on."""
+        media_activities = [
+            activity for activity in self.activities if activity.has_media_players
+        ]
+        if not any(activity.is_on for activity in media_activities):
+            activity = self.activity
+            if activity is None:
+                preferred = self.coordinator.config_entry.options.get(
+                    REMOTE_ON_BEHAVIOR
+                )
+                activity = next(
+                    (
+                        candidate
+                        for candidate in media_activities
+                        if candidate.name == preferred or candidate.id == preferred
+                    ),
+                    None,
+                )
+            if activity is None and self._current_activity in media_activities:
+                activity = self._current_activity
+            if activity is None and len(media_activities) == 1:
+                activity = media_activities[0]
+            if activity is None:
+                raise HomeAssistantError(
+                    "Cannot turn on media player: no activity to start. "
+                    "Select an activity with remote.turn_on or its switch first."
+                )
+            try:
+                await activity.turn_on()
+            except HTTPError as err:
+                raise HomeAssistantError(
+                    f"Failed to start activity {activity.name}: {err}"
+                ) from err
+            return
         if self._active_media_entity:
             await self._active_media_entity.turn_on()
 

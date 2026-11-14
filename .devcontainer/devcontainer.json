@@ -15,6 +15,8 @@
       "extensions": [
         "charliermarsh.ruff",
         "ms-python.pylint",
+        "ms-python.python",
+        "ms-python.debugpy",
         "ms-python.vscode-pylance",
         "visualstudioexptteam.vscodeintellicode",
         "redhat.vscode-yaml",
