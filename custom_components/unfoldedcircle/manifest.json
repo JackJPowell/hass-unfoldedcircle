@@ -1,6 +1,7 @@
 {
   "domain": "unfoldedcircle",
   "name": "Unfolded Circle",
+  "categories": ["buttons_remotes"],
   "codeowners": ["@jackjpowell"],
   "config_flow": true,
   "dependencies": ["infrared", "zeroconf"],
