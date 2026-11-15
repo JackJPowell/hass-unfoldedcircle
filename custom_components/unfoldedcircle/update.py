@@ -4,6 +4,7 @@ import asyncio
 from datetime import timedelta
 import logging
 from typing import Any
+from urllib.parse import quote
 
 from unfurled.helpers.exceptions import HTTPError
 
@@ -83,7 +84,7 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
         self._is_downloading = False
         self._updated_requested = False
         self._download_failed = asyncio.Event()
-        self._update_operation = "POST /api/system/update/latest"
+        self._update_operation = "PUT /api/system/update"
 
         self._attr_supported_features = UpdateEntityFeature(
             UpdateEntityFeature.INSTALL
@@ -125,7 +126,28 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
         started = False
         try:
             async with asyncio.timeout(_DOWNLOAD_TIMEOUT):
-                await self._async_start_update()
+                self._update_operation = "PUT /api/system/update"
+                await self.coordinator.api.system.force_update_check()
+                update_info = self.coordinator.api.system.update_info
+                self._target_version = version or update_info.latest_version
+                update_id = next(
+                    (
+                        update["id"]
+                        for update in update_info.available
+                        if update.get("version") == self._target_version
+                        and isinstance(update.get("id"), str)
+                        and update["id"]
+                        and update["id"] != "latest"
+                    ),
+                    None,
+                )
+                if update_id is None:
+                    raise HomeAssistantError(
+                        "No concrete firmware update ID is available for "
+                        f"version {self._target_version}. Check for updates and try again."
+                    )
+                self._raise_if_download_failed()
+                await self._async_start_update(update_id)
             started = True
         except HTTPError as ex:
             battery_level = self.coordinator.api.state.battery_level
@@ -160,11 +182,14 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
                 self._download_progress = 0
             self.async_write_ha_state()
 
-    async def _async_start_update(self) -> None:
+    async def _async_start_update(self, update_id: str) -> None:
         """Wait for download completion before retrying the install request."""
-        self._update_operation = "POST /api/system/update/latest"
+        update_path = f"/api/system/update/{quote(update_id, safe='')}"
+        self._update_operation = f"POST {update_path}"
         try:
-            state = await self.coordinator.api.system.update_firmware()
+            state = await self.coordinator.api.system.update_firmware(
+                update_id=update_id
+            )
         except HTTPError as ex:
             if ex.status_code not in (409, 422):
                 raise
@@ -191,16 +216,19 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
                 return
             status = {}
             if poll_status:
-                self._update_operation = "GET /api/system/update/latest"
+                self._update_operation = f"GET {update_path}"
                 try:
-                    status = await self.coordinator.api.system.get_update_status()
+                    status = await self.coordinator.api.system.get_update_status(
+                        update_id=update_id
+                    )
                 except HTTPError as ex:
                     if ex.status_code != 404:
                         raise
                     poll_status = False
                     _LOGGER.warning(
-                        "GET /api/system/update/latest returned 404; using "
-                        "WebSocket firmware progress for this update attempt"
+                        "GET %s returned 404; using "
+                        "WebSocket firmware progress for this update attempt",
+                        update_path,
                     )
             self._raise_if_download_failed()
             if self._installation_started:
@@ -228,9 +256,11 @@ class Update(UnfoldedCircleEntity, UpdateEntity):
             # Validation can lag behind the final download event. Retry a few
             # times, tolerating conflicts while the remote finishes validation.
             install_attempts += 1
-            self._update_operation = "POST /api/system/update/latest (install retry)"
+            self._update_operation = f"POST {update_path} (install retry)"
             try:
-                state = await self.coordinator.api.system.update_firmware()
+                state = await self.coordinator.api.system.update_firmware(
+                    update_id=update_id
+                )
             except HTTPError as ex:
                 if ex.status_code not in (409, 422):
                     raise

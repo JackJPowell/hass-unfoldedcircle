@@ -1,7 +1,7 @@
 """Firmware download and installation lifecycle coverage."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, call, patch
 
 import pytest
 from unfurled.helpers.exceptions import HTTPError
@@ -19,11 +19,13 @@ def entity():
         download_state=None,
         update_percent=0,
         latest_version="2",
+        available=[{"id": "firmware-2", "version": "2"}],
         release_notes="",
     )
     coordinator.api.device.sw_version = "1"
     coordinator.api.system.update_firmware = AsyncMock(return_value="START")
     coordinator.api.system.get_update_status = AsyncMock()
+    coordinator.api.system.force_update_check = AsyncMock(return_value={})
     entity = Update(coordinator)
     entity.async_write_ha_state = Mock()
     return entity
@@ -32,7 +34,10 @@ def entity():
 @pytest.mark.asyncio
 async def test_already_downloaded(entity):
     await entity.async_install(None, False)
-    entity.coordinator.api.system.update_firmware.assert_awaited_once()
+    entity.coordinator.api.system.force_update_check.assert_awaited_once()
+    entity.coordinator.api.system.update_firmware.assert_awaited_once_with(
+        update_id="firmware-2"
+    )
     entity.coordinator.api.system.get_update_status.assert_not_awaited()
     assert entity._attr_in_progress is True
 
@@ -59,7 +64,10 @@ async def test_download_then_retry_install(entity):
         new_callable=AsyncMock,
     ):
         await entity.async_install(None, False)
-    assert system.update_firmware.await_count == 4
+    assert system.update_firmware.await_args_list == [call(update_id="firmware-2")] * 4
+    assert (
+        system.get_update_status.await_args_list == [call(update_id="firmware-2")] * 6
+    )
     assert progress == [0, 1, 5, 9, 10, 10, 10, 10]
     assert entity._attr_in_progress is True
 
@@ -198,7 +206,8 @@ async def test_poll_observes_dependency_download_failure(entity):
     system = entity.coordinator.api.system
     system.update_firmware.return_value = "DOWNLOAD"
 
-    async def poll():
+    async def poll(*, update_id):
+        assert update_id == "firmware-2"
         system.update_info.download_state = "FAILURE"
         return {"state": "DOWNLOAD", "download_percent": 99}
 
@@ -233,7 +242,7 @@ async def test_http_error_identifies_request(entity, phase):
         patch.object(entity, "_async_wait_for_download_poll", new_callable=AsyncMock),
         pytest.raises(
             HomeAssistantError,
-            match=rf"{code} during {operation} /api/system/update/latest{suffix}\.",
+            match=rf"{code} during {operation} /api/system/update/firmware-2{suffix}\.",
         ),
     ):
         await entity.async_install(None, False)
@@ -328,4 +337,87 @@ def test_metadata_refresh_cannot_fake_install_completion(entity):
     entity._updated_requested = True
     entity.coordinator.api.system.update_info.latest_version = "1"
     entity._handle_coordinator_update()
+    assert entity._attr_in_progress is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "available",
+    [
+        [],
+        [{"version": "2"}],
+        [{"id": "latest", "version": "2"}],
+        [{"id": "other", "version": "3"}],
+    ],
+)
+async def test_missing_concrete_id_never_posts(entity, available):
+    system = entity.coordinator.api.system
+    system.update_info.available = available
+    with pytest.raises(HomeAssistantError, match="No concrete firmware update ID"):
+        await entity.async_install(None, False)
+    system.update_firmware.assert_not_awaited()
+    system.get_update_status.assert_not_awaited()
+    assert entity._attr_in_progress is False
+    assert entity._updated_requested is False
+
+
+@pytest.mark.asyncio
+async def test_update_check_failure_identifies_request(entity):
+    system = entity.coordinator.api.system
+    system.force_update_check.side_effect = HTTPError(500, "Failed")
+    with pytest.raises(HomeAssistantError, match="500 during PUT /api/system/update"):
+        await entity.async_install(None, False)
+    system.update_firmware.assert_not_awaited()
+    assert entity._attr_in_progress is False
+
+
+@pytest.mark.asyncio
+async def test_concrete_id_with_real_client(entity):
+    from unfurled.api import CoreAPI
+    from unfurled.submodules.systems import System
+
+    remote = entity.coordinator.api
+    remote.settings.get_text_for_locale = lambda text, **kwargs: text
+    remote.api = CoreAPI("http://remote/api/")
+    remote.system = System(remote)
+    requests = [
+        (
+            "PUT",
+            "system/update",
+            {
+                "available": [
+                    {"id": "older", "version": "2"},
+                    {"id": "firmware-3", "version": "3"},
+                ]
+            },
+        ),
+        ("POST", "system/update/firmware-3", {"state": "DOWNLOAD"}),
+        (
+            "GET",
+            "system/update/firmware-3",
+            {"state": "DOWNLOAD", "download_percent": 50},
+        ),
+        ("GET", "system/update/firmware-3", {"state": "DOWNLOADED"}),
+        ("POST", "system/update/firmware-3", {"state": "START"}),
+    ]
+
+    async def request(method, path, **kwargs):
+        expected_method, expected_path, response = requests.pop(0)
+        assert (method, path) == (expected_method, expected_path)
+        return response
+
+    async def receive_progress():
+        # Subsequent metadata changes must not change the selected ID.
+        remote.system.update_info.available = [{"id": "firmware-4", "version": "4"}]
+        remote.system.update_info.latest_version = "4"
+
+    # Exercise the real System and CoreAPI endpoint methods, replacing only
+    # their HTTP transport. The initial firmware has not been downloaded.
+    with (
+        patch.object(remote.api, "_request", side_effect=request),
+        patch.object(entity, "_async_wait_for_download_poll", receive_progress),
+    ):
+        await entity.async_install(None, False)
+    assert requests == []
+    assert entity._target_version == "3"
     assert entity._attr_in_progress is True
