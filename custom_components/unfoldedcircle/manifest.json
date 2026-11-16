@@ -14,6 +14,6 @@
     "unfurled==0.6.5",
     "wakeonlan==3.1.0"
   ],
-  "version": "v2.3.2",
+  "version": "v2.3.3",
   "zeroconf": ["_uc-remote._tcp.local."]
 }

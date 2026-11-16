@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## v2.3.3
+
+### Added
+
+- Number, input number, and counter entities can now be selected for sharing with the Remote. Requires the Remote Home Assistant driver v0.19.0 or later.
+
 ## v2.3.2
 
 ### Fixed
