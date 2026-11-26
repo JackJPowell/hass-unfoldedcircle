@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## v2.3.4
+
+### Fixed
+
+- Activity group selects now reflect the running activity when it is started outside the dropdown.
+
 ## v2.3.3
 
 ### Added

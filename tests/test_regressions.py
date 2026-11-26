@@ -1,9 +1,10 @@
-"""Regression coverage for registry lookups and repair reloads."""
+"""Regression coverage for integration behavior."""
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, create_autospec, patch
 
 import pytest
+from unfurled.helpers.models import UpdateType
 
 from custom_components.unfoldedcircle import _async_update_listener, async_remove_device
 from custom_components.unfoldedcircle.const import DOMAIN
@@ -23,6 +24,10 @@ from custom_components.unfoldedcircle.issues import (
 from custom_components.unfoldedcircle.repairs import (
     WebSocketRepairFlow,
     async_create_fix_flow,
+)
+from custom_components.unfoldedcircle.select import (
+    POWER_OFF_LABEL,
+    SelectUCRemoteActivity,
 )
 from homeassistant.helpers.device_registry import DeviceRegistry
 
@@ -313,3 +318,26 @@ async def test_validate_tokens_without_eligible_user_returns_false():
 
     assert await validate_tokens(hass, remote) is False
     remote.auth.system_has_token.assert_not_called()
+
+
+def test_activity_group_select_publishes_on_media_player_update():
+    """Publish the current group activity even on a media player notification."""
+    coordinator = Mock()
+    coordinator.api.last_update_type = UpdateType.MEDIA_PLAYER
+    player = SimpleNamespace(name="TV", state="PLAYING")
+    activity = SimpleNamespace(
+        name="Watch TV", is_on=False, media_player_entities=[player]
+    )
+    group = SimpleNamespace(id="group", name="Living Room", activities=[activity])
+    select = SelectUCRemoteActivity(coordinator, group)
+    published = []
+    select.async_write_ha_state = lambda: published.append(
+        (select.current_option, select.extra_state_attributes)
+    )
+
+    activity.is_on = True
+    select._handle_coordinator_update()
+    activity.is_on = False
+    select._handle_coordinator_update()
+
+    assert published == [("Watch TV", {"TV": "PLAYING"}), (POWER_OFF_LABEL, {})]

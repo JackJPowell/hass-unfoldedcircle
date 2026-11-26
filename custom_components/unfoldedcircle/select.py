@@ -1,11 +1,9 @@
 """Select platform for Unfolded Circle"""
 
 from collections.abc import Mapping
-import logging
 from typing import Any
 
 from unfurled.helpers.exceptions import HTTPError
-from unfurled.helpers.models import UpdateType
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.core import HomeAssistant, callback
@@ -15,8 +13,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from . import UnfoldedCircleConfigEntry
 from .const import CONF_SUPPRESS_ACTIVITIY_GROUPS
 from .entity import UnfoldedCircleEntity
-
-_LOGGER = logging.getLogger(__name__)
 
 POWER_OFF_LABEL = "Power Off"
 
@@ -49,7 +45,6 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
         self.activity_group = activity_group
         self._attr_name = activity_group.name
         self._attr_unique_id = f"{coordinator.api.device.model_number}_{self.coordinator.api.device.serial_number}_{activity_group.id}"
-        self._state = activity_group.state
         self._attr_icon = "mdi:remote-tv"
         self._attr_native_value = "OFF"
         self._extra_state_attributes = {}
@@ -101,18 +96,7 @@ class SelectUCRemoteActivity(UnfoldedCircleEntity, SelectEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        # Update only if activity changed
-        try:
-            last_update_type = self.coordinator.api.last_update_type
-            if last_update_type != UpdateType.ACTIVITY:
-                return
-            self._extra_state_attributes = {}
-        except (KeyError, IndexError):
-            _LOGGER.debug(
-                "Unfolded Circle Remote select _handle_coordinator_update error"
-            )
-            return
-        self._state = self.activity_group.state
+        self._extra_state_attributes = {}
         for activity in self.activity_group.activities:
             if activity.is_on:
                 for entity in activity.media_player_entities:
