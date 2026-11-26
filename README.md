@@ -1,8 +1,10 @@
 [![Discord](https://badgen.net/discord/online-members/zGVYf58)](https://discord.gg/zGVYf58)
+<!-- ha-marketplace:exclude-start -->
 ![GitHub Release](https://img.shields.io/github/v/release/jackjpowell/hass-unfoldedcircle)
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/jackjpowell/hass-unfoldedcircle/total)
 ![Maintenance](https://img.shields.io/maintenance/yes/2026.svg)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy_Me_A_Coffee%20☕-FFDD00?logo=buy-me-a-coffee&logoColor=white&labelColor=555)](https://buymeacoffee.com/jackpowell)
+<!-- ha-marketplace:exclude-end -->
 
 # Unfolded Circle Integration
 
@@ -19,9 +21,11 @@ A rich integration providing activity control, remote settings and diagnostics, 
 ## Table of Contents
 - [Key Features](#key-features)
 - [Supported Devices & Concepts](#supported-devices--concepts)
+<!-- ha-marketplace:exclude-start -->
 - [Installation](#installation)
   - [HACS (Recommended)](#hacs-recommended)
   - [Manual Installation](#manual-installation)
+<!-- ha-marketplace:exclude-end -->
 - [Configuration](#configuration)
   - [Manual Setup](#manual-setup)
 - [Entities Overview](#entities-overview)
@@ -35,14 +39,18 @@ A rich integration providing activity control, remote settings and diagnostics, 
 - [Options](#options)
 - [Zeroconf](#zeroconf)
 - [Wake on LAN](#wake-on-lan)
+<!-- ha-marketplace:exclude-start -->
 - [Planned / Future Ideas](#planned--future-ideas)
+<!-- ha-marketplace:exclude-end -->
 - [Notes & Behavior](#notes--behavior)
 - [Services & Actions Summary](#services--actions-summary)
 - [Troubleshooting & Support](#troubleshooting--support)
 - [Localization](#localization)
 - [About This Project](#about-this-project)
 - [License](#license)
+<!-- ha-marketplace:exclude-start -->
 - [Support the Project](#support-the-project)
+<!-- ha-marketplace:exclude-end -->
 
 ---
 
@@ -78,6 +86,7 @@ A rich integration providing activity control, remote settings and diagnostics, 
 
 ---
 
+<!-- ha-marketplace:exclude-start -->
 ## Installation
 
 ### HACS (Recommended)
@@ -100,9 +109,10 @@ Manual installs won’t auto-notify updates—watch the repo if you go this rout
 
 ---
 
+<!-- ha-marketplace:exclude-end -->
 ## Configuration
 
-After restart (HACS or manual):
+Once Home Assistant has loaded the integration:
 1. A discovery notification should appear.
 2. Go to **Settings** → **Devices & Services** → **Configure** and click Configure on the newly discovered Unfolded Circle Device.
 3. Enter PIN (from remote web configurator).
@@ -469,11 +479,13 @@ Behavior:
 
 ---
 
+<!-- ha-marketplace:exclude-start -->
 ## Planned / Future Ideas
 - [X] Raw IR command sending via core `remote.send_command`
 
 ---
 
+<!-- ha-marketplace:exclude-end -->
 ## Notes & Behavior
 - Remote entity does not need to be “on” to send commands.
 - The Remote Two will go to sleep when unpowered. If you have wake on lan enabled on your remote, Home Assistant will attempt to wake your remote prior to issuing a command. Only commands initiated by you will attempt to wake the remote.
@@ -523,6 +535,7 @@ See [LICENSE](LICENSE) for details.
 
 ---
 
+<!-- ha-marketplace:exclude-start -->
 ## Support the Project
 - Star the repository
 - Open constructive issues / PRs
@@ -530,3 +543,4 @@ See [LICENSE](LICENSE) for details.
 - [Buy Me A Coffee](https://buymeacoffee.com/jackpowell)
 
 ---
+<!-- ha-marketplace:exclude-end -->
