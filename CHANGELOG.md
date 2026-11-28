@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## v2.3.5
+
+### Fixed
+
+- Media players continue updating when the Remote reports an empty or string media duration, such as Music Assistant's TV Audio source (#191).
+
 ## v2.3.4
 
 ### Fixed
